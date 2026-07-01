@@ -11,11 +11,10 @@ cat_05 = [m for m in majors if m.startswith("05")]
 left, mid, right = st.columns(3)
 
 
-def render_major_section(major: str, all_media: list[dict]) -> None:
+def render_major_section(major: str) -> None:
     with st.container(border=True):
         st.markdown(f"<div class='section-title'>{major}</div>", unsafe_allow_html=True)
-        media_list = [m for m in all_media
-                      if (m.get("categories") or {}).get("major_category") == major]
+        media_list = db.get_media_by_category(major)
         render_media_grid(media_list, key_prefix=major.replace(" ", "_"), n_cols=2)
 
 
