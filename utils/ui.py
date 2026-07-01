@@ -21,7 +21,7 @@ def inject_base_style() -> None:
         }
 
         .section-title {
-            color: #1E2761;
+            color: #0B0B0B;
             font-weight: 700;
             font-size: 22px;
             margin-top: 28px;
@@ -36,7 +36,7 @@ def inject_base_style() -> None:
         }
         .contact-table td.label {
             font-weight: 600;
-            color: #1E2761;
+            color: #0B0B0B;
             width: 130px;
             white-space: nowrap;
         }
@@ -162,8 +162,8 @@ def render_result_table(media_list: list[dict], key_prefix: str) -> None:
     for i, c in enumerate(header):
         if i < len(labels):
             c.markdown(
-                f"<div style='font-weight:600; color:#1E2761; padding-bottom:6px; "
-                f"border-bottom:2px solid #1E2761; margin-bottom:10px;'>{labels[i]}</div>",
+                f"<div style='font-weight:600; color:#0B0B0B; padding-bottom:6px; "
+                f"border-bottom:2px solid #0B0B0B; margin-bottom:10px;'>{labels[i]}</div>",
                 unsafe_allow_html=True,
             )
         else:
