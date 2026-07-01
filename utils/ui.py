@@ -402,6 +402,3 @@ def _mail_dialog(payload) -> None:
         unsafe_allow_html=True,
     )
     st.caption("💡 Outlook: Win+I → 앱 → Outlook → MAILTO: Outlook 지정 시 발송 가능")
-    if st.button("닫기", key="mail_close"):
-        _close_dialog()
-        st.rerun()
