@@ -64,7 +64,7 @@ else:
 
 render_pending_dialog()
 st.markdown(
-    "<div style='margin-top:40px; padding-top:14px; border-top:0.5px solid #E5EAF5; "
+    "<div style='margin-top:40px; padding-top:14px; border-top:0.5px solid #0B0B0B; "
     "font-size:11px; color:#9099B0; text-align:center;'>"
     "본 플랫폼은 D-PLAN360 내부 전용이며, 무단 배포 및 외부 공유를 금합니다. "
     "&nbsp;|&nbsp; 관리자: ***REDACTED-EMAIL***</div>",
