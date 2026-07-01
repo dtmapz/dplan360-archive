@@ -39,9 +39,8 @@ with right:
             with sub_cols[i % 2]:
                 with st.expander(sub, expanded=False):
                     media_list = [
-                        m for m in all_media
-                        if (m.get("categories") or {}).get("major_category") == major
-                        and (m.get("categories") or {}).get("sub_category") == sub
+                        m for m in db.get_media_by_category(major)
+                        if (m.get("categories") or {}).get("sub_category") == sub
                     ]
                     render_media_grid(media_list, key_prefix=f"05_{sub}", n_cols=1)
 
