@@ -108,6 +108,15 @@ def get_media_by_category(major: str) -> list[dict]:
     )
     return res.data
 
+def get_all_media() -> list[dict]:
+    sb = get_client()
+    res = (
+        sb.table("media")
+        .select("*, categories(major_category, sub_category), contacts(*)")
+        .order("name")
+        .execute()
+    )
+    return res.data
 
 def get_media_detail(media_id: str) -> dict:
     sb = get_client()
