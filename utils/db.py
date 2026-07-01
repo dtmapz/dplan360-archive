@@ -160,15 +160,3 @@ def upsert_contact(contact_id: str | None, media_id: str, manager_name: str, pos
         sb.table("contacts").update(payload).eq("id", contact_id).execute()
     else:
         sb.table("contacts").insert(payload).execute()
-
-
-def get_all_media() -> list[dict]:
-    """전체 매체를 한 번에 조회 (마일스톤 페이지 전용)"""
-    sb = get_client()
-    res = (
-        sb.table("media")
-        .select("*, categories(major_category, sub_category), contacts(*)")
-        .order("name")
-        .execute()
-    )
-    return res.data
