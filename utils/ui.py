@@ -106,10 +106,12 @@ def render_pending_dialog() -> None:
         return
     kind, payload, origin_page = dialog
 
-    # 팝업을 연 페이지와 현재 페이지가 다르면(=다른 메뉴로 이동) 폐기하고 렌더링하지 않음
     if origin_page != _current_page():
         st.session_state["_active_dialog"] = None
         return
+
+    # dialog 호출 전 session_state 클리어 (X 닫기 또는 재실행 시 중복 방지)
+    st.session_state["_active_dialog"] = None
 
     if kind == "detail":
         _detail_dialog(payload)
