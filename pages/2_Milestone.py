@@ -5,7 +5,6 @@ from utils.ui import render_media_grid, render_pending_dialog, set_current_page
 set_current_page("milestone")
 
 majors = db.get_major_categories()
-all_media = db.get_all_media()
 m01_04 = [m for m in majors if not m.startswith("05")]
 cat_05 = [m for m in majors if m.startswith("05")]
 
