@@ -151,12 +151,11 @@ def render_media_grid(media_list: list[dict], key_prefix: str, n_cols: int = 5) 
 # ---------------------------------------------------------------------------
 
 def render_result_table(media_list: list[dict], key_prefix: str) -> None:
-    """검색 결과 표: 매체명 | 담당자 | 직급 | 연락처 | 이메일 | 팀메일 | 업데이트 | 전화 | 메일"""
     if not media_list:
         st.caption("표시할 매체가 없습니다.")
         return
 
-    col_ratio = [1.8, 1.2, 0.9, 1.3, 1.9, 1.9, 1, 0.8, 0.8]
+    col_ratio = [1.8, 1.2, 0.9, 1.3, 1.9, 1.9, 1, 0.9]
 
     header = st.columns(col_ratio)
     labels = ["매체명", "담당자", "직급", "연락처", "이메일", "팀메일"]
@@ -180,35 +179,31 @@ def render_result_table(media_list: list[dict], key_prefix: str) -> None:
         cols[0].write(m["name"])
         cols[1].write(contact.get("manager_name") or "-")
         cols[2].write(contact.get("position") or "-")
-        cols[3].write(phone or "-")
+
+        # 연락처: 전화번호 클릭 시 tel: 링크
+        if phone:
+            cols[3].markdown(
+                f"<a href='tel:{phone.replace('-','')}' style='color:#0B0B0B;'>{phone}</a>",
+                unsafe_allow_html=True,
+            )
+        else:
+            cols[3].write("-")
+
         cols[4].write(email or "-")
         cols[5].write(team_email or "-")
 
         # 업데이트
-        if cols[6].button("업데이트", key=f"upd_{key_prefix}_{m['id']}"):
+        if cols[6].button("업데이트", key=f"upd_{key_prefix}_{m['id']}", use_container_width=True):
             request_update(m["id"])
-
-        btn_base = ("display:block; padding:5px 0; border-radius:6px; font-size:13px; "
-                    "text-decoration:none; text-align:center; border:0.5px solid; "
-                    "width:100%; box-sizing:border-box;")
-        active_style = btn_base + "background:#ffffff; color:#0B0B0B; border-color:#0B0B0B;"
-        disabled_style = btn_base + "background:#f0f0f0; color:#cccccc; border-color:#dddddd; cursor:not-allowed;"
-
-        # 전화
-        if phone:
-            tel = "tel:" + phone.replace("-", "")
-            cols[7].markdown(f"<a href='{tel}' style='{active_style}'>전화</a>", unsafe_allow_html=True)
-        else:
-            cols[7].markdown(f"<div style='{disabled_style}'>전화</div>", unsafe_allow_html=True)
 
         # 메일
         has_email = bool(email or team_email)
         if has_email:
-            if cols[8].button("메일", key=f"mail_{key_prefix}_{m['id']}"):
+            if cols[7].button("메일", key=f"mail_{key_prefix}_{m['id']}", use_container_width=True):
                 st.session_state["_active_dialog"] = ("mail", (email, team_email), _current_page())
                 st.rerun()
         else:
-            cols[8].markdown(f"<div style='{disabled_style}'>메일</div>", unsafe_allow_html=True)
+            cols[7].button("메일", key=f"mail_{key_prefix}_{m['id']}", disabled=True, use_container_width=True)
 
 # ---------------------------------------------------------------------------
 # HOME 기본 화면용 컨택포인트 표 (클릭 불가, 단순 조회용)
@@ -384,17 +379,12 @@ def _register_dialog() -> None:
 def _mail_dialog(payload) -> None:
     email, team_email = payload
 
-    # 수신인/참조 시나리오 분기
     if email and team_email:
         to_addr, cc_addr = email, team_email
-        st.write(f"**받는사람**: {to_addr}")
-        st.write(f"**참조**: {cc_addr}")
     elif team_email:
         to_addr, cc_addr = team_email, ""
-        st.write(f"**받는사람**: {to_addr}")
     else:
         to_addr, cc_addr = email, ""
-        st.write(f"**받는사람**: {to_addr}")
 
     mailto = f"mailto:{to_addr}" + (f"?cc={cc_addr}" if cc_addr else "")
     works_params = f"orderType=new&to={to_addr}" + (f"&cc={cc_addr}" if cc_addr else "")
@@ -410,3 +400,6 @@ def _mail_dialog(payload) -> None:
         unsafe_allow_html=True,
     )
     st.caption("💡 Outlook: Win+I → 앱 → Outlook → MAILTO: Outlook 지정 시 발송 가능")
+    if st.button("닫기", key="mail_close"):
+        _close_dialog()
+        st.rerun()
