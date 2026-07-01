@@ -5,16 +5,18 @@ from utils.ui import render_media_grid, render_pending_dialog, set_current_page
 set_current_page("milestone")
 
 majors = db.get_major_categories()
+all_media = db.get_all_media()
 m01_04 = [m for m in majors if not m.startswith("05")]
 cat_05 = [m for m in majors if m.startswith("05")]
 
 left, mid, right = st.columns(3)
 
 
-def render_major_section(major: str) -> None:
+def render_major_section(major: str, all_media: list[dict]) -> None:
     with st.container(border=True):
         st.markdown(f"<div class='section-title'>{major}</div>", unsafe_allow_html=True)
-        media_list = db.get_media_by_category(major)
+        media_list = [m for m in all_media
+                      if (m.get("categories") or {}).get("major_category") == major]
         render_media_grid(media_list, key_prefix=major.replace(" ", "_"), n_cols=2)
 
 
@@ -38,8 +40,9 @@ with right:
             with sub_cols[i % 2]:
                 with st.expander(sub, expanded=False):
                     media_list = [
-                        m for m in db.get_media_by_category(major)
-                        if (m.get("categories") or {}).get("sub_category") == sub
+                        m for m in all_media
+                        if (m.get("categories") or {}).get("major_category") == major
+                        and (m.get("categories") or {}).get("sub_category") == sub
                     ]
                     render_media_grid(media_list, key_prefix=f"05_{sub}", n_cols=1)
 
