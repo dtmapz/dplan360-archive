@@ -115,6 +115,8 @@ def render_pending_dialog() -> None:
         _detail_dialog(payload)
     elif kind == "register":
         _register_dialog()
+    elif kind == "mail":
+        _mail_dialog(payload)
 
 
 def _close_dialog() -> None:
@@ -149,13 +151,12 @@ def render_media_grid(media_list: list[dict], key_prefix: str, n_cols: int = 5) 
 # ---------------------------------------------------------------------------
 
 def render_result_table(media_list: list[dict], key_prefix: str) -> None:
-    """검색 결과 표: 매체명 | 담당자 | 직급 | 연락처 | 이메일 | 팀메일 | [업데이트]
-    (이미 db.search_media에서 마지막컨택이력 최신순으로 정렬되어 들어옴)"""
+    """검색 결과 표: 매체명 | 담당자 | 직급 | 연락처 | 이메일 | 팀메일 | 업데이트 | 전화 | 메일"""
     if not media_list:
         st.caption("표시할 매체가 없습니다.")
         return
 
-    col_ratio = [2, 1.4, 1, 1.4, 2, 2, 2.2]
+    col_ratio = [1.8, 1.2, 0.9, 1.3, 1.9, 1.9, 1, 0.8, 0.8]
 
     header = st.columns(col_ratio)
     labels = ["매체명", "담당자", "직급", "연락처", "이메일", "팀메일"]
@@ -167,39 +168,45 @@ def render_result_table(media_list: list[dict], key_prefix: str) -> None:
                 unsafe_allow_html=True,
             )
         else:
-            # 마지막(업데이트 버튼) 컬럼: 밑줄 없이 높이만 맞춰 자리 확보
             c.markdown("<div style='padding-bottom:6px; margin-bottom:10px; min-height:1px;'>&nbsp;</div>", unsafe_allow_html=True)
 
     for m in media_list:
         contact = (m.get("contacts") or [{}])[0] if m.get("contacts") else {}
-        cols = st.columns(col_ratio)
-        cols[0].write(m["name"])
-        cols[1].write(contact.get("manager_name") or "-")
-        cols[2].write(contact.get("position") or "-")
-        cols[3].write(contact.get("phone") or "-")
-        cols[4].write(contact.get("email") or "-")
-        cols[5].write(contact.get("team_email") or "-")
-        col_update, col_contact = cols[6].columns(2)
-        if col_update.button("업데이트", key=f"upd_{key_prefix}_{m['id']}"):
-            request_update(m["id"])
-
         phone = contact.get("phone") or ""
         email = contact.get("email") or ""
         team_email = contact.get("team_email") or ""
 
-        mailto = f"mailto:{email}?cc={team_email}"
-        works = f"https://mail.worksmobile.com/compose?to={email}&cc={team_email}"
-        tel = f"tel:{phone.replace('-','')}" if phone else ""
+        cols = st.columns(col_ratio)
+        cols[0].write(m["name"])
+        cols[1].write(contact.get("manager_name") or "-")
+        cols[2].write(contact.get("position") or "-")
+        cols[3].write(phone or "-")
+        cols[4].write(email or "-")
+        cols[5].write(team_email or "-")
 
-        contact_html = f"""
-        <div style='display:flex; flex-direction:column; gap:4px;'>
-            {'<a href="' + tel + '" style="background:#F2A93B; color:#412402; padding:3px 8px; border-radius:5px; font-size:11px; text-decoration:none; text-align:center;">📞 전화</a>' if tel else ''}
-            <a href="{mailto}" style="background:#0B0B0B; color:#fff; padding:3px 8px; border-radius:5px; font-size:11px; text-decoration:none; text-align:center;">✉ Outlook</a>
-            <a href="{works}" target="_blank" style="background:#03C75A; color:#fff; padding:3px 8px; border-radius:5px; font-size:11px; text-decoration:none; text-align:center;">✉ Works</a>
-        </div>
-        """
-        col_contact.markdown(contact_html, unsafe_allow_html=True)
+        # 업데이트
+        if cols[6].button("업데이트", key=f"upd_{key_prefix}_{m['id']}"):
+            request_update(m["id"])
 
+        # 전화 (모바일에서 tel: 링크로 바로 연결, 번호 없으면 비활성 표시)
+        if phone:
+            tel = "tel:" + phone.replace("-", "")
+            cols[7].markdown(
+                f"<a href='{tel}' style='display:block; background:#F2A93B; color:#412402; "
+                f"padding:6px 0; border-radius:6px; font-size:13px; text-decoration:none; "
+                f"text-align:center;'>전화</a>",
+                unsafe_allow_html=True,
+            )
+        else:
+            cols[7].markdown(
+                "<div style='padding:6px 0; font-size:13px; color:#bbb; text-align:center;'>전화</div>",
+                unsafe_allow_html=True,
+            )
+
+        # 메일 → 클릭 시 Outlook/Works 선택 팝업
+        if cols[8].button("메일", key=f"mail_{key_prefix}_{m['id']}"):
+            st.session_state["_active_dialog"] = ("mail", (email, team_email), _current_page())
+            st.rerun()
 
 # ---------------------------------------------------------------------------
 # HOME 기본 화면용 컨택포인트 표 (클릭 불가, 단순 조회용)
@@ -370,3 +377,21 @@ def _register_dialog() -> None:
             _close_dialog()
             st.success(f"'{name}' 매체가 등록되었습니다.")
             st.rerun()
+
+@st.dialog("메일 보내기")
+def _mail_dialog(payload) -> None:
+    email, team_email = payload
+    mailto = f"mailto:{email}?cc={team_email}"
+    works = f"https://mail.worksmobile.com/w/compose?orderType=new&to={email}&cc={team_email}"
+
+    st.write(f"**받는사람**: {email or '-'}")
+    st.write(f"**참조**: {team_email or '-'}")
+    st.markdown(
+        f"<a href='{mailto}' style='display:block; background:#0B0B0B; color:#fff; "
+        f"padding:10px 0; border-radius:8px; font-size:14px; text-decoration:none; "
+        f"text-align:center; margin-bottom:8px;'>Outlook으로 보내기</a>"
+        f"<a href='{works}' target='_blank' style='display:block; background:#03C75A; color:#fff; "
+        f"padding:10px 0; border-radius:8px; font-size:14px; text-decoration:none; "
+        f"text-align:center;'>네이버웍스로 보내기</a>",
+        unsafe_allow_html=True,
+    )
