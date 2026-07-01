@@ -155,7 +155,7 @@ def render_result_table(media_list: list[dict], key_prefix: str) -> None:
         st.caption("표시할 매체가 없습니다.")
         return
 
-    col_ratio = [2, 1.4, 1, 1.4, 2, 2, 1.2]
+    col_ratio = [2, 1.4, 1, 1.4, 2, 2, 2.2]
 
     header = st.columns(col_ratio)
     labels = ["매체명", "담당자", "직급", "연락처", "이메일", "팀메일"]
@@ -179,8 +179,26 @@ def render_result_table(media_list: list[dict], key_prefix: str) -> None:
         cols[3].write(contact.get("phone") or "-")
         cols[4].write(contact.get("email") or "-")
         cols[5].write(contact.get("team_email") or "-")
-        if cols[6].button("업데이트", key=f"{key_prefix}_{m['id']}"):
+        col_update, col_contact = cols[6].columns(2)
+        if col_update.button("업데이트", key=f"upd_{key_prefix}_{m['id']}"):
             request_update(m["id"])
+
+        phone = contact.get("phone") or ""
+        email = contact.get("email") or ""
+        team_email = contact.get("team_email") or ""
+
+        mailto = f"mailto:{email}?cc={team_email}"
+        works = f"https://mail.worksmobile.com/compose?to={email}&cc={team_email}"
+        tel = f"tel:{phone.replace('-','')}" if phone else ""
+
+        contact_html = f"""
+        <div style='display:flex; flex-direction:column; gap:4px;'>
+            {'<a href="' + tel + '" style="background:#F2A93B; color:#412402; padding:3px 8px; border-radius:5px; font-size:11px; text-decoration:none; text-align:center;">📞 전화</a>' if tel else ''}
+            <a href="{mailto}" style="background:#0B0B0B; color:#fff; padding:3px 8px; border-radius:5px; font-size:11px; text-decoration:none; text-align:center;">✉ Outlook</a>
+            <a href="{works}" target="_blank" style="background:#03C75A; color:#fff; padding:3px 8px; border-radius:5px; font-size:11px; text-decoration:none; text-align:center;">✉ Works</a>
+        </div>
+        """
+        col_contact.markdown(contact_html, unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
