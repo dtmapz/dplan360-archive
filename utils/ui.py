@@ -188,25 +188,27 @@ def render_result_table(media_list: list[dict], key_prefix: str) -> None:
         if cols[6].button("업데이트", key=f"upd_{key_prefix}_{m['id']}"):
             request_update(m["id"])
 
-        # 전화 (모바일에서 tel: 링크로 바로 연결, 번호 없으면 비활성 표시)
+        btn_base = ("display:block; padding:5px 0; border-radius:6px; font-size:13px; "
+                    "text-decoration:none; text-align:center; border:0.5px solid; "
+                    "width:100%; box-sizing:border-box;")
+        active_style = btn_base + "background:#ffffff; color:#0B0B0B; border-color:#0B0B0B;"
+        disabled_style = btn_base + "background:#f0f0f0; color:#cccccc; border-color:#dddddd; cursor:not-allowed;"
+
+        # 전화
         if phone:
             tel = "tel:" + phone.replace("-", "")
-            cols[7].markdown(
-                f"<a href='{tel}' style='display:block; background:#F2A93B; color:#412402; "
-                f"padding:6px 0; border-radius:6px; font-size:13px; text-decoration:none; "
-                f"text-align:center;'>전화</a>",
-                unsafe_allow_html=True,
-            )
+            cols[7].markdown(f"<a href='{tel}' style='{active_style}'>전화</a>", unsafe_allow_html=True)
         else:
-            cols[7].markdown(
-                "<div style='padding:6px 0; font-size:13px; color:#bbb; text-align:center;'>전화</div>",
-                unsafe_allow_html=True,
-            )
+            cols[7].markdown(f"<div style='{disabled_style}'>전화</div>", unsafe_allow_html=True)
 
-        # 메일 → 클릭 시 Outlook/Works 선택 팝업
-        if cols[8].button("메일", key=f"mail_{key_prefix}_{m['id']}"):
-            st.session_state["_active_dialog"] = ("mail", (email, team_email), _current_page())
-            st.rerun()
+        # 메일
+        has_email = bool(email or team_email)
+        if has_email:
+            if cols[8].button("메일", key=f"mail_{key_prefix}_{m['id']}"):
+                st.session_state["_active_dialog"] = ("mail", (email, team_email), _current_page())
+                st.rerun()
+        else:
+            cols[8].markdown(f"<div style='{disabled_style}'>메일</div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # HOME 기본 화면용 컨택포인트 표 (클릭 불가, 단순 조회용)
@@ -381,11 +383,23 @@ def _register_dialog() -> None:
 @st.dialog("메일 보내기")
 def _mail_dialog(payload) -> None:
     email, team_email = payload
-    mailto = f"mailto:{email}?cc={team_email}"
-    works = f"https://mail.worksmobile.com/w/compose?orderType=new&to={email}&cc={team_email}"
 
-    st.write(f"**받는사람**: {email or '-'}")
-    st.write(f"**참조**: {team_email or '-'}")
+    # 수신인/참조 시나리오 분기
+    if email and team_email:
+        to_addr, cc_addr = email, team_email
+        st.write(f"**받는사람**: {to_addr}")
+        st.write(f"**참조**: {cc_addr}")
+    elif team_email:
+        to_addr, cc_addr = team_email, ""
+        st.write(f"**받는사람**: {to_addr}")
+    else:
+        to_addr, cc_addr = email, ""
+        st.write(f"**받는사람**: {to_addr}")
+
+    mailto = f"mailto:{to_addr}" + (f"?cc={cc_addr}" if cc_addr else "")
+    works_params = f"orderType=new&to={to_addr}" + (f"&cc={cc_addr}" if cc_addr else "")
+    works = f"https://mail.worksmobile.com/w/compose?{works_params}"
+
     st.markdown(
         f"<a href='{mailto}' style='display:block; background:#0B0B0B; color:#fff; "
         f"padding:10px 0; border-radius:8px; font-size:14px; text-decoration:none; "
@@ -395,3 +409,4 @@ def _mail_dialog(payload) -> None:
         f"text-align:center;'>네이버웍스로 보내기</a>",
         unsafe_allow_html=True,
     )
+    st.caption("💡 Outlook: Win+I → 앱 → Outlook → MAILTO: Outlook 지정 시 발송 가능")
