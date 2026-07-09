@@ -198,54 +198,76 @@ with tab_list:
     if not events:
         st.caption("등록된 행사가 없습니다.")
     else:
-        current_date = None
-        for ev in events:
-            color = category_color(ev.get("category", ""), color_map)
-            cat = ev.get("category", "")
-            s = ev.get("start_time", "")[:5] if ev.get("start_time") else ""
-            e = ev.get("end_time", "")[:5] if ev.get("end_time") else ""
-            venue = ev.get("venue", "")
+        # 월별로 그룹화
+        from itertools import groupby
+        weekdays = ["월", "화", "수", "목", "금", "토", "일"]
 
-            if ev["event_date"] != current_date:
-                current_date = ev["event_date"]
-                d = date.fromisoformat(current_date)
-                weekdays = ["월", "화", "수", "목", "금", "토", "일"]
-                date_label = f"{d.year}년 {d.month}월 {d.day}일 ({weekdays[d.weekday()]})"
-            else:
-                date_label = ""
+        def month_key(ev):
+            return ev["event_date"][:7]  # YYYY-MM
 
-            col_info, col_toggle = st.columns([5, 1])
-            with col_info:
-                st.markdown(
-                    f"<div style='display:flex; align-items:center; gap:10px; "
-                    f"padding:8px 12px; background:var(--surface-1); "
-                    f"border-radius:8px; margin-bottom:4px;'>"
-                    f"<span style='font-size:13px; color:var(--text-muted); white-space:nowrap;'>{date_label}</span>"
-                    f"<span style='background:{color}; color:#fff; font-size:11px; "
-                    f"padding:2px 8px; border-radius:4px; white-space:nowrap;'>{cat}</span>"
-                    f"<span style='font-size:13px; font-weight:500;'>{ev['title']}</span>"
-                    f"<span style='font-size:13px; color:var(--text-muted);'>{s}~{e} · {venue}</span>"
-                    f"</div>",
-                    unsafe_allow_html=True,
-                )
-                
-            with col_toggle:
-                if admin:
-                    new_req = st.toggle("참석설정", value=bool(ev.get("requires_check")),
-                                        key=f"list_req_{ev['id']}")
-                    if new_req != bool(ev.get("requires_check")):
-                        db.update_event(ev["id"], requires_check=new_req)
-                        st.rerun()
-                elif ev.get("requires_check"):
-                    current = ev["id"] in attended_ids
-                    new_val = st.toggle("참석", value=current, key=f"list_att_{ev['id']}")
-                    if new_val != current:
-                        db.toggle_attendance(ev["id"], user_email, new_val)
-                        st.session_state["my_attendance"] = (
-                            attended_ids + [ev["id"]] if new_val
-                            else [x for x in attended_ids if x != ev["id"]]
-                        )
-                        st.rerun()
+        for month, month_events in groupby(events, key=month_key):
+            y, m = month.split("-")
+            st.markdown(
+                f"<div style='font-size:13px; font-weight:500; color:var(--text-muted); "
+                f"margin:20px 0 8px;'>{y}년 {int(m)}월</div>",
+                unsafe_allow_html=True,
+            )
+
+            for ev in month_events:
+                color = category_color(ev.get("category", ""), color_map)
+                cat = ev.get("category", "")
+                s = ev.get("start_time", "")[:5] if ev.get("start_time") else ""
+                e = ev.get("end_time", "")[:5] if ev.get("end_time") else ""
+                venue = ev.get("venue", "")
+                d = date.fromisoformat(ev["event_date"])
+                date_label = f"{int(m)}월 {d.day}일 ({weekdays[d.weekday()]})"
+
+                col_card, col_toggle = st.columns([6, 1])
+                with col_card:
+                    st.markdown(
+                        f"<div style='display:flex; align-items:center; gap:10px; "
+                        f"padding:10px 14px; background:var(--surface-2); "
+                        f"border:0.5px solid var(--border); border-radius:8px; "
+                        f"border-left:4px solid {color}; margin-bottom:6px;'>"
+                        f"<span style='background:{color}; color:#fff; font-size:11px; "
+                        f"padding:2px 8px; border-radius:4px; white-space:nowrap;'>{cat}</span>"
+                        f"<span style='font-size:13px; font-weight:500; color:var(--text-primary);'>{ev['title']}</span>"
+                        f"<span style='font-size:13px; color:var(--text-muted);'>{s}~{e} · {venue}</span>"
+                        f"<span style='font-size:13px; color:var(--text-muted); margin-left:auto; white-space:nowrap;'>{date_label}</span>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+                with col_toggle:
+                    if admin:
+                        new_req = st.toggle("참석설정", value=bool(ev.get("requires_check")),
+                                            key=f"list_req_{ev['id']}")
+                        if new_req != bool(ev.get("requires_check")):
+                            db.update_event(ev["id"], requires_check=new_req)
+                            st.rerun()
+                    elif ev.get("requires_check"):
+                        current_att = ev["id"] in attended_ids
+                        new_val = st.toggle("참석", value=current_att, key=f"list_att_{ev['id']}")
+                        if new_val != current_att:
+                            db.toggle_attendance(ev["id"], user_email, new_val)
+                            st.session_state["my_attendance"] = (
+                                attended_ids + [ev["id"]] if new_val
+                                else [x for x in attended_ids if x != ev["id"]]
+                            )
+                            st.rerun()
+
+        # 하단 구분별 색상 범례
+        all_cats = db.get_event_categories()
+        legend_html = "<div style='display:flex; gap:16px; padding-top:12px; " \
+                      "border-top:0.5px solid var(--border); margin-top:8px;'>"
+        for c in all_cats:
+            legend_html += (
+                f"<span style='font-size:12px; color:var(--text-secondary); "
+                f"display:flex; align-items:center; gap:5px;'>"
+                f"<span style='display:inline-block; width:10px; height:10px; "
+                f"border-radius:2px; background:{c['color']};'></span>{c['name']}</span>"
+            )
+        legend_html += "</div>"
+        st.markdown(legend_html, unsafe_allow_html=True)
 
 # ---------- 행사 등록 ----------
 if tab_reg is not None:
