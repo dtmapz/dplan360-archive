@@ -84,7 +84,7 @@ def render_login_page():
                 try:
                     sb = get_client()
                     sb.auth.sign_up({"email": email, "password": password})
-                    st.success("가입 완료! 이메일로 발송된 인증 링크를 클릭 후 로그인해주세요.")
+                    st.success("가입 완료! Supabase Auth 이메일로 발송된 인증 링크 클릭 후 로그인해주세요.")
                 except Exception as e:
                     st.error(f"오류: {str(e)}")
 
