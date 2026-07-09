@@ -5,13 +5,11 @@ from utils.auth import get_current_user, is_admin, logout, render_login_page
 st.set_page_config(page_title="D-PLAN360 ARCHIVE", layout="wide")
 inject_base_style()
 
-# 로그인 체크
 user = get_current_user()
 if not user:
     render_login_page()
     st.stop()
 
-# 사이드바 로고 + 로그아웃
 st.logo("assets/m_logo_w-1.png", size="large")
 
 with st.sidebar:
@@ -28,6 +26,10 @@ with st.sidebar:
 st.markdown(
     """
     <style>
+    [data-testid="stSidebar"] { background-color: #0B0B0B; }
+    [data-testid="stSidebar"] * { color: #FFFFFF !important; }
+    [data-testid="stSidebarNav"] a span { font-size: 16px !important; }
+    [data-testid="stLogo"] img { height: 48px !important; max-width: none !important; }
     [data-testid="stSidebar"] [data-testid="stButton"] button {
         background-color: #0B0B0B !important;
         color: #FFFFFF !important;
@@ -39,29 +41,12 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 사이드바 CSS (블랙)
-st.markdown(
-    """
-    <style>
-    [data-testid="stSidebar"] { background-color: #0B0B0B; }
-    [data-testid="stSidebar"] * { color: #FFFFFF !important; }
-    [data-testid="stSidebarNav"] a span { font-size: 16px !important; }
-    [data-testid="stLogo"] img { height: 48px !important; max-width: none !important; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+home_page       = st.Page("pages/1_Home.py",           title="HOME",          icon="🔍", default=True)
+milestone_page  = st.Page("pages/2_Milestone.py",       title="MILESTONE",     icon="🗺️")
+calendar_page   = st.Page("pages/3_EventCalendar.py",   title="EVENT CALENDAR",icon="📅")
+attendance_page = st.Page("pages/4_AttendanceCheck.py", title="교육 참여 CHECK", icon="👤")
 
-# 페이지 등록
-home_page = st.Page("pages/1_Home.py", title="HOME", icon="🔍", default=True)
-milestone_page = st.Page("pages/2_Milestone.py", title="MILESTONE", icon="🗺️")
-
-pages = [home_page, milestone_page]
-
-# 관리자 전용 페이지 (추후 추가)
-# if is_admin():
-#     admin_page = st.Page("pages/admin.py", title="관리자", icon="🔐")
-#     pages.append(admin_page)
+pages = [home_page, milestone_page, calendar_page, attendance_page]
 
 pg = st.navigation(pages)
 pg.run()
