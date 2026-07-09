@@ -32,6 +32,10 @@ def logout():
 def render_login_page():
     """로그인/회원가입 화면 렌더링."""
     st.markdown(
+        "<style>[data-testid='stSidebar'] { display: none; }</style>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
         "<div style='max-width:420px; margin:80px auto;'>",
         unsafe_allow_html=True,
     )
