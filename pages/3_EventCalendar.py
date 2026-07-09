@@ -21,12 +21,14 @@ def category_color(cat: str, color_map: dict) -> str:
     return color_map.get(cat, "#888780")
 
 
-# ---------- 이벤트 상세 dialog ----------
 @st.dialog("행사 상세")
 def event_detail_dialog(event: dict):
     color_map = get_category_color_map()
+    cat = event.get("category", "-")
+    color = category_color(cat, color_map)
     edit_mode = st.session_state.get(f"event_edit_{event['id']}", False)
 
+    # 헤더: 구분뱃지 + 행사명 + 수정버튼
     if admin:
         col_info, col_btn = st.columns([5, 1])
     else:
@@ -35,9 +37,9 @@ def event_detail_dialog(event: dict):
 
     with col_info:
         st.markdown(
-            f"<div style='display:flex; align-items:center; gap:10px; margin-bottom:8px;'>"
+            f"<div style='display:flex; align-items:center; gap:10px; margin-bottom:4px;'>"
             f"<span style='background:{color}; color:#fff; font-size:12px; "
-            f"padding:3px 10px; border-radius:4px;'>{cat}</span>"
+            f"padding:3px 10px; border-radius:4px; white-space:nowrap;'>{cat}</span>"
             f"<span style='font-size:15px; font-weight:500;'>{event['title']}</span>"
             f"</div>",
             unsafe_allow_html=True,
@@ -52,9 +54,6 @@ def event_detail_dialog(event: dict):
     if not edit_mode:
         s = event.get("start_time", "")[:5] if event.get("start_time") else ""
         e = event.get("end_time", "")[:5] if event.get("end_time") else ""
-        cat = event.get("category", "-")
-        color = category_color(cat, color_map)
-
         st.write(f"**일시**: {event['event_date']} {s} ~ {e}")
         st.write(f"**장소**: {event.get('venue', '-')}")
         if event.get("memo"):
@@ -128,11 +127,9 @@ def event_detail_dialog(event: dict):
 # ---------- 메인 ----------
 st.markdown("## 📅 EVENT CALENDAR")
 
-# 참석 여부 세션 캐시 초기화
 if "my_attendance" not in st.session_state:
     st.session_state["my_attendance"] = db.get_my_attendance(user_email)
 
-# 등록 완료 알럿
 if st.session_state.pop("_event_registered", False):
     st.success("행사가 등록되었습니다.")
 
@@ -152,10 +149,10 @@ with tab_cal:
         cal_events = []
         for ev in events:
             color = category_color(ev.get("category", ""), color_map)
-            s = ev.get("start_time", "")[:5] if ev.get("start_time") else ""
             cat = ev.get("category", "")
-            start = ev["event_date"] + (f"T{s}" if s else "")
+            s = ev.get("start_time", "")[:5] if ev.get("start_time") else ""
             end_t = ev.get("end_time", "")[:5] if ev.get("end_time") else ""
+            start = ev["event_date"] + (f"T{s}" if s else "")
             end = ev["event_date"] + (f"T{end_t}" if end_t else "")
             cal_events.append({
                 "id": ev["id"],
@@ -185,8 +182,7 @@ with tab_cal:
 
         if cal_result and cal_result.get("eventClick"):
             clicked_id = cal_result["eventClick"]["event"]["id"]
-            clicked_ev = next((e for e in events if e["id"] == clicked_id), None)
-            if clicked_ev and st.session_state.get("_cal_dialog") != clicked_id:
+            if st.session_state.get("_cal_dialog") != clicked_id:
                 st.session_state["_cal_dialog"] = clicked_id
                 st.rerun()
 
@@ -234,13 +230,13 @@ with tab_list:
                     unsafe_allow_html=True,
                 )
             with col_toggle:
-                if admin and ev.get("requires_check") is not None:
+                if admin:
                     new_req = st.toggle("참석설정", value=bool(ev.get("requires_check")),
                                         key=f"list_req_{ev['id']}")
                     if new_req != bool(ev.get("requires_check")):
                         db.update_event(ev["id"], requires_check=new_req)
                         st.rerun()
-                elif not admin and ev.get("requires_check"):
+                elif ev.get("requires_check"):
                     current = ev["id"] in attended_ids
                     new_val = st.toggle("참석", value=current, key=f"list_att_{ev['id']}")
                     if new_val != current:
