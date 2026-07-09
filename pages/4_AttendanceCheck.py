@@ -44,7 +44,7 @@ def build_table(events: list[dict], members: list[dict], attendance_map: dict,
     html += "<th rowspan='2' style='border:0.5px solid var(--border); padding:6px 10px; background:var(--surface-1); color:var(--text-secondary); font-weight:500; white-space:nowrap;'>소속</th>"
     html += "<th rowspan='2' style='border:0.5px solid var(--border); padding:6px 10px; background:var(--surface-1); color:var(--text-secondary); font-weight:500; white-space:nowrap;'>구성원</th>"
     if show_count:
-        html += "<th rowspan='2' style='border:0.5px solid var(--border); padding:6px 10px; background:var(--surface-1); color:var(--text-secondary); font-weight:500; white-space:nowrap;'>참여횟수</th>"
+        html += "<th rowspan='2' style='border:0.5px solid var(--border); padding:6px 10px; background:var(--surface-1); color:var(--text-secondary); font-weight:500; white-space:nowrap;'>26년 누적<br>참여횟수</th>"
 
     for i, (month, evs) in enumerate(month_events.items()):
         bg, fg, _ = month_colors[i % len(month_colors)]
@@ -169,11 +169,3 @@ if past:
     with st.expander(label, expanded=False):
         html = build_table(past, members, attendance_map, show_count=False)
         st.markdown(html, unsafe_allow_html=True)
-        st.caption("이전월 기록은 참석 여부만 표시됩니다.")
-
-# 범례
-st.markdown(
-    "<div style='margin-top:12px; font-size:12px; color:var(--text-muted);'>"
-    "<span style='color:#1D9E75;'>✓</span> 참석 &nbsp;·&nbsp; 빈칸 미참석 &nbsp;·&nbsp; 참여횟수는 전체 누적 기준</div>",
-    unsafe_allow_html=True,
-)
