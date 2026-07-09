@@ -18,7 +18,7 @@ with st.sidebar:
     col_email, col_btn = st.columns([2, 1])
     with col_email:
         st.markdown(
-            f"<div style='font-size:12px; color:#aaa; padding-top:8px;'>{user.get('email', '')}</div>",
+            f"<div style='font-size:13px; color:#aaa; padding-top:8px;'>{user.get('email', '')}</div>",
             unsafe_allow_html=True,
         )
     with col_btn:
