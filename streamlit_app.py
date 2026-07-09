@@ -44,7 +44,7 @@ st.markdown(
 home_page       = st.Page("pages/1_Home.py",           title="HOME",          icon="🔍", default=True)
 milestone_page  = st.Page("pages/2_Milestone.py",       title="MILESTONE",     icon="🗺️")
 calendar_page   = st.Page("pages/3_EventCalendar.py",   title="EVENT CALENDAR",icon="📅")
-attendance_page = st.Page("pages/4_AttendanceCheck.py", title="교육 참여 CHECK", icon="👤")
+attendance_page = st.Page("pages/4_AttendanceCheck.py", title="교육 참여 CHECK", icon="✅")
 
 pages = [home_page, milestone_page, calendar_page, attendance_page]
 
