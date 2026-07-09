@@ -27,10 +27,23 @@ def event_detail_dialog(event: dict):
     color_map = get_category_color_map()
     edit_mode = st.session_state.get(f"event_edit_{event['id']}", False)
 
-    col_t, col_btn = st.columns([5, 1])
-    with col_t:
-        st.markdown("")
     if admin:
+        col_info, col_btn = st.columns([5, 1])
+    else:
+        col_info = st.container()
+        col_btn = None
+
+    with col_info:
+        st.markdown(
+            f"<div style='display:flex; align-items:center; gap:10px; margin-bottom:8px;'>"
+            f"<span style='background:{color}; color:#fff; font-size:12px; "
+            f"padding:3px 10px; border-radius:4px;'>{cat}</span>"
+            f"<span style='font-size:15px; font-weight:500;'>{event['title']}</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    if admin and col_btn:
         with col_btn:
             if st.button("수정", key=f"ev_edit_{event['id']}"):
                 st.session_state[f"event_edit_{event['id']}"] = not edit_mode
@@ -42,14 +55,6 @@ def event_detail_dialog(event: dict):
         cat = event.get("category", "-")
         color = category_color(cat, color_map)
 
-        st.markdown(
-            f"<div style='display:flex; align-items:center; gap:10px; margin-bottom:8px;'>"
-            f"<span style='background:{color}; color:#fff; font-size:12px; "
-            f"padding:3px 10px; border-radius:4px;'>{cat}</span>"
-            f"<span style='font-size:15px; font-weight:500;'>{event['title']}</span>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
         st.write(f"**일시**: {event['event_date']} {s} ~ {e}")
         st.write(f"**장소**: {event.get('venue', '-')}")
         if event.get("memo"):
