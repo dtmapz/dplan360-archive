@@ -11,6 +11,9 @@ user = get_current_user()
 user_email = user.get("email", "") if user else ""
 admin = is_admin()
 
+today = date.today()
+current_month = today.strftime("%Y-%m")
+
 
 def get_category_color_map() -> dict:
     cats = db.get_event_categories()
@@ -125,8 +128,6 @@ def event_detail_dialog(event: dict):
 
 
 # ---------- 메인 ----------
-st.markdown("## 📅 EVENT CALENDAR")
-
 if "my_attendance" not in st.session_state:
     st.session_state["my_attendance"] = db.get_my_attendance(user_email)
 
