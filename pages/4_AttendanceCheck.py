@@ -15,7 +15,7 @@ current_month = today.strftime("%Y-%m")
 
 
 def build_table(events: list[dict], members: list[dict], attendance_map: dict,
-                show_count: bool = True) -> str:
+                show_count: bool = True, all_events_for_count: list[dict] = None) -> str:
     """HTML 표 생성"""
     if not events or not members:
         return "<p style='color:var(--text-muted); font-size:13px;'>데이터가 없습니다.</p>"
@@ -90,8 +90,9 @@ def build_table(events: list[dict], members: list[dict], attendance_map: dict,
                      f"text-align:left; white-space:nowrap;'>{member.get('name', '')}</td>")
 
             if show_count:
+                base = all_events_for_count if all_events_for_count is not None else events
                 count = sum(
-                    1 for ev in events
+                    1 for ev in base
                     if attendance_map.get((ev["id"], member.get("email", "")))
                 )
                 html += (f"<td style='border:0.5px solid var(--border); padding:6px 10px; "
@@ -153,7 +154,7 @@ if current_future:
         unsafe_allow_html=True,
     )
     # 참여횟수는 전체 누적 기준이므로 all_events 전달
-    html = build_table(current_future, members, attendance_map, show_count=True)
+    html = build_table(current_future, members, attendance_map, show_count=True, all_events_for_count=all_events)
     st.markdown(html, unsafe_allow_html=True)
 else:
     st.caption("이번달 이후 등록된 행사가 없습니다.")
