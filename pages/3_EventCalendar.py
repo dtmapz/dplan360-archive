@@ -232,10 +232,21 @@ if tab_reg is not None:
         event_date = st.date_input("날짜*", value=date.today(), key="reg_date")
         col_s, col_e = st.columns(2)
         with col_s:
-            start_time = st.time_input("시작 시간*", value=None, key="reg_start")
+            start_time_str = st.text_input("시작 시간* (HH:MM)", placeholder="09:00", key="reg_start")
         with col_e:
-            end_time = st.time_input("종료 시간*", value=None, key="reg_end")
-        category = st.selectbox("구분*", ["매체설명회", "온라인", "오프라인"], key="reg_cat")
+            end_time_str = st.text_input("종료 시간* (HH:MM)", placeholder="10:00", key="reg_end")
+        categories = ["매체설명회", "온라인", "오프라인"] + st.session_state.get("custom_categories", [])
+        cat_options = categories + ["+ 새 구분 추가"]
+        cat_choice = st.selectbox("구분*", cat_options, key="reg_cat")
+        if cat_choice == "+ 새 구분 추가":
+            new_cat = st.text_input("새 구분명 입력", key="new_cat_input")
+            if st.button("추가", key="add_cat_btn") and new_cat:
+                if new_cat not in categories:
+                    st.session_state.setdefault("custom_categories", []).append(new_cat)
+                st.rerun()
+            category = new_cat
+        else:
+            category = cat_choice
         venue = st.text_input("장소*", key="reg_venue")
         memo = st.text_area("메모 (선택)", height=80, key="reg_memo")
         requires_check = st.toggle("참석 여부 설정", key="reg_check")
