@@ -42,17 +42,13 @@ def event_detail_dialog(event: dict):
         cat = event.get("category", "-")
         color = category_color(cat, color_map)
 
-        col_cat, col_title2 = st.columns([1, 4])
-        with col_cat:
-            st.markdown(
-                f"<span style='background:{color}; color:#fff; font-size:12px; "
-                f"padding:3px 10px; border-radius:4px;'>{cat}</span>",
-                unsafe_allow_html=True,
-            )
-        with col_title2:
-            st.markdown(f"**{event['title']}**")
-        st.write(f"**일시**: {event['event_date']} {s} ~ {e}")
-        st.write(f"**장소**: {event.get('venue', '-')}")
+        st.markdown(
+            f"<span style='background:{color}; color:#fff; font-size:12px; "
+            f"padding:3px 10px; border-radius:4px;'>{cat}</span>",
+            unsafe_allow_html=True,
+        )
+        st.write(f"📅 {event['event_date']} {s} ~ {e}")
+        st.write(f"📍 {event.get('venue', '-')}")
         if event.get("memo"):
             st.write(f"**메모**: {event['memo']}")
 
