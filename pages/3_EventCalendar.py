@@ -273,7 +273,7 @@ if tab_reg is not None:
             else:
                 db.create_event(
                     title=title, event_date=str(event_date),
-                    start_time=str(start_time), end_time=str(end_time),
+                    start_time=str(start_time_str), end_time=str(end_time_str),
                     category=category, venue=venue,
                     memo=memo or None, requires_check=requires_check,
                 )
