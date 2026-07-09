@@ -29,7 +29,7 @@ def event_detail_dialog(event: dict):
 
     col_t, col_btn = st.columns([5, 1])
     with col_t:
-        st.markdown("")
+        st.markdown(f"### {event['title']}")
     if admin:
         with col_btn:
             if st.button("수정", key=f"ev_edit_{event['id']}"):
@@ -43,12 +43,15 @@ def event_detail_dialog(event: dict):
         color = category_color(cat, color_map)
 
         st.markdown(
+            f"<div style='display:flex; align-items:center; gap:10px; margin-bottom:8px;'>"
             f"<span style='background:{color}; color:#fff; font-size:12px; "
-            f"padding:3px 10px; border-radius:4px;'>{cat}</span>",
+            f"padding:3px 10px; border-radius:4px;'>{cat}</span>"
+            f"<span style='font-size:15px; font-weight:500;'>{event['title']}</span>"
+            f"</div>",
             unsafe_allow_html=True,
         )
-        st.write(f"📅 {event['event_date']} {s} ~ {e}")
-        st.write(f"📍 {event.get('venue', '-')}")
+        st.write(f"**일시**: {event['event_date']} {s} ~ {e}")
+        st.write(f"**장소**: {event.get('venue', '-')}")
         if event.get("memo"):
             st.write(f"**메모**: {event['memo']}")
 
