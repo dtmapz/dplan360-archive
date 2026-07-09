@@ -62,7 +62,13 @@ def render_login_page():
 
     with tab_signup:
         email = st.text_input("이메일 (회사 메일로 가입)", key="signup_email", placeholder="example@d-plan360.com")
-        password = st.text_input("비밀번호 (8자 이상)", type="password", key="signup_pw")
+        password = st.text_input(
+            "비밀번호",
+            type="password",
+            key="signup_pw",
+            placeholder="영문 대소문자, 숫자, 특수기호 필수 포함",
+            help="영문 대소문자 + 숫자 + 특수기호(!@#$ 등) 포함 8자 이상"
+        )
         password_confirm = st.text_input("비밀번호 확인", type="password", key="signup_pw_confirm")
 
         if st.button("가입하기", type="primary", use_container_width=True, key="signup_btn"):
