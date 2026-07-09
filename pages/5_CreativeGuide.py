@@ -46,7 +46,7 @@ with tab_dl:
             )
         else:
             sub_filter = ""
-            st.selectbox("중분류", ["(해당없음)"], label_visibility="collapsed",
+            st.selectbox("중분류", ["중분류"], label_visibility="collapsed",
                           key="cg_sub_empty", disabled=True)
     with col_or:
         st.markdown("<div style='text-align:center; color:var(--text-muted); "
