@@ -21,42 +21,6 @@ def category_color(cat: str) -> str:
     return CATEGORY_COLORS.get(cat, "#888780")
 
 
-# ---------- 이벤트 등록 dialog (관리자 전용) ----------
-@st.dialog("행사 등록")
-def register_event_dialog():
-    title = st.text_input("행사명*")
-    event_date = st.date_input("날짜*", value=date.today())
-    col_s, col_e = st.columns(2)
-    with col_s:
-        start_time = st.time_input("시작 시간*", value=None)
-    with col_e:
-        end_time = st.time_input("종료 시간*", value=None)
-    category = st.selectbox("구분*", ["매체설명회", "온라인", "오프라인"])
-    venue = st.text_input("장소*")
-    memo = st.text_area("메모 (선택)", height=80)
-    requires_check = st.toggle("참석 여부 설정 (ON 시 참석 체크 활성화)")
-
-    if st.button("등록", type="primary"):
-        if not title or not venue or start_time is None or end_time is None:
-            st.error("행사명 / 날짜 / 시작-종료 시간 / 장소는 필수입니다.")
-        elif start_time >= end_time:
-            st.error("종료 시간은 시작 시간보다 늦어야 합니다.")
-        else:
-            db.create_event(
-                title=title,
-                event_date=str(event_date),
-                start_time=str(start_time),
-                end_time=str(end_time),
-                category=category,
-                venue=venue,
-                memo=memo or None,
-                requires_check=requires_check,
-            )
-            st.session_state["_active_dialog"] = None
-            st.success("등록되었습니다.")
-            st.rerun()
-
-
 # ---------- 이벤트 상세/수정 dialog ----------
 @st.dialog("행사 상세")
 def event_detail_dialog(event: dict):
@@ -150,20 +114,17 @@ def event_detail_dialog(event: dict):
 
 
 # ---------- 메인 ----------
-col_title, col_btn = st.columns([5, 1])
-with col_title:
-    st.markdown("## 📅 EVENT CALENDAR")
-with col_btn:
-    if admin:
-        if st.button("+ 행사 등록", type="primary"):
-            st.session_state["_active_dialog"] = ("register_event", None, "calendar")
-            st.rerun()
+st.markdown("## 📅 EVENT CALENDAR")
+
+if admin:
+    tab_cal, tab_list, tab_reg = st.tabs(["월별 달력", "리스트", "+ 행사 등록"])
+else:
+    tab_cal, tab_list = st.tabs(["월별 달력", "리스트"])
+    tab_reg = None
 
 # 참석 여부 세션 캐시 초기화 (최초 1회)
 if "my_attendance" not in st.session_state:
     st.session_state["my_attendance"] = db.get_my_attendance(user_email)
-
-tab_cal, tab_list = st.tabs(["월별 달력", "리스트"])
 
 with tab_cal:
     try:
@@ -264,6 +225,35 @@ with tab_list:
                             st.session_state["my_attendance"] = [x for x in attended_ids if x != ev["id"]]
                         st.rerun()
 
+# ---------- 이벤트 등록 dialog (관리자 전용) ----------
+if tab_reg is not None:
+    with tab_reg:
+        title = st.text_input("행사명*", key="reg_title")
+        event_date = st.date_input("날짜*", value=date.today(), key="reg_date")
+        col_s, col_e = st.columns(2)
+        with col_s:
+            start_time = st.time_input("시작 시간*", value=None, key="reg_start")
+        with col_e:
+            end_time = st.time_input("종료 시간*", value=None, key="reg_end")
+        category = st.selectbox("구분*", ["매체설명회", "온라인", "오프라인"], key="reg_cat")
+        venue = st.text_input("장소*", key="reg_venue")
+        memo = st.text_area("메모 (선택)", height=80, key="reg_memo")
+        requires_check = st.toggle("참석 여부 설정", key="reg_check")
+
+        if st.button("등록", type="primary", key="reg_submit"):
+            if not title or not venue or start_time is None or end_time is None:
+                st.error("행사명 / 날짜 / 시작-종료 시간 / 장소는 필수입니다.")
+            elif start_time >= end_time:
+                st.error("종료 시간은 시작 시간보다 늦어야 합니다.")
+            else:
+                db.create_event(
+                    title=title, event_date=str(event_date),
+                    start_time=str(start_time), end_time=str(end_time),
+                    category=category, venue=venue,
+                    memo=memo or None, requires_check=requires_check,
+                )
+                st.success("등록되었습니다.")
+                st.rerun()
 
 # ---------- dialog 디스패처 ----------
 dialog = st.session_state.get("_active_dialog")
@@ -273,7 +263,5 @@ if dialog:
         st.session_state["_active_dialog"] = None
     else:
         st.session_state["_active_dialog"] = None
-        if kind == "register_event":
-            register_event_dialog()
-        elif kind == "event_detail":
+        if kind == "event_detail":
             event_detail_dialog(payload)
