@@ -253,3 +253,16 @@ def get_attendance_summary() -> list[dict]:
         .execute()
     )
     return res.data
+
+
+# ---------- event_categories ----------
+
+def get_event_categories() -> list[dict]:
+    sb = get_client()
+    res = sb.table("event_categories").select("*").order("is_default", desc=True).order("name").execute()
+    return res.data
+
+
+def create_event_category(name: str, color: str) -> None:
+    sb = get_client()
+    sb.table("event_categories").insert({"name": name, "color": color}).execute()
