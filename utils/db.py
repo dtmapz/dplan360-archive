@@ -254,6 +254,15 @@ def get_attendance_summary() -> list[dict]:
     )
     return res.data
 
+def get_all_media() -> list[dict]:
+    sb = get_client()
+    res = (
+        sb.table("media")
+        .select("*, categories(major_category, sub_category), contacts(*)")
+        .order("name")
+        .execute()
+    )
+    return res.data
 
 # ---------- event_categories ----------
 
