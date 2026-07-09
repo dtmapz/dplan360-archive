@@ -125,8 +125,6 @@ def event_detail_dialog(event: dict):
 
 
 # ---------- 메인 ----------
-st.markdown("## 📅 EVENT CALENDAR")
-
 if "my_attendance" not in st.session_state:
     st.session_state["my_attendance"] = db.get_my_attendance(user_email)
 
