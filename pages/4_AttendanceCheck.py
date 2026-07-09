@@ -111,7 +111,25 @@ def build_table(events: list[dict], members: list[dict], attendance_map: dict,
 
 # ---------- 데이터 로드 ----------
 all_events = db.get_attendance_summary()
-members = db.get_client().table("organization").select("*").order("division").order("team").order("name").execute().data
+raw_members = db.get_client().table("organization").select("*").order("team").order("name").execute().data
+
+# SP팀, team이 없는 경우(본부장/실장급) 제외
+members_filtered = [
+    m for m in raw_members
+    if m.get("team") and m.get("team") not in ("SP팀", "-", "")
+]
+
+# 본부 순서 지정
+division_order = ["미디어컨설팅본부", "그로스마케팅본부"]
+
+def division_sort_key(m):
+    div = m.get("division", "")
+    try:
+        return (division_order.index(div), m.get("team", ""), m.get("name", ""))
+    except ValueError:
+        return (len(division_order), m.get("team", ""), m.get("name", ""))
+
+members = sorted(members_filtered, key=division_sort_key)
 
 # 참석 맵: (event_id, email) -> bool
 attendance_map = {}
