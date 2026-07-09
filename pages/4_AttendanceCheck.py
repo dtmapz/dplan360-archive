@@ -34,7 +34,7 @@ def build_admin_table(events: list[dict], members: list[dict], attendance_map: d
         m = ev["event_date"][:7]
         month_events.setdefault(m, []).append(ev)
 
-    html = "<div style='overflow-x:auto;'><table style='border-collapse:collapse; font-size:12px;'>"
+    html = "<div style='overflow-x:auto;'><table style='border-collapse:collapse; font-size:12px; width:100%;'>"
     html += "<thead><tr>"
     html += "<th rowspan='2' style='border:0.5px solid var(--border); padding:6px 10px; background:var(--surface-1); color:var(--text-secondary); font-weight:500; white-space:nowrap;'>소속</th>"
     html += "<th rowspan='2' style='border:0.5px solid var(--border); padding:6px 10px; background:var(--surface-1); color:var(--text-secondary); font-weight:500; white-space:nowrap;'>구성원</th>"
