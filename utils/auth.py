@@ -36,7 +36,7 @@ def render_login_page():
         unsafe_allow_html=True,
     )
 
-    logo_l, logo_c, logo_r = st.columns([1, 2, 1])
+    logo_l, logo_c, logo_r = st.columns([2, 1, 2])
     with logo_c:
         st.image("assets/logo.png", use_container_width=True)
 
