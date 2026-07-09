@@ -80,6 +80,6 @@ def render_login_page():
                     sb.auth.sign_up({"email": email, "password": password})
                     st.success("가입 완료! 이메일로 발송된 인증 링크를 클릭 후 로그인해주세요.")
                 except Exception as e:
-                    st.error("가입 중 오류가 발생했습니다. 이미 가입된 이메일일 수 있습니다.")
+                    st.error(f"오류: {str(e)}")
 
     st.markdown("</div>", unsafe_allow_html=True)
