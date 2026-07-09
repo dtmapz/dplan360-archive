@@ -254,15 +254,6 @@ def get_attendance_summary() -> list[dict]:
     )
     return res.data
 
-def get_all_media() -> list[dict]:
-    sb = get_client()
-    res = (
-        sb.table("media")
-        .select("*, categories(major_category, sub_category), contacts(*)")
-        .order("name")
-        .execute()
-    )
-    return res.data
 
 # ---------- event_categories ----------
 
@@ -275,3 +266,59 @@ def get_event_categories() -> list[dict]:
 def create_event_category(name: str, color: str) -> None:
     sb = get_client()
     sb.table("event_categories").insert({"name": name, "color": color}).execute()
+
+
+# ---------- creative_guides ----------
+
+def get_creative_guides() -> list[dict]:
+    sb = get_client()
+    res = (
+        sb.table("creative_guides")
+        .select("*")
+        .order("media_name")
+        .order("product_name")
+        .execute()
+    )
+    return res.data
+
+
+def create_creative_guide(media_name: str, category: str | None,
+                          product_name: str, storage_path: str) -> None:
+    sb = get_client()
+    sb.table("creative_guides").insert({
+        "media_name": media_name,
+        "category": category,
+        "product_name": product_name,
+        "storage_path": storage_path,
+    }).execute()
+
+
+def update_creative_guide(guide_id: str, storage_path: str) -> None:
+    sb = get_client()
+    sb.table("creative_guides").update({
+        "storage_path": storage_path,
+        "uploaded_at": "now()",
+    }).eq("id", guide_id).execute()
+
+
+def delete_creative_guide(guide_id: str) -> None:
+    sb = get_client()
+    sb.table("creative_guides").delete().eq("id", guide_id).execute()
+
+
+def upload_to_storage(bucket: str, path: str, data: bytes) -> str:
+    """Storage에 파일 업로드 후 경로 반환"""
+    sb = get_client()
+    sb.storage.from_(bucket).upload(path, data, {"upsert": "true"})
+    return path
+
+
+def download_from_storage(bucket: str, path: str) -> bytes:
+    """Storage에서 파일 다운로드"""
+    sb = get_client()
+    return sb.storage.from_(bucket).download(path)
+
+
+def delete_from_storage(bucket: str, path: str) -> None:
+    sb = get_client()
+    sb.storage.from_(bucket).remove([path])
