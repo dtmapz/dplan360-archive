@@ -45,8 +45,9 @@ home_page       = st.Page("pages/1_Home.py",           title="HOME",          ic
 milestone_page  = st.Page("pages/2_Milestone.py",       title="MILESTONE",     icon="🗺️")
 calendar_page   = st.Page("pages/3_EventCalendar.py",   title="EVENT CALENDAR",icon="📅")
 attendance_page = st.Page("pages/4_AttendanceCheck.py", title="교육 참여 CHECK", icon="✅")
+creative_page   = st.Page("pages/5_CreativeGuide.py",   title="CREATIVE GUIDE", icon="🎨")
 
-pages = [home_page, milestone_page, calendar_page, attendance_page]
+pages = [home_page, milestone_page, calendar_page, attendance_page, creative_page]
 
 pg = st.navigation(pages)
 pg.run()
