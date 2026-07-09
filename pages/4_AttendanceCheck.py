@@ -34,7 +34,7 @@ def build_admin_table(events: list[dict], members: list[dict], attendance_map: d
         m = ev["event_date"][:7]
         month_events.setdefault(m, []).append(ev)
 
-    html = "<div style='overflow-x:auto;'><table style='border-collapse:collapse; font-size:12px; width:100%;'>"
+    html = "<div style='overflow-x:auto;'><table style='border-collapse:collapse; font-size:12px;'>"
     html += "<thead><tr>"
     html += "<th rowspan='2' style='border:0.5px solid var(--border); padding:6px 10px; background:var(--surface-1); color:var(--text-secondary); font-weight:500; white-space:nowrap;'>소속</th>"
     html += "<th rowspan='2' style='border:0.5px solid var(--border); padding:6px 10px; background:var(--surface-1); color:var(--text-secondary); font-weight:500; white-space:nowrap;'>구성원</th>"
@@ -55,9 +55,27 @@ def build_admin_table(events: list[dict], members: list[dict], attendance_map: d
             html += (f"<th style='border:0.5px solid var(--border); padding:5px 8px; "
                      f"background:{bg}; color:{fg2}; font-size:11px; white-space:nowrap;'>"
                      f"{d.month}/{d.day}<br>{ev['title']}</th>")
+    html += "</tr>"
+
+    # 헤더 3행: 행사별 총 참여 인원수
+    html += "<tr>"
+    html += "<th style='border:0.5px solid var(--border); padding:5px 8px; background:var(--surface-1);'></th>"
+    html += "<th style='border:0.5px solid var(--border); padding:5px 8px; background:var(--surface-1);'></th>"
+    if show_count:
+        html += "<th style='border:0.5px solid var(--border); padding:5px 8px; background:var(--surface-1);'></th>"
+    for i, (month, evs) in enumerate(month_events.items()):
+        bg, _, fg2 = month_colors[i % len(month_colors)]
+        for ev in evs:
+            count = sum(
+                1 for m in members
+                if attendance_map.get((ev["id"], m.get("email", "")))
+            )
+            html += (f"<th style='border:0.5px solid var(--border); padding:5px 8px; "
+                     f"background:{bg}; color:{fg2}; font-size:11px; white-space:nowrap;'>"
+                     f"참여 {count}명</th>")
     html += "</tr></thead><tbody>"
 
-    sorted_members = members
+    sorted_members = sorted(members, key=lambda x: (x.get("division", ""), x.get("team", ""), x.get("name", "")))
     group_rows = {}
     for m in sorted_members:
         g = f"{m.get('division', '')} {m.get('team', '')}".strip()
@@ -86,22 +104,6 @@ def build_admin_table(events: list[dict], members: list[dict], attendance_map: d
                              f"padding:6px 10px; text-align:center;'>{cell}</td>")
             html += "</tr>"
 
-    # 행사별 총 참여 인원수 행
-    html += "<tr>"
-    html += ("<td colspan='2' style='border:0.5px solid var(--border); padding:6px 10px; "
-             "background:var(--surface-1); font-weight:500; color:var(--text-secondary); "
-             "text-align:center;'>총 참여 인원</td>")
-    if show_count:
-        html += "<td style='border:0.5px solid var(--border); padding:6px 10px;'></td>"
-    for evs in month_events.values():
-        for ev in evs:
-            count = sum(
-                1 for m in members
-                if attendance_map.get((ev["id"], m.get("email", "")))
-            )
-            html += (f"<td style='border:0.5px solid var(--border); padding:6px 10px; "
-                     f"text-align:center; font-weight:500; color:#1D9E75;'>{count}명</td>")
-    html += "</tr>"
     html += "</tbody></table></div>"
     return html
 
