@@ -16,12 +16,30 @@ st.logo("assets/m_logo_w-1.png", size="large")
 
 with st.sidebar:
     st.markdown(
-        f"<div style='font-size:12px; color:#888; padding:8px 0;'>"
-        f"{user.get('email', '')}</div>",
+        f"""
+        <div style='display:flex; align-items:center; justify-content:space-between;
+        padding:8px 0 12px; border-bottom:0.5px solid #333; margin-bottom:8px;'>
+            <span style='font-size:12px; color:#aaa;'>{user.get('email', '')}</span>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
     if st.button("로그아웃", use_container_width=True):
         logout()
+
+st.markdown(
+    """
+    <style>
+    [data-testid="stSidebar"] [data-testid="stButton"] button {
+        background-color: #0B0B0B !important;
+        color: #FFFFFF !important;
+        border: 1px solid #F2A93B !important;
+        font-size: 13px !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # 사이드바 CSS (블랙)
 st.markdown(
