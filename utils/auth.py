@@ -61,7 +61,7 @@ def render_login_page():
                     st.error("이메일 또는 비밀번호가 올바르지 않습니다.")
 
     with tab_signup:
-        email = st.text_input("이메일", key="signup_email", placeholder="example@d-plan360.com")
+        email = st.text_input("이메일 (@d-plan360.com만 가능)", key="signup_email", placeholder="example@d-plan360.com")
         password = st.text_input("비밀번호 (8자 이상)", type="password", key="signup_pw")
         password_confirm = st.text_input("비밀번호 확인", type="password", key="signup_pw_confirm")
 
