@@ -105,7 +105,7 @@ def event_detail_dialog(event: dict):
         if st.button("저장", type="primary"):
             if not title or not venue:
                 st.error("행사명과 장소는 필수입니다.")
-            elif start_time >= end_time:
+            elif start_time_str >= end_time_str:
                 st.error("종료 시간은 시작 시간보다 늦어야 합니다.")
             else:
                 db.update_event(event["id"],
