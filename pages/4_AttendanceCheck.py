@@ -86,6 +86,22 @@ def build_admin_table(events: list[dict], members: list[dict], attendance_map: d
                              f"padding:6px 10px; text-align:center;'>{cell}</td>")
             html += "</tr>"
 
+    # 행사별 총 참여 인원수 행
+    html += "<tr>"
+    html += ("<td colspan='2' style='border:0.5px solid var(--border); padding:6px 10px; "
+             "background:var(--surface-1); font-weight:500; color:var(--text-secondary); "
+             "text-align:center;'>총 참여 인원</td>")
+    if show_count:
+        html += "<td style='border:0.5px solid var(--border); padding:6px 10px;'></td>"
+    for evs in month_events.values():
+        for ev in evs:
+            count = sum(
+                1 for m in members
+                if attendance_map.get((ev["id"], m.get("email", "")))
+            )
+            html += (f"<td style='border:0.5px solid var(--border); padding:6px 10px; "
+                     f"text-align:center; font-weight:500; color:#1D9E75;'>{count}명</td>")
+    html += "</tr>"
     html += "</tbody></table></div>"
     return html
 
