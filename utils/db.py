@@ -108,15 +108,6 @@ def get_media_by_category(major: str) -> list[dict]:
     )
     return res.data
 
-def get_all_media() -> list[dict]:
-    sb = get_client()
-    res = (
-        sb.table("media")
-        .select("*, categories(major_category, sub_category), contacts(*)")
-        .order("name")
-        .execute()
-    )
-    return res.data
 
 def get_media_detail(media_id: str) -> dict:
     sb = get_client()
@@ -169,3 +160,96 @@ def upsert_contact(contact_id: str | None, media_id: str, manager_name: str, pos
         sb.table("contacts").update(payload).eq("id", contact_id).execute()
     else:
         sb.table("contacts").insert(payload).execute()
+
+
+# ---------- events ----------
+
+def get_events_by_month(year: int, month: int) -> list[dict]:
+    import calendar
+    last_day = calendar.monthrange(year, month)[1]
+    start = f"{year}-{month:02d}-01"
+    end = f"{year}-{month:02d}-{last_day}"
+    sb = get_client()
+    res = (
+        sb.table("events")
+        .select("*")
+        .gte("event_date", start)
+        .lte("event_date", end)
+        .order("event_date")
+        .order("start_time")
+        .execute()
+    )
+    return res.data
+
+
+def get_all_events() -> list[dict]:
+    sb = get_client()
+    res = sb.table("events").select("*").order("event_date").order("start_time").execute()
+    return res.data
+
+
+def create_event(title: str, event_date: str, start_time: str, end_time: str,
+                 category: str, venue: str, memo: str | None, requires_check: bool) -> str:
+    sb = get_client()
+    res = sb.table("events").insert({
+        "title": title, "event_date": event_date,
+        "start_time": start_time, "end_time": end_time,
+        "category": category, "venue": venue,
+        "memo": memo, "requires_check": requires_check,
+    }).execute()
+    return res.data[0]["id"]
+
+
+def update_event(event_id: str, **kwargs) -> None:
+    sb = get_client()
+    sb.table("events").update(kwargs).eq("id", event_id).execute()
+
+
+def delete_event(event_id: str) -> None:
+    sb = get_client()
+    sb.table("events").delete().eq("id", event_id).execute()
+
+
+# ---------- attendance ----------
+
+def get_my_attendance(user_email: str) -> list[str]:
+    """현재 사용자가 참석 체크한 event_id 목록"""
+    sb = get_client()
+    res = (
+        sb.table("attendance")
+        .select("event_id")
+        .eq("member_email", user_email)
+        .eq("attended", True)
+        .execute()
+    )
+    return [r["event_id"] for r in res.data]
+
+
+def toggle_attendance(event_id: str, user_email: str, attended: bool) -> None:
+    sb = get_client()
+    existing = (
+        sb.table("attendance")
+        .select("id")
+        .eq("event_id", event_id)
+        .eq("member_email", user_email)
+        .execute()
+    )
+    if existing.data:
+        sb.table("attendance").update({"attended": attended}).eq("id", existing.data[0]["id"]).execute()
+    else:
+        sb.table("attendance").insert({
+            "event_id": event_id, "member_email": user_email, "attended": attended,
+        }).execute()
+
+
+def get_attendance_summary() -> list[dict]:
+    """requires_check=True 행사별 참석자 목록 (행사 참여 현황용)"""
+    sb = get_client()
+    res = (
+        sb.table("events")
+        .select("id, title, event_date, start_time, category, attendance(*)")
+        .eq("requires_check", True)
+        .order("event_date")
+        .execute()
+    )
+    return res.data
