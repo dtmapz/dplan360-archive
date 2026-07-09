@@ -38,9 +38,9 @@ def event_detail_dialog(event: dict):
     with col_info:
         st.markdown(
             f"<div style='display:flex; align-items:center; gap:10px; margin-bottom:4px;'>"
-            f"<span style='background:{color}; color:#fff; font-size:14px; "
+            f"<span style='background:{color}; color:#fff; font-size:12px; "
             f"padding:3px 10px; border-radius:4px; white-space:nowrap;'>{cat}</span>"
-            f"<span style='font-size:14px; font-weight:500;'>{event['title']}</span>"
+            f"<span style='font-size:15px; font-weight:500;'>{event['title']}</span>"
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -125,6 +125,8 @@ def event_detail_dialog(event: dict):
 
 
 # ---------- 메인 ----------
+st.markdown("## 📅 EVENT CALENDAR")
+
 if "my_attendance" not in st.session_state:
     st.session_state["my_attendance"] = db.get_my_attendance(user_email)
 
@@ -205,53 +207,49 @@ with tab_list:
 
         for month, month_events in groupby(events, key=month_key):
             y, m = month.split("-")
-            st.markdown(
-                f"<div style='font-size:13px; font-weight:500; color:var(--text-muted); "
-                f"margin:20px 0 8px;'>{y}년 {int(m)}월</div>",
-                unsafe_allow_html=True,
-            )
+            is_current_or_future = month >= current_month
+            with st.expander(f"{y}년 {int(m)}월", expanded=is_current_or_future):
+                for ev in list(month_events):
+                    color = category_color(ev.get("category", ""), color_map)
+                    cat = ev.get("category", "")
+                    s = ev.get("start_time", "")[:5] if ev.get("start_time") else ""
+                    e = ev.get("end_time", "")[:5] if ev.get("end_time") else ""
+                    venue = ev.get("venue", "")
+                    d = date.fromisoformat(ev["event_date"])
+                    date_label = f"{int(m)}월 {d.day}일 ({weekdays[d.weekday()]})"
 
-            for ev in month_events:
-                color = category_color(ev.get("category", ""), color_map)
-                cat = ev.get("category", "")
-                s = ev.get("start_time", "")[:5] if ev.get("start_time") else ""
-                e = ev.get("end_time", "")[:5] if ev.get("end_time") else ""
-                venue = ev.get("venue", "")
-                d = date.fromisoformat(ev["event_date"])
-                date_label = f"{int(m)}월 {d.day}일 ({weekdays[d.weekday()]})"
-
-                col_card, col_toggle = st.columns([6, 1])
-                with col_card:
-                    st.markdown(
-                        f"<div style='display:flex; align-items:center; gap:10px; "
-                        f"padding:10px 14px; background:{color}11; "
-                        f"border:0.5px solid var(--border); border-radius:8px; "
-                        f"border-left:4px solid {color}; margin-bottom:6px;'>"
-                        f"<span style='background:{color}; color:#fff; font-size:11px; "
-                        f"padding:2px 8px; border-radius:4px; white-space:nowrap;'>{cat}</span>"
-                        f"<span style='font-size:13px; font-weight:500; color:var(--text-primary);'>{ev['title']}</span>"
-                        f"<span style='font-size:13px; color:var(--text-muted);'>{s}~{e} · {venue}</span>"
-                        f"<span style='font-size:13px; color:var(--text-muted); margin-left:auto; white-space:nowrap;'>{date_label}</span>"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
-                with col_toggle:
-                    if admin:
-                        new_req = st.toggle("참석설정", value=bool(ev.get("requires_check")),
-                                            key=f"list_req_{ev['id']}")
-                        if new_req != bool(ev.get("requires_check")):
-                            db.update_event(ev["id"], requires_check=new_req)
-                            st.rerun()
-                    elif ev.get("requires_check"):
-                        current_att = ev["id"] in attended_ids
-                        new_val = st.toggle("참석", value=current_att, key=f"list_att_{ev['id']}")
-                        if new_val != current_att:
-                            db.toggle_attendance(ev["id"], user_email, new_val)
-                            st.session_state["my_attendance"] = (
-                                attended_ids + [ev["id"]] if new_val
-                                else [x for x in attended_ids if x != ev["id"]]
-                            )
-                            st.rerun()
+                    col_card, col_toggle = st.columns([6, 1])
+                    with col_card:
+                        st.markdown(
+                            f"<div style='display:flex; align-items:center; gap:10px; "
+                            f"padding:10px 14px; background:var(--surface-2); "
+                            f"border:0.5px solid var(--border); border-radius:8px; "
+                            f"border-left:4px solid {color}; margin-bottom:6px;'>"
+                            f"<span style='background:{color}; color:#fff; font-size:11px; "
+                            f"padding:2px 8px; border-radius:4px; white-space:nowrap;'>{cat}</span>"
+                            f"<span style='font-size:13px; font-weight:500; color:var(--text-primary);'>{ev['title']}</span>"
+                            f"<span style='font-size:13px; color:var(--text-muted);'>{s}~{e} · {venue}</span>"
+                            f"<span style='font-size:13px; color:var(--text-muted); margin-left:auto; white-space:nowrap;'>{date_label}</span>"
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
+                    with col_toggle:
+                        if admin:
+                            new_req = st.toggle("참석설정", value=bool(ev.get("requires_check")),
+                                                key=f"list_req_{ev['id']}")
+                            if new_req != bool(ev.get("requires_check")):
+                                db.update_event(ev["id"], requires_check=new_req)
+                                st.rerun()
+                        elif ev.get("requires_check"):
+                            current_att = ev["id"] in attended_ids
+                            new_val = st.toggle("참석", value=current_att, key=f"list_att_{ev['id']}")
+                            if new_val != current_att:
+                                db.toggle_attendance(ev["id"], user_email, new_val)
+                                st.session_state["my_attendance"] = (
+                                    attended_ids + [ev["id"]] if new_val
+                                    else [x for x in attended_ids if x != ev["id"]]
+                                )
+                                st.rerun()
 
         # 하단 구분별 색상 범례
         all_cats = db.get_event_categories()
