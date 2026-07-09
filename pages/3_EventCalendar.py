@@ -200,21 +200,19 @@ with tab_list:
     else:
         current_date = None
         for ev in events:
-            if ev["event_date"] != current_date:
-                current_date = ev["event_date"]
-                d = date.fromisoformat(current_date)
-                weekdays = ["월", "화", "수", "목", "금", "토", "일"]
-                st.markdown(
-                    f"<div style='font-size:13px; font-weight:500; color:var(--text-muted); "
-                    f"margin:16px 0 6px;'>{d.year}년 {d.month}월 {d.day}일 ({weekdays[d.weekday()]})</div>",
-                    unsafe_allow_html=True,
-                )
-
             color = category_color(ev.get("category", ""), color_map)
             cat = ev.get("category", "")
             s = ev.get("start_time", "")[:5] if ev.get("start_time") else ""
             e = ev.get("end_time", "")[:5] if ev.get("end_time") else ""
             venue = ev.get("venue", "")
+
+            if ev["event_date"] != current_date:
+                current_date = ev["event_date"]
+                d = date.fromisoformat(current_date)
+                weekdays = ["월", "화", "수", "목", "금", "토", "일"]
+                date_label = f"{d.year}년 {d.month}월 {d.day}일 ({weekdays[d.weekday()]})"
+            else:
+                date_label = ""
 
             col_info, col_toggle = st.columns([5, 1])
             with col_info:
@@ -222,13 +220,15 @@ with tab_list:
                     f"<div style='display:flex; align-items:center; gap:10px; "
                     f"padding:8px 12px; background:var(--surface-1); "
                     f"border-radius:8px; margin-bottom:4px;'>"
+                    f"<span style='font-size:13px; color:var(--text-muted); white-space:nowrap;'>{date_label}</span>"
                     f"<span style='background:{color}; color:#fff; font-size:11px; "
                     f"padding:2px 8px; border-radius:4px; white-space:nowrap;'>{cat}</span>"
                     f"<span style='font-size:13px; font-weight:500;'>{ev['title']}</span>"
-                    f"<span style='font-size:12px; color:var(--text-muted);'>{s}~{e} · {venue}</span>"
+                    f"<span style='font-size:13px; color:var(--text-muted);'>{s}~{e} · {venue}</span>"
                     f"</div>",
                     unsafe_allow_html=True,
                 )
+                
             with col_toggle:
                 if admin:
                     new_req = st.toggle("참석설정", value=bool(ev.get("requires_check")),
