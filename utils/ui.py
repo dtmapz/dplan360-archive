@@ -57,6 +57,10 @@ def inject_base_style() -> None:
             font-size: 14px !important;
             margin: 0 !important;
         }
+        /* 탭 폰트 크기를 리스트 행사 폰트와 통일 */
+        div[data-testid="stTabs"] button p {
+            font-size: 13px !important;
+        }
         </style>
         """,
         unsafe_allow_html=True,
