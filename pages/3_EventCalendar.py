@@ -268,7 +268,7 @@ if tab_reg is not None:
         if st.button("등록", type="primary", key="reg_submit"):
             if not title or not venue or not start_time_str or not end_time_str:
                 st.error("행사명 / 날짜 / 시작-종료 시간 / 장소는 필수입니다.")
-            elif start_time >= end_time:
+            elif start_time_str >= end_time_str:
                 st.error("종료 시간은 시작 시간보다 늦어야 합니다.")
             else:
                 db.create_event(
