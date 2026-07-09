@@ -17,8 +17,12 @@ CATEGORY_COLORS = {
     "오프라인":  "#BA7517",
 }
 
-def category_color(cat: str) -> str:
-    return CATEGORY_COLORS.get(cat, "#888780")
+def get_category_color_map() -> dict:
+    cats = db.get_event_categories()
+    return {c["name"]: c["color"] for c in cats}
+
+def category_color(cat: str, color_map: dict) -> str:
+    return color_map.get(cat, "#888780")
 
 
 # ---------- 이벤트 상세/수정 dialog ----------
@@ -131,9 +135,10 @@ with tab_cal:
         from streamlit_calendar import calendar as st_calendar
 
         events = db.get_all_events()
+        color_map = get_category_color_map()
         cal_events = []
         for ev in events:
-            color = category_color(ev.get("category", ""))
+            color = category_color(ev.get("category", ""), color_map)
             start = ev["event_date"]
             if ev.get("start_time"):
                 start += f"T{ev['start_time'][:5]}"
@@ -194,7 +199,8 @@ with tab_list:
                     unsafe_allow_html=True,
                 )
 
-            color = category_color(ev.get("category", ""))
+            color_map = get_category_color_map()
+            color = category_color(ev.get("category", ""), color_map)
             s = ev.get("start_time", "")[:5] if ev.get("start_time") else ""
             e = ev.get("end_time", "")[:5] if ev.get("end_time") else ""
 
@@ -235,16 +241,24 @@ if tab_reg is not None:
             start_time_str = st.text_input("시작 시간* (HH:MM)", placeholder="09:00", key="reg_start")
         with col_e:
             end_time_str = st.text_input("종료 시간* (HH:MM)", placeholder="10:00", key="reg_end")
-        categories = ["매체설명회", "온라인", "오프라인"] + st.session_state.get("custom_categories", [])
-        cat_options = categories + ["+ 새 구분 추가"]
+        all_cats = db.get_event_categories()
+        cat_names = [c["name"] for c in all_cats]
+        cat_options = cat_names + ["+ 새 구분 추가"]
         cat_choice = st.selectbox("구분*", cat_options, key="reg_cat")
+
         if cat_choice == "+ 새 구분 추가":
             new_cat = st.text_input("새 구분명 입력", key="new_cat_input")
-            if st.button("추가", key="add_cat_btn") and new_cat:
-                if new_cat not in categories:
-                    st.session_state.setdefault("custom_categories", []).append(new_cat)
-                st.rerun()
-            category = new_cat
+            new_color = st.color_picker("색상 선택", value="#4F8EF7", key="new_cat_color")
+            if st.button("추가", key="add_cat_btn"):
+                if not new_cat:
+                    st.error("구분명을 입력해주세요.")
+                elif new_cat in cat_names:
+                    st.error("이미 존재하는 구분명입니다.")
+                else:
+                    db.create_event_category(new_cat, new_color)
+                    st.success(f"'{new_cat}' 구분이 추가되었습니다.")
+                    st.rerun()
+            category = new_cat or ""
         else:
             category = cat_choice
         venue = st.text_input("장소*", key="reg_venue")
