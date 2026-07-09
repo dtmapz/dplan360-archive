@@ -322,3 +322,13 @@ def download_from_storage(bucket: str, path: str) -> bytes:
 def delete_from_storage(bucket: str, path: str) -> None:
     sb = get_client()
     sb.storage.from_(bucket).remove([path])
+
+def get_all_media() -> list[dict]:
+    sb = get_client()
+    res = (
+        sb.table("media")
+        .select("*, categories(major_category, sub_category), contacts(*)")
+        .order("name")
+        .execute()
+    )
+    return res.data
