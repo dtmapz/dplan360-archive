@@ -38,9 +38,9 @@ def event_detail_dialog(event: dict):
     with col_info:
         st.markdown(
             f"<div style='display:flex; align-items:center; gap:10px; margin-bottom:4px;'>"
-            f"<span style='background:{color}; color:#fff; font-size:12px; "
+            f"<span style='background:{color}; color:#fff; font-size:14px; "
             f"padding:3px 10px; border-radius:4px; white-space:nowrap;'>{cat}</span>"
-            f"<span style='font-size:15px; font-weight:500;'>{event['title']}</span>"
+            f"<span style='font-size:14px; font-weight:500;'>{event['title']}</span>"
             f"</div>",
             unsafe_allow_html=True,
         )
