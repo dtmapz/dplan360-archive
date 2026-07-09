@@ -29,7 +29,7 @@ def event_detail_dialog(event: dict):
 
     col_t, col_btn = st.columns([5, 1])
     with col_t:
-        st.markdown(f"### {event['title']}")
+        st.markdown("")
     if admin:
         with col_btn:
             if st.button("수정", key=f"ev_edit_{event['id']}"):
