@@ -42,11 +42,15 @@ def event_detail_dialog(event: dict):
         cat = event.get("category", "-")
         color = category_color(cat, color_map)
 
-        st.markdown(
-            f"<span style='background:{color}; color:#fff; font-size:12px; "
-            f"padding:3px 10px; border-radius:4px;'>{cat}</span>",
-            unsafe_allow_html=True,
-        )
+        col_cat, col_title2 = st.columns([1, 4])
+        with col_cat:
+            st.markdown(
+                f"<span style='background:{color}; color:#fff; font-size:12px; "
+                f"padding:3px 10px; border-radius:4px;'>{cat}</span>",
+                unsafe_allow_html=True,
+            )
+        with col_title2:
+            st.markdown(f"**{event['title']}**")
         st.write(f"**일시**: {event['event_date']} {s} ~ {e}")
         st.write(f"**장소**: {event.get('venue', '-')}")
         if event.get("memo"):
@@ -151,7 +155,7 @@ with tab_cal:
             end = ev["event_date"] + (f"T{end_t}" if end_t else "")
             cal_events.append({
                 "id": ev["id"],
-                "title": f"{s} {ev['title']} [{cat}]" if s else f"{ev['title']} [{cat}]",
+                "title": f"{ev['title']} [{cat}]",
                 "start": start,
                 "end": end,
                 "backgroundColor": color,
