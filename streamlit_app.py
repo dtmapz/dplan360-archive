@@ -15,17 +15,15 @@ if not user:
 st.logo("assets/m_logo_w-1.png", size="large")
 
 with st.sidebar:
-    st.markdown(
-        f"""
-        <div style='display:flex; align-items:center; justify-content:space-between;
-        padding:8px 0 12px; border-bottom:0.5px solid #333; margin-bottom:8px;'>
-            <span style='font-size:12px; color:#aaa;'>{user.get('email', '')}</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    if st.button("로그아웃", use_container_width=True):
-        logout()
+    col_email, col_btn = st.columns([2, 1])
+    with col_email:
+        st.markdown(
+            f"<div style='font-size:12px; color:#aaa; padding-top:8px;'>{user.get('email', '')}</div>",
+            unsafe_allow_html=True,
+        )
+    with col_btn:
+        if st.button("로그아웃", use_container_width=True):
+            logout()
 
 st.markdown(
     """
