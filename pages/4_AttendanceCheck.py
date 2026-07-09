@@ -133,11 +133,6 @@ past = [ev for ev in all_events if ev["event_date"][:7] < current_month]
 
 # ---------- 이번달 이후 표 ----------
 if current_future:
-    st.markdown(
-        f"<div style='font-size:13px; font-weight:500; color:var(--text-muted); margin-bottom:8px;'>"
-        f"{today.year}년 {today.month}월 이후</div>",
-        unsafe_allow_html=True,
-    )
     html = build_admin_table(current_future, members, attendance_map,
                              show_count=True, all_events_for_count=all_events)
     st.markdown(html, unsafe_allow_html=True)
