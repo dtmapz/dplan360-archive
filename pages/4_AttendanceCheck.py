@@ -8,10 +8,6 @@ set_current_page("attendance")
 
 user = get_current_user()
 user_email = user.get("email", "") if user else ""
-
-st.markdown("## 👤 교육 참여 CHECK")
-st.caption("참석 여부 설정이 ON된 행사에 대한 참여 현황입니다.")
-
 events = db.get_attendance_summary()
 
 if not events:
