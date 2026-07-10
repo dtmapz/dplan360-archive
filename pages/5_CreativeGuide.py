@@ -80,7 +80,7 @@ with tab_dl:
     # 아무것도 선택 안 했을 때 Quick Guide
     if not any_filter:
         st.markdown(
-            "<div style='margin:40px auto; max-width:340px; background:rgba(0,0,0,0.04); "
+            "<div style='margin:40px auto; max-width:480px; background:rgba(0,0,0,0.04); "
             "border-radius:12px; padding:24px 28px; opacity:0.6; text-align:center;'>"
             "<div style='font-size:14px; font-weight:600; margin-bottom:12px;'>Quick Guide</div>"
             "<div style='font-size:13px; color:var(--text-secondary); text-align:left; line-height:2;'>"
