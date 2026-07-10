@@ -218,20 +218,27 @@ with tab_up:
     upload_file = st.file_uploader("엑셀 파일 업로드 (.xlsx)", type=["xlsx"], key="cg_upload_file")
 
     if st.button("저장", type="primary", key="cg_upload_btn"):
-        if not upload_media or not upload_product or not upload_file:
-            st.error("매체, 상품명, 파일을 모두 입력해주세요.")
+        if not upload_media or not upload_product:
+            st.error("매체와 상품명을 입력해주세요.")
         else:
             existing = guide_map.get(upload_media, {}).get(upload_product)
-            storage_path = f"{uuid.uuid4()}.xlsx"
-            file_bytes = upload_file.read()
-            if existing:
-                db.delete_from_storage(BUCKET, existing["storage_path"])
-                db.upload_to_storage(BUCKET, storage_path, file_bytes)
-                db.update_creative_guide(existing["id"], storage_path)
+            if upload_file:
+                file_bytes = upload_file.read()
+                storage_path = f"{uuid.uuid4()}.xlsx"
+                if existing:
+                    if existing.get("storage_path"):
+                        db.delete_from_storage(BUCKET, existing["storage_path"])
+                    db.upload_to_storage(BUCKET, storage_path, file_bytes)
+                    db.update_creative_guide(existing["id"], storage_path)
+                else:
+                    db.upload_to_storage(BUCKET, storage_path, file_bytes)
+                    cat = media_cat_map.get(upload_media, "")
+                    db.create_creative_guide(upload_media, cat, upload_product, storage_path)
             else:
-                db.upload_to_storage(BUCKET, storage_path, file_bytes)
-                cat = media_cat_map.get(upload_media, "")
-                db.create_creative_guide(upload_media, cat, upload_product, storage_path)
+                if not existing:
+                    cat = media_cat_map.get(upload_media, "")
+                    db.create_creative_guide(upload_media, cat, upload_product, None)
+                # 이미 존재하면 파일 없이 저장 시 아무 변경 없음 (파일만 덮어쓰기 가능)
             st.session_state["_cg_upload_success"] = f"'{upload_media} · {upload_product}' 저장 완료."
             st.rerun()
 
