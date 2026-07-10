@@ -3,6 +3,7 @@ import io
 from utils import db
 from utils.auth import get_current_user
 from utils.ui import set_current_page
+import uuid
 
 set_current_page("creative_guide")
 
@@ -96,46 +97,40 @@ with tab_dl:
                         st.rerun()
             st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
-        # 매체별 행: 매체명 | 상품 버튼들
+        # 매체별 행: 매체명 | 구분선 | 상품 버튼들
         for media_name in filtered_names:
             products = guide_map.get(media_name, {})
             if not products:
-                col_m, col_p = st.columns([1, 5])
-                col_m.markdown(
-                    f"<div style='font-size:13px;font-weight:500;padding:8px 0;color:var(--text-secondary);'>{media_name}</div>",
-                    unsafe_allow_html=True,
-                )
-                col_p.caption("등록된 상품 없음")
                 continue
 
-            col_m, col_p = st.columns([1, 5])
+            # 파일 있는 상품만 있는 경우만 표시
+            has_any_file = any(bool(g.get("storage_path")) for g in products.values())
+            if not has_any_file:
+                continue
+
+            col_m, col_div, col_p = st.columns([1, 0.05, 5])
             col_m.markdown(
                 f"<div style='font-size:13px;font-weight:500;padding:10px 0;'>{media_name}</div>",
                 unsafe_allow_html=True,
             )
+            col_div.markdown(
+                "<div style='width:1px;height:40px;background:var(--border-strong);margin:4px auto;'></div>",
+                unsafe_allow_html=True,
+            )
             with col_p:
-                prod_cols = st.columns(len(products) if len(products) <= 5 else 5)
+                btn_cols = st.columns(len(products) if len(products) <= 8 else 8)
                 for j, (product_name, guide) in enumerate(sorted(products.items())):
                     has_file = bool(guide.get("storage_path"))
                     key = (media_name, product_name)
                     is_on = st.session_state["cg_selected"].get(key, False)
-                    with prod_cols[j % 5]:
+                    with btn_cols[j % 8]:
                         if not has_file:
-                            st.button(
-                                product_name,
-                                key=f"cg_btn_{media_name}_{product_name}",
-                                disabled=True,
-                                use_container_width=True,
-                            )
+                            st.button(product_name, key=f"cg_btn_{media_name}_{product_name}",
+                                      disabled=True)
                         else:
                             label = f"✓ {product_name}" if is_on else product_name
-                            btn_type = "primary" if is_on else "secondary"
-                            if st.button(
-                                label,
-                                key=f"cg_btn_{media_name}_{product_name}",
-                                use_container_width=True,
-                                type=btn_type,
-                            ):
+                            if st.button(label, key=f"cg_btn_{media_name}_{product_name}",
+                                         type="primary" if is_on else "secondary"):
                                 st.session_state["cg_selected"][key] = not is_on
                                 st.rerun()
 
@@ -203,7 +198,6 @@ with tab_up:
         if not upload_media or not upload_product or not upload_file:
             st.error("매체, 상품명, 파일을 모두 입력해주세요.")
         else:
-            import uuid
             existing = guide_map.get(upload_media, {}).get(upload_product)
             storage_path = f"{uuid.uuid4()}.xlsx"
             file_bytes = upload_file.read()
