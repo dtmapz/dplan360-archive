@@ -3,6 +3,7 @@ import io
 from utils import db
 from utils.auth import get_current_user
 from utils.ui import set_current_page
+import uuid
 
 set_current_page("creative_guide")
 
@@ -227,7 +228,7 @@ with tab_up:
             st.error("매체, 상품명, 파일을 모두 입력해주세요.")
         else:
             existing = guide_map.get(upload_media, {}).get(upload_product)
-            storage_path = f"{upload_media}/{upload_product}.xlsx"
+            storage_path = f"{uuid.uuid4()}.xlsx"
             file_bytes = upload_file.read()
         try:
             if existing:
