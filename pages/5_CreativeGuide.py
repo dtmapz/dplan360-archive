@@ -81,21 +81,17 @@ with tab_dl:
             unsafe_allow_html=True,
         )
     else:
-        # 선택된 상품 상단 표시 (블랙 태그, 클릭으로 제거)
+        # 선택된 상품 태그 표시 (× 없음, 제거는 상품 버튼 재클릭으로)
         selected = {k: v for k, v in st.session_state["cg_selected"].items() if v}
         if selected:
-            sel_cols = st.columns(len(selected) if len(selected) <= 6 else 6)
-            for i, (mn, pn) in enumerate(list(selected.keys())):
-                with sel_cols[i % 6]:
-                    if st.button(
-                        f"✕  {mn} · {pn}",
-                        key=f"cg_sel_{mn}_{pn}",
-                        use_container_width=True,
-                        type="primary",
-                    ):
-                        st.session_state["cg_selected"][(mn, pn)] = False
-                        st.rerun()
-            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+            tag_html = "".join(
+                f"<span style='display:inline-flex;align-items:center;padding:5px 12px;"
+                f"border-radius:20px;font-size:12px;border:0.5px solid var(--border-strong);"
+                f"background:var(--surface-1);color:var(--text-primary);margin:3px;'>"
+                f"{mn} · {pn}</span>"
+                for (mn, pn) in selected
+            )
+            st.markdown(f"<div style='margin-bottom:10px;'>{tag_html}</div>", unsafe_allow_html=True)
 
         # 매체별 행: 매체명 | 구분선 | 상품 버튼들
         for media_name in filtered_names:
