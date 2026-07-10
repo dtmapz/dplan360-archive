@@ -96,9 +96,7 @@ with tab_dl:
             products = guide_map.get(media_name, {})
             if not products:
                 continue
-            has_any_file = any(bool(g.get("storage_path")) for g in products.values())
-            if not has_any_file:
-                continue
+
 
             col_m, col_div, col_p = st.columns([1, 0.05, 5])
             col_m.markdown(
