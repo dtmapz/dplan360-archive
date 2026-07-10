@@ -229,6 +229,7 @@ with tab_up:
             existing = guide_map.get(upload_media, {}).get(upload_product)
             storage_path = f"{upload_media}/{upload_product}.xlsx"
             file_bytes = upload_file.read()
+            try:
             if existing:
                 db.delete_from_storage(BUCKET, existing["storage_path"])
                 db.upload_to_storage(BUCKET, storage_path, file_bytes)
@@ -239,3 +240,5 @@ with tab_up:
                 db.create_creative_guide(upload_media, cat, upload_product, storage_path)
             st.success(f"'{upload_media} · {upload_product}' 저장 완료.")
             st.rerun()
+        except Exception as e:
+            st.error(f"상세 오류: {str(e)}")
