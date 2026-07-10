@@ -28,19 +28,6 @@ tab_dl, tab_up = st.tabs(["제작가이드 다운로드", "업로드"])
 # 다운로드 탭
 # ============================
 with tab_dl:
-    # 상품 버튼 영역 좌정렬 CSS 주입
-    st.markdown(
-        "<style>"
-        "div[data-testid='column']:last-child > div[data-testid='stVerticalBlock'] > div[data-testid='stHorizontalBlock'] {"
-        "  flex-wrap: wrap !important; gap: 6px !important;"
-        "}"
-        "div[data-testid='column']:last-child div[data-testid='stHorizontalBlock'] > div[data-testid='column'] {"
-        "  flex: 0 0 auto !important; width: auto !important; min-width: unset !important;"
-        "}"
-        "</style>",
-        unsafe_allow_html=True,
-    )
-
     majors = db.get_major_categories()
     col_f1, col_f2, col_or, col_f3 = st.columns([2, 2, 0.4, 3])
     with col_f1:
@@ -81,6 +68,17 @@ with tab_dl:
     if "cg_selected" not in st.session_state:
         st.session_state["cg_selected"] = {}
 
+    # query_params로 버튼 클릭 처리
+    params = st.query_params
+    if "cg_toggle" in params:
+        raw = params["cg_toggle"]
+        if "||" in raw:
+            mn, pn = raw.split("||", 1)
+            key = (mn, pn)
+            st.session_state["cg_selected"][key] = not st.session_state["cg_selected"].get(key, False)
+        st.query_params.clear()
+        st.rerun()
+
     if not any_filter:
         st.markdown(
             "<div style='margin:40px auto;max-width:480px;background:rgba(0,0,0,0.04);"
@@ -94,12 +92,10 @@ with tab_dl:
             unsafe_allow_html=True,
         )
     else:
-        # 매체별 행: 매체명 | 구분선 | 상품 버튼들 (좌정렬)
         for media_name in filtered_names:
             products = guide_map.get(media_name, {})
             if not products:
                 continue
-
             has_any_file = any(bool(g.get("storage_path")) for g in products.values())
             if not has_any_file:
                 continue
@@ -114,38 +110,60 @@ with tab_dl:
                 unsafe_allow_html=True,
             )
             with col_p:
-                sorted_products = sorted(products.items())
-                btn_cols = st.columns(len(sorted_products) if len(sorted_products) <= 8 else 8)
-                for j, (product_name, guide) in enumerate(sorted_products):
+                btn_parts = []
+                for product_name, guide in sorted(products.items()):
                     has_file = bool(guide.get("storage_path"))
                     key = (media_name, product_name)
                     is_on = st.session_state["cg_selected"].get(key, False)
-                    with btn_cols[j % 8]:
-                        if not has_file:
-                            st.button(product_name, key=f"cg_btn_{media_name}_{product_name}",
-                                      disabled=True)
-                        else:
-                            label = f"✓ {product_name}" if is_on else product_name
-                            if st.button(label, key=f"cg_btn_{media_name}_{product_name}",
-                                         type="primary" if is_on else "secondary"):
-                                st.session_state["cg_selected"][key] = not is_on
-                                st.rerun()
+                    label = f"✓ {product_name}" if is_on else product_name
+                    encoded = f"{media_name}||{product_name}"
 
-            st.markdown("<div style='height:2px;border-bottom:0.5px solid var(--border);margin:2px 0;'></div>",
-                        unsafe_allow_html=True)
+                    if not has_file:
+                        btn_parts.append(
+                            f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
+                            f"box-shadow:0 0 0 0.5px #ccc inset;"
+                            f"color:#bbb;cursor:not-allowed;display:inline-block;'>{product_name}</span>"
+                        )
+                    elif is_on:
+                        btn_parts.append(
+                            f"<a href='?cg_toggle={encoded}' style='text-decoration:none;'>"
+                            f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
+                            f"background:#111;color:#fff;cursor:pointer;display:inline-block;'>{label}</span></a>"
+                        )
+                    else:
+                        btn_parts.append(
+                            f"<a href='?cg_toggle={encoded}' style='text-decoration:none;'>"
+                            f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
+                            f"box-shadow:0 0 0 0.5px #999 inset;"
+                            f"color:var(--text-primary);cursor:pointer;display:inline-block;'>{product_name}</span></a>"
+                        )
 
-        # 선택된 상품 태그 + 다운로드 버튼 (태그가 버튼 바로 위)
+                st.markdown(
+                    f"<div style='display:flex;flex-wrap:wrap;gap:8px;padding:6px 0;'>"
+                    + "".join(btn_parts) +
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+
+            st.markdown(
+                "<div style='border-bottom:0.5px solid var(--border);margin:4px 0 8px 0;'></div>",
+                unsafe_allow_html=True,
+            )
+
+        # 선택 태그 + 다운로드 버튼
         selected = {k: v for k, v in st.session_state["cg_selected"].items() if v}
         if selected:
             tag_html = "".join(
-                f"<span style='display:inline-flex;align-items:center;padding:5px 12px;"
-                f"border-radius:20px;font-size:12px;border:0.5px solid var(--border-strong);"
-                f"background:var(--surface-1);color:var(--text-primary);margin:3px;'>"
+                f"<span style='font-size:12px;padding:4px 10px;border-radius:20px;"
+                f"box-shadow:0 0 0 0.5px #999 inset;"
+                f"display:inline-block;margin:3px;'>"
                 f"{mn} · {pn}</span>"
                 for (mn, pn) in selected
             )
-            st.markdown(f"<div style='margin-top:14px;margin-bottom:8px;'>{tag_html}</div>", unsafe_allow_html=True)
-
+            st.markdown(
+                f"<div style='margin-top:16px;margin-bottom:8px;'>{tag_html}</div>",
+                unsafe_allow_html=True,
+            )
             if st.button("선택한 제작가이드 통합 다운로드", type="primary", use_container_width=True):
                 try:
                     import openpyxl
