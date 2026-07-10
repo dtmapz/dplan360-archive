@@ -28,6 +28,19 @@ tab_dl, tab_up = st.tabs(["제작가이드 다운로드", "업로드"])
 # 다운로드 탭
 # ============================
 with tab_dl:
+    # 상품 버튼 영역 좌정렬 CSS 주입
+    st.markdown(
+        "<style>"
+        "div[data-testid='column']:last-child > div[data-testid='stVerticalBlock'] > div[data-testid='stHorizontalBlock'] {"
+        "  flex-wrap: wrap !important; gap: 6px !important;"
+        "}"
+        "div[data-testid='column']:last-child div[data-testid='stHorizontalBlock'] > div[data-testid='column'] {"
+        "  flex: 0 0 auto !important; width: auto !important; min-width: unset !important;"
+        "}"
+        "</style>",
+        unsafe_allow_html=True,
+    )
+
     majors = db.get_major_categories()
     col_f1, col_f2, col_or, col_f3 = st.columns([2, 2, 0.4, 3])
     with col_f1:
@@ -81,25 +94,12 @@ with tab_dl:
             unsafe_allow_html=True,
         )
     else:
-        # 선택된 상품 태그 표시 (× 없음, 제거는 상품 버튼 재클릭으로)
-        selected = {k: v for k, v in st.session_state["cg_selected"].items() if v}
-        if selected:
-            tag_html = "".join(
-                f"<span style='display:inline-flex;align-items:center;padding:5px 12px;"
-                f"border-radius:20px;font-size:12px;border:0.5px solid var(--border-strong);"
-                f"background:var(--surface-1);color:var(--text-primary);margin:3px;'>"
-                f"{mn} · {pn}</span>"
-                for (mn, pn) in selected
-            )
-            st.markdown(f"<div style='margin-bottom:10px;'>{tag_html}</div>", unsafe_allow_html=True)
-
-        # 매체별 행: 매체명 | 구분선 | 상품 버튼들
+        # 매체별 행: 매체명 | 구분선 | 상품 버튼들 (좌정렬)
         for media_name in filtered_names:
             products = guide_map.get(media_name, {})
             if not products:
                 continue
 
-            # 파일 있는 상품만 있는 경우만 표시
             has_any_file = any(bool(g.get("storage_path")) for g in products.values())
             if not has_any_file:
                 continue
@@ -114,8 +114,9 @@ with tab_dl:
                 unsafe_allow_html=True,
             )
             with col_p:
-                btn_cols = st.columns(len(products) if len(products) <= 8 else 8)
-                for j, (product_name, guide) in enumerate(sorted(products.items())):
+                sorted_products = sorted(products.items())
+                btn_cols = st.columns(len(sorted_products) if len(sorted_products) <= 8 else 8)
+                for j, (product_name, guide) in enumerate(sorted_products):
                     has_file = bool(guide.get("storage_path"))
                     key = (media_name, product_name)
                     is_on = st.session_state["cg_selected"].get(key, False)
@@ -133,10 +134,18 @@ with tab_dl:
             st.markdown("<div style='height:2px;border-bottom:0.5px solid var(--border);margin:2px 0;'></div>",
                         unsafe_allow_html=True)
 
-        # 다운로드 버튼
+        # 선택된 상품 태그 + 다운로드 버튼 (태그가 버튼 바로 위)
         selected = {k: v for k, v in st.session_state["cg_selected"].items() if v}
         if selected:
-            st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+            tag_html = "".join(
+                f"<span style='display:inline-flex;align-items:center;padding:5px 12px;"
+                f"border-radius:20px;font-size:12px;border:0.5px solid var(--border-strong);"
+                f"background:var(--surface-1);color:var(--text-primary);margin:3px;'>"
+                f"{mn} · {pn}</span>"
+                for (mn, pn) in selected
+            )
+            st.markdown(f"<div style='margin-top:14px;margin-bottom:8px;'>{tag_html}</div>", unsafe_allow_html=True)
+
             if st.button("선택한 제작가이드 통합 다운로드", type="primary", use_container_width=True):
                 try:
                     import openpyxl
