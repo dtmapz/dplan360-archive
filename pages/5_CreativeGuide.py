@@ -237,7 +237,7 @@ with tab_up:
             else:
                 if not existing:
                     cat = media_cat_map.get(upload_media, "")
-                    db.create_creative_guide(upload_media, cat, upload_product, None)
+                    db.create_creative_guide(upload_media, cat, upload_product, "")
                 # 이미 존재하면 파일 없이 저장 시 아무 변경 없음 (파일만 덮어쓰기 가능)
             st.session_state["_cg_upload_success"] = f"'{upload_media} · {upload_product}' 저장 완료."
             st.rerun()
