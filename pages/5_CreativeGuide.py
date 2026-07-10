@@ -81,10 +81,10 @@ with tab_dl:
     # 아무것도 선택 안 했을 때 Quick Guide
     if not any_filter:
         st.markdown(
-            "<div style='margin:40px auto; max-width:480px; background:rgba(0,0,0,0.04); "
-            "border-radius:12px; padding:24px 28px; opacity:0.6; text-align:center; margin:40px auto;'>"
+            "<div style='margin:40px auto; max-width:340px; background:rgba(0,0,0,0.04); "
+            "border-radius:12px; padding:24px 28px; opacity:0.6; text-align:center;'>"
             "<div style='font-size:14px; font-weight:600; margin-bottom:12px;'>Quick Guide</div>"
-            "<div style='font-size:13px; color:var(--text-secondary); text-align:center; line-height:2;'>"
+            "<div style='font-size:13px; color:var(--text-secondary); text-align:left; line-height:2;'>"
             "① 희망하는 매체를 카테고리에서 직접 선택하거나 검색<br>"
             "② 해당 상품 체크<br>"
             "③ 체크 완료된 파일 확인 후 다운로드 버튼 클릭!"
@@ -92,97 +92,99 @@ with tab_dl:
             unsafe_allow_html=True,
         )
     else:
-        # 매체 카드 그리드
-        n_cols = 3
-        rows = (len(filtered_names) + n_cols - 1) // n_cols
+        # 매체 리스트 (매체명 | 구분선 | 상품 태그 가로 나열)
+        st.markdown(
+            "<style>"
+            ".cg-list{border:0.5px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface-2);margin-bottom:12px;}"
+            ".cg-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:0.5px solid var(--border);}"
+            ".cg-row:last-child{border-bottom:none;}"
+            ".cg-mname{font-size:13px;font-weight:500;color:var(--text-primary);min-width:80px;white-space:nowrap;}"
+            ".cg-div{width:1px;height:20px;background:var(--border-strong);flex-shrink:0;}"
+            ".cg-tags{display:flex;flex-wrap:wrap;gap:6px;}"
+            ".cg-tag{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;"
+            "font-size:12px;border:0.5px solid var(--border);background:var(--surface-1);"
+            "color:var(--text-secondary);cursor:pointer;white-space:nowrap;}"
+            ".cg-tag-on{background:#0B0B0B;border-color:#0B0B0B;color:#fff;}"
+            ".cg-tag-dim{opacity:0.35;cursor:not-allowed;}"
+            "</style>",
+            unsafe_allow_html=True,
+        )
 
-        for row_i in range(rows):
-            cols = st.columns(n_cols)
-            for col_i, col in enumerate(cols):
-                idx = row_i * n_cols + col_i
-                if idx >= len(filtered_names):
-                    break
-                media_name = filtered_names[idx]
-                products = guide_map.get(media_name, {})
-                has_any_selected = any(
-                    st.session_state["cg_selected"].get((media_name, p))
-                    for p in products
-                )
+        st.markdown("<div class='cg-list'>", unsafe_allow_html=True)
+        for media_name in filtered_names:
+            products = guide_map.get(media_name, {})
+            tags_html = ""
+            for product_name in sorted(products.keys()):
+                guide = products[product_name]
+                has_file = bool(guide.get("storage_path"))
+                key = (media_name, product_name)
+                is_on = st.session_state["cg_selected"].get(key, False)
+                if not has_file:
+                    tags_html += f"<span class='cg-tag cg-tag-dim'>{product_name}</span>"
+                elif is_on:
+                    tags_html += f"<span class='cg-tag cg-tag-on'>✓ {product_name}</span>"
+                else:
+                    tags_html += f"<span class='cg-tag'>{product_name}</span>"
 
-                with col:
-                    border = "1.5px solid #0B0B0B" if has_any_selected else "0.5px solid var(--border)"
-                    st.markdown(
-                        f"<div style='border:{border}; border-radius:8px; overflow:hidden; "
-                        f"background:var(--surface-2); margin-bottom:8px;'>",
-                        unsafe_allow_html=True,
+            st.markdown(
+                f"<div class='cg-row'>"
+                f"<span class='cg-mname'>{media_name}</span>"
+                f"<div class='cg-div'></div>"
+                f"<div class='cg-tags'>{tags_html}</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+            # 각 상품별 숨겨진 체크박스 (태그 클릭 대신 expander 없이 상태 토글)
+            if products:
+                for product_name in sorted(products.keys()):
+                    guide = products[product_name]
+                    has_file = bool(guide.get("storage_path"))
+                    if not has_file:
+                        continue
+                    key = (media_name, product_name)
+                    checked = st.session_state["cg_selected"].get(key, False)
+                    new_val = st.checkbox(
+                        f"{media_name} · {product_name}",
+                        value=checked,
+                        key=f"cg_check_{media_name}_{product_name}",
+                        label_visibility="collapsed",
                     )
-
-                    # 헤더: 매체명 버튼만 (수정 버튼 없음, 세모 없음)
-                    expand_key = f"cg_expand_{media_name}"
-                    if expand_key not in st.session_state:
-                        st.session_state[expand_key] = False
-                    if st.button(
-                        media_name,
-                        key=f"cg_toggle_{media_name}",
-                        use_container_width=True,
-                    ):
-                        st.session_state[expand_key] = not st.session_state[expand_key]
+                    if new_val != checked:
+                        st.session_state["cg_selected"][key] = new_val
                         st.rerun()
 
-                    # 상품 목록 (펼쳐진 경우)
-                    if st.session_state.get(expand_key):
-                        if products:
-                            for product_name, guide in sorted(products.items()):
-                                has_file = bool(guide.get("storage_path"))
-                                key = (media_name, product_name)
-                                if has_file:
-                                    checked = st.session_state["cg_selected"].get(key, False)
-                                    new_val = st.checkbox(
-                                        product_name, value=checked,
-                                        key=f"cg_check_{media_name}_{product_name}",
-                                    )
-                                    if new_val != checked:
-                                        st.session_state["cg_selected"][key] = new_val
-                                        st.rerun()
-                                else:
-                                    st.markdown(
-                                        f"<div style='opacity:0.35; padding:4px 12px; "
-                                        f"font-size:13px; color:var(--text-muted);'>☐ {product_name}</div>",
-                                        unsafe_allow_html=True,
-                                    )
-                        else:
-                            st.caption("등록된 상품이 없습니다.")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-                    st.markdown("</div>", unsafe_allow_html=True)
-
-        # 선택 영역
+        # 선택 영역 (태그 스타일, 선택=블랙, 미선택=회색)
         selected = {k: v for k, v in st.session_state["cg_selected"].items() if v}
         if selected:
             st.markdown(
-                "<div style='border:0.5px solid #F2A93B; border-radius:8px; "
-                "padding:12px 14px; background:#FFFDF5; margin:12px 0;'>",
+                "<style>"
+                ".sel-tag{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;"
+                "border-radius:20px;font-size:12px;font-weight:500;border:0.5px solid #0B0B0B;"
+                "background:#0B0B0B;color:#fff;margin:3px;}"
+                "</style>",
                 unsafe_allow_html=True,
+            )
+            tags_selected = "".join(
+                f"<span class='sel-tag'>{mn} · {pn}</span>"
+                for (mn, pn) in selected
             )
             st.markdown(
-                f"<div style='font-size:12px; font-weight:500; color:#854F0B; margin-bottom:8px;'>"
-                f"선택된 상품 ({len(selected)}개)</div>",
+                f"<div style='margin:10px 0;'>{tags_selected}</div>",
                 unsafe_allow_html=True,
             )
+            # × 제거 버튼
             for (mn, pn) in list(selected.keys()):
-                col_tag, col_x = st.columns([5, 1])
-                col_tag.markdown(
-                    f"<span style='background:#fff; border:0.5px solid #F2A93B; border-radius:20px; "
-                    f"padding:4px 10px; font-size:12px;'>{mn} · {pn}</span>",
-                    unsafe_allow_html=True,
-                )
-                if col_x.button("×", key=f"cg_remove_{mn}_{pn}"):
+                if st.button(f"× {mn} · {pn}", key=f"cg_remove_{mn}_{pn}"):
                     st.session_state["cg_selected"][(mn, pn)] = False
                     st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
 
             if st.button("선택한 제작가이드 통합 다운로드", type="primary", use_container_width=True):
                 try:
                     import openpyxl
+                    from copy import copy
                     merged_wb = openpyxl.Workbook()
                     merged_wb.remove(merged_wb.active)
                     for (mn, pn) in selected:
@@ -197,6 +199,16 @@ with tab_dl:
                             for row in src_ws.iter_rows():
                                 for cell in row:
                                     new_ws[cell.coordinate].value = cell.value
+                                    if cell.has_style:
+                                        new_ws[cell.coordinate].font = copy(cell.font)
+                                        new_ws[cell.coordinate].fill = copy(cell.fill)
+                                        new_ws[cell.coordinate].border = copy(cell.border)
+                                        new_ws[cell.coordinate].alignment = copy(cell.alignment)
+                                        new_ws[cell.coordinate].number_format = cell.number_format
+                            for col_dim in src_ws.column_dimensions.values():
+                                new_ws.column_dimensions[col_dim.index].width = col_dim.width
+                            for row_dim in src_ws.row_dimensions.values():
+                                new_ws.row_dimensions[row_dim.index].height = row_dim.height
                     buf = io.BytesIO()
                     merged_wb.save(buf)
                     buf.seek(0)
@@ -230,7 +242,6 @@ with tab_up:
             existing = guide_map.get(upload_media, {}).get(upload_product)
             storage_path = f"{uuid.uuid4()}.xlsx"
             file_bytes = upload_file.read()
-        try:
             if existing:
                 db.delete_from_storage(BUCKET, existing["storage_path"])
                 db.upload_to_storage(BUCKET, storage_path, file_bytes)
@@ -241,5 +252,3 @@ with tab_up:
                 db.create_creative_guide(upload_media, cat, upload_product, storage_path)
             st.success(f"'{upload_media} · {upload_product}' 저장 완료.")
             st.rerun()
-        except Exception as e:
-            st.error(f"상세 오류: {str(e)}")
