@@ -83,7 +83,7 @@ with tab_dl:
             "<div style='margin:40px auto; max-width:480px; background:rgba(0,0,0,0.04); "
             "border-radius:12px; padding:24px 28px; opacity:0.6; text-align:center; margin:40px auto;'>"
             "<div style='font-size:14px; font-weight:600; margin-bottom:12px;'>Quick Guide</div>"
-            "<div style='font-size:13px; color:var(--text-secondary); text-align:left; line-height:2;'>"
+            "<div style='font-size:13px; color:var(--text-secondary); text-align:center; line-height:2;'>"
             "① 희망하는 매체를 카테고리에서 직접 선택하거나 검색<br>"
             "② 해당 상품 체크<br>"
             "③ 체크 완료된 파일 확인 후 다운로드 버튼 클릭!"
