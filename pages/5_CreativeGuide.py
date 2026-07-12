@@ -190,6 +190,9 @@ with tab_dl:
                                 new_ws.column_dimensions[col_dim.index].width = col_dim.width
                             for row_dim in src_ws.row_dimensions.values():
                                 new_ws.row_dimensions[row_dim.index].height = row_dim.height
+                            for merge in src_ws.merged_cells.ranges:
+                                new_ws.merge_cells(str(merge))
+                            new_ws.sheet_view.showGridLines = src_ws.sheet_view.showGridLines
                     buf = io.BytesIO()
                     merged_wb.save(buf)
                     buf.seek(0)
