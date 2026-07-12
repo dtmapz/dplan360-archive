@@ -87,68 +87,54 @@ with tab_dl:
             if not products:
                 continue
 
-            col_m, col_div, col_p = st.columns([1, 0.05, 5])
-            col_m.markdown(
-                f"<div style='font-size:13px;font-weight:600;padding:10px 0;'>{media_name}</div>",
-                unsafe_allow_html=True,
-            )
-            col_div.markdown(
-                "<div style='width:1px;height:40px;background:var(--border-strong);margin:4px auto;'></div>",
-                unsafe_allow_html=True,
-            )
-            with col_p:
-                btn_parts = []
-                for product_name, guide in sorted(products.items()):
-                    has_file = bool(guide.get("storage_path"))
-                    key = (media_name, product_name)
-                    is_on = st.session_state["cg_selected"].get(key, False)
-                    pid = f"{media_name}||{product_name}"
+            btn_parts = []
+            for product_name, guide in sorted(products.items()):
+                has_file = bool(guide.get("storage_path"))
+                key = (media_name, product_name)
+                is_on = st.session_state["cg_selected"].get(key, False)
+                pid = f"{media_name}||{product_name}"
 
-                    if not has_file:
-                        # disabled - 클릭 불가 (a태그 없음)
-                        btn_parts.append(
-                            f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
-                            f"box-shadow:0 0 0 0.5px #666 inset;"
-                            f"color:#999;opacity:0.45;cursor:not-allowed;"
-                            f"display:inline-block;'>{product_name}</span>"
-                        )
-                    elif is_on:
-                        # 선택됨 - 블랙 배경
-                        btn_parts.append(
-                            f"<a href='#' id='{pid}' style='text-decoration:none;'>"
-                            f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
-                            f"background:#111;color:#fff;"
-                            f"cursor:pointer;display:inline-block;'>✓ {product_name}</span></a>"
-                        )
-                    else:
-                        # 미선택 - 테두리만
-                        btn_parts.append(
-                            f"<a href='#' id='{pid}' style='text-decoration:none;'>"
-                            f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
-                            f"box-shadow:0 0 0 0.5px #999 inset;"
-                            f"color:inherit;cursor:pointer;display:inline-block;'>{product_name}</span></a>"
-                        )
+                if not has_file:
+                    btn_parts.append(
+                        f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
+                        f"box-shadow:0 0 0 0.5px #666 inset;"
+                        f"color:#999;opacity:0.45;cursor:not-allowed;"
+                        f"display:inline-block;'>{product_name}</span>"
+                    )
+                elif is_on:
+                    btn_parts.append(
+                        f"<a href='#' id='{pid}' style='text-decoration:none;'>"
+                        f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
+                        f"background:#111;color:#fff;"
+                        f"cursor:pointer;display:inline-block;'>✓ {product_name}</span></a>"
+                    )
+                else:
+                    btn_parts.append(
+                        f"<a href='#' id='{pid}' style='text-decoration:none;'>"
+                        f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
+                        f"box-shadow:0 0 0 0.5px #999 inset;"
+                        f"color:inherit;cursor:pointer;display:inline-block;'>{product_name}</span></a>"
+                    )
 
-                html = (
-                    "<div style='display:flex;flex-wrap:wrap;gap:8px;padding:6px 0;'>"
-                    + "".join(btn_parts) +
-                    "</div>"
-                )
-                clicked = click_detector(html, key=f"cg_det_{media_name}")
-                last_key = f"_cg_last_{media_name}"
-                if clicked and "||" in clicked and clicked != st.session_state.get(last_key):
-                    st.session_state[last_key] = clicked
-                    mn, pn = clicked.split("||", 1)
-                    ck = (mn, pn)
-                    g = guide_map.get(mn, {}).get(pn)
-                    if g and bool(g.get("storage_path")):
-                        st.session_state["cg_selected"][ck] = not st.session_state["cg_selected"].get(ck, False)
-                        st.rerun()
-
-            st.markdown(
-                "<div style='border-bottom:0.5px solid var(--border);margin:4px 0 8px 0;'></div>",
-                unsafe_allow_html=True,
+            row_html = (
+                "<div style='display:flex;align-items:center;gap:0;padding:10px 0;"
+                "border-bottom:0.5px solid var(--border);'>"
+                f"<div style='flex:0 0 80px;font-size:13px;font-weight:600;'>{media_name}</div>"
+                "<div style='width:1px;height:32px;background:var(--border-strong);margin:0 12px;'></div>"
+                "<div style='display:flex;flex-wrap:wrap;gap:8px;flex:1;'>"
+                + "".join(btn_parts) +
+                "</div></div>"
             )
+            clicked = click_detector(row_html, key=f"cg_det_{media_name}")
+            last_key = f"_cg_last_{media_name}"
+            if clicked and "||" in clicked and clicked != st.session_state.get(last_key):
+                st.session_state[last_key] = clicked
+                mn, pn = clicked.split("||", 1)
+                ck = (mn, pn)
+                g = guide_map.get(mn, {}).get(pn)
+                if g and bool(g.get("storage_path")):
+                    st.session_state["cg_selected"][ck] = not st.session_state["cg_selected"].get(ck, False)
+                    st.rerun()
 
         # 선택 태그 + 다운로드 버튼
         selected = {k: v for k, v in st.session_state["cg_selected"].items() if v}
