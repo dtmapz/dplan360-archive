@@ -397,15 +397,17 @@ with tab_att:
     for mbr in att_members:
         email = mbr.get("email", "")
         name = mbr.get("name", "")
+        division = mbr.get("division", "")
         team = mbr.get("team", "")
+        div_team = f"{division} {team}".strip()
         cnt = sum(1 for ev in att_past if att_map.get((ev["id"], email)))
-        member_counts[email] = {"name": name, "team": team, "count": cnt}
+        member_counts[email] = {"name": name, "team": team, "division": division, "div_team": div_team, "count": cnt}
 
-    # 팀별 평균 참여 횟수
+    # 팀별 평균 참여 횟수 (본부+팀 구분)
     team_totals = {}
     for info in member_counts.values():
-        team = info["team"]
-        team_totals.setdefault(team, []).append(info["count"])
+        dt = info["div_team"]
+        team_totals.setdefault(dt, []).append(info["count"])
     team_avg = {t: sum(counts) / len(counts) for t, counts in team_totals.items() if counts}
     team_avg_sorted = sorted(team_avg.items(), key=lambda x: x[1], reverse=True)
 
@@ -443,12 +445,14 @@ with tab_att:
             st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>팀별 평균 참여 횟수</div>", unsafe_allow_html=True)
             if team_avg_sorted:
                 max_avg = team_avg_sorted[0][1] if team_avg_sorted else 1
+                n_teams = len(team_avg_sorted)
+                bar_gap = max(28 - n_teams, 8)
                 bars_html = ""
                 for team, avg in team_avg_sorted:
                     pct = min(avg / max_avg * 100, 100)
                     bars_html += (
-                        f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'>"
-                        f"<div style='font-size:12px;width:110px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{team}</div>"
+                        f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:{bar_gap}px;'>"
+                        f"<div style='font-size:11px;width:140px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{team}</div>"
                         f"<div style='flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden;'>"
                         f"<div style='height:100%;width:{pct}%;background:#111;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{avg:.1f}회</div>"
                         f"</div></div>"
