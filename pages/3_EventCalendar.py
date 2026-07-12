@@ -145,7 +145,7 @@ for c in all_legend_cats:
         f"border-radius:2px; background:{c['color']};'></span>{c['name']}</span>"
     )
 st.markdown(
-    f"<div style='display:flex; justify-content:flex-end; margin-bottom:-48px; "
+    f"<div style='display:flex; justify-content:flex-end; margin-bottom:-32px; "
     f"position:relative; z-index:999; pointer-events:none;'>{legend_items}</div>",
     unsafe_allow_html=True,
 )
