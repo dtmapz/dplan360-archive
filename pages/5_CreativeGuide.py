@@ -135,10 +135,11 @@ with tab_dl:
                     "</div>"
                 )
                 clicked = click_detector(html, key=f"cg_det_{media_name}")
-                if clicked and "||" in clicked:
+                last_key = f"_cg_last_{media_name}"
+                if clicked and "||" in clicked and clicked != st.session_state.get(last_key):
+                    st.session_state[last_key] = clicked
                     mn, pn = clicked.split("||", 1)
                     ck = (mn, pn)
-                    # 파일 있는 상품만 토글
                     g = guide_map.get(mn, {}).get(pn)
                     if g and bool(g.get("storage_path")):
                         st.session_state["cg_selected"][ck] = not st.session_state["cg_selected"].get(ck, False)
