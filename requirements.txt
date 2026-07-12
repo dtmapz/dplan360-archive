@@ -3,3 +3,4 @@ supabase>=2.6
 pandas
 openpyxl
 streamlit-calendar>=1.1.0
+st-click-detector
