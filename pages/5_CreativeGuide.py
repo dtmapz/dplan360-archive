@@ -187,10 +187,8 @@ with tab_dl:
                                         new_ws[cell.coordinate].number_format = cell.number_format
                             for col_dim in src_ws.column_dimensions.values():
                                 new_ws.column_dimensions[col_dim.index].width = col_dim.width
-                            from openpyxl.worksheet.dimensions import RowDimension
-                            for idx, row_dim in src_ws.row_dimensions.items():
-                                rd = RowDimension(new_ws, index=idx, height=row_dim.height, customHeight=True)
-                                new_ws.row_dimensions[idx] = rd
+                            for row_dim in src_ws.row_dimensions.values():
+                                new_ws.row_dimensions[row_dim.index].height = row_dim.height
                     buf = io.BytesIO()
                     merged_wb.save(buf)
                     buf.seek(0)
