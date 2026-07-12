@@ -46,7 +46,7 @@ milestone_page  = st.Page("pages/2_Milestone.py",       title="MILESTONE",     i
 calendar_page   = st.Page("pages/3_EventCalendar.py",   title="EVENT CALENDAR",icon="📅")
 creative_page   = st.Page("pages/5_CreativeGuide.py",   title="CREATIVE GUIDE", icon="🎨")
 
-pages = [home_page, milestone_page, calendar_page, attendance_page, creative_page]
+pages = [home_page, milestone_page, calendar_page, creative_page]
 
 pg = st.navigation(pages)
 pg.run()
