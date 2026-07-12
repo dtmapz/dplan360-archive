@@ -134,21 +134,6 @@ if "my_attendance" not in st.session_state:
 if st.session_state.pop("_event_registered", False):
     st.success("행사가 등록되었습니다.")
 
-# ---------- 색상 범례 (탭 우측 정렬) ----------
-all_legend_cats = db.get_event_categories()
-legend_items = ""
-for c in all_legend_cats:
-    legend_items += (
-        f"<span style='font-size:12px; color:var(--text-secondary); "
-        f"display:inline-flex; align-items:center; gap:5px; margin-left:14px;'>"
-        f"<span style='display:inline-block; width:10px; height:10px; "
-        f"border-radius:2px; background:{c['color']};'></span>{c['name']}</span>"
-    )
-st.markdown(
-    f"<div style='display:flex; justify-content:flex-end; margin-bottom:-32px; "
-    f"position:relative; z-index:999; pointer-events:none;'>{legend_items}</div>",
-    unsafe_allow_html=True,
-)
 
 if admin:
     tab_cal, tab_list, tab_reg = st.tabs(["월별 달력", "리스트", "+ 행사 등록"])
