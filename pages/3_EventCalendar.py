@@ -223,7 +223,7 @@ with tab_list:
             with col_card:
                 st.markdown(
                     f"<div style='display:flex; align-items:center; gap:10px; "
-                    f"padding:10px 14px; background:var(--surface-2); "
+                    f"padding:10px 14px; background:{color}33; "
                     f"border:0.5px solid var(--border); border-radius:8px; "
                     f"border-left:4px solid {color}; margin-bottom:6px;'>"
                     f"<span style='background:{color}; color:#fff; font-size:11px; "
