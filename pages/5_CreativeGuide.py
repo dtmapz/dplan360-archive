@@ -185,6 +185,8 @@ with tab_dl:
                                         new_ws[cell.coordinate].border = copy(cell.border)
                                         new_ws[cell.coordinate].alignment = copy(cell.alignment)
                                         new_ws[cell.coordinate].number_format = cell.number_format
+                            for merge in src_ws.merged_cells.ranges:
+                                new_ws.merge_cells(str(merge))
                             for col_dim in src_ws.column_dimensions.values():
                                 new_ws.column_dimensions[col_dim.index].width = col_dim.width
                             for row_dim in src_ws.row_dimensions.values():
