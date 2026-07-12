@@ -136,7 +136,7 @@ if st.session_state.pop("_event_registered", False):
 
 # ---------- 색상 범례 (탭 우측 정렬) ----------
 all_legend_cats = db.get_event_categories()
-legend_html = "<div style='display:flex; gap:14px; justify-content:flex-end; margin-bottom:-42px; padding-right:4px; position:relative; z-index:1;'>"
+legend_html = "<div style='display:flex; gap:14px; justify-content:flex-end; margin-bottom:-45px; padding-right:4px; position:relative; z-index:1;'>"
 for c in all_legend_cats:
     legend_html += (
         f"<span style='font-size:12px; color:var(--text-secondary); "
