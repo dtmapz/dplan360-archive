@@ -1,5 +1,6 @@
 import streamlit as st
 import io
+import html
 from utils import db
 from utils.auth import get_current_user
 from utils.ui import set_current_page
@@ -95,34 +96,35 @@ with tab_dl:
                 has_file = bool(guide.get("storage_path"))
                 key = (media_name, product_name)
                 is_on = st.session_state["cg_selected"].get(key, False)
-                pid = f"{media_name}||{product_name}"
+                pid = html.escape(f"{media_name}||{product_name}", quote=True)
+                pn_disp = html.escape(product_name)
 
                 if not has_file:
                     btn_parts.append(
                         f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
                         f"box-shadow:0 0 0 0.5px #666 inset;"
                         f"color:#999;opacity:0.45;cursor:not-allowed;"
-                        f"display:inline-block;'>{product_name}</span>"
+                        f"display:inline-block;'>{pn_disp}</span>"
                     )
                 elif is_on:
                     btn_parts.append(
                         f"<a href='#' id='{pid}' style='text-decoration:none;'>"
                         f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
                         f"background:#111;color:#fff;"
-                        f"cursor:pointer;display:inline-block;'>✓ {product_name}</span></a>"
+                        f"cursor:pointer;display:inline-block;'>✓ {pn_disp}</span></a>"
                     )
                 else:
                     btn_parts.append(
                         f"<a href='#' id='{pid}' style='text-decoration:none;'>"
                         f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
                         f"box-shadow:0 0 0 0.5px #111 inset;"
-                        f"color:#111;cursor:pointer;display:inline-block;'>{product_name}</span></a>"
+                        f"color:#111;cursor:pointer;display:inline-block;'>{pn_disp}</span></a>"
                     )
 
             row_html = (
                 "<div style='display:flex;align-items:center;gap:0;padding:10px 0;"
                 "border-bottom:0.5px solid #e0e0e0;'>"
-                f"<div style='flex:0 0 80px;font-size:13px;font-weight:600;'>{media_name}</div>"
+                f"<div style='flex:0 0 80px;font-size:13px;font-weight:600;'>{html.escape(media_name)}</div>"
                 "<div style='width:1px;height:32px;background:#ccc;margin:0 12px;flex-shrink:0;'></div>"
                 "<div style='display:flex;flex-wrap:wrap;gap:8px;flex:1;'>"
                 + "".join(btn_parts) +
@@ -136,7 +138,8 @@ with tab_dl:
             last_key = "_cg_last_all"
             if clicked and "||" in clicked and clicked != st.session_state.get(last_key):
                 st.session_state[last_key] = clicked
-                mn, pn = clicked.split("||", 1)
+                decoded = html.unescape(clicked)
+                mn, pn = decoded.split("||", 1)
                 ck = (mn, pn)
                 g = guide_map.get(mn, {}).get(pn)
                 if g and bool(g.get("storage_path")):
@@ -150,7 +153,7 @@ with tab_dl:
                 f"<span style='font-size:12px;padding:4px 12px;border-radius:20px;"
                 f"box-shadow:0 0 0 0.5px #999 inset;"
                 f"display:inline-block;margin:3px;'>"
-                f"{mn} · {pn}</span>"
+                f"{html.escape(mn)} · {html.escape(pn)}</span>"
                 for (mn, pn) in selected
             )
             st.markdown(
