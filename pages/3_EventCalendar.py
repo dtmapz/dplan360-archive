@@ -199,58 +199,75 @@ with tab_list:
     if not events:
         st.caption("등록된 행사가 없습니다.")
     else:
-        # 월별로 그룹화
         from itertools import groupby
         weekdays = ["월", "화", "수", "목", "금", "토", "일"]
 
         def month_key(ev):
-            return ev["event_date"][:7]  # YYYY-MM
+            return ev["event_date"][:7]
 
-        for month, month_events in groupby(events, key=month_key):
-            y, m = month.split("-")
-            is_current_or_future = month >= current_month
-            with st.expander(f"{y}년 {int(m)}월", expanded=is_current_or_future):
-                for ev in list(month_events):
-                    color = category_color(ev.get("category", ""), color_map)
-                    cat = ev.get("category", "")
-                    s = ev.get("start_time", "")[:5] if ev.get("start_time") else ""
-                    e = ev.get("end_time", "")[:5] if ev.get("end_time") else ""
-                    venue = ev.get("venue", "")
-                    d = date.fromisoformat(ev["event_date"])
-                    date_label = f"{int(m)}월 {d.day}일 ({weekdays[d.weekday()]})"
+        # 현재월 이후 / 과거 분리
+        future_events = [ev for ev in events if ev["event_date"][:7] >= current_month]
+        past_events = [ev for ev in events if ev["event_date"][:7] < current_month]
 
-                    col_card, col_toggle = st.columns([6, 1])
-                    with col_card:
-                        st.markdown(
-                            f"<div style='display:flex; align-items:center; gap:10px; "
-                            f"padding:10px 14px; background:var(--surface-2); "
-                            f"border:0.5px solid var(--border); border-radius:8px; "
-                            f"border-left:4px solid {color}; margin-bottom:6px;'>"
-                            f"<span style='background:{color}; color:#fff; font-size:11px; "
-                            f"padding:2px 8px; border-radius:4px; white-space:nowrap;'>{cat}</span>"
-                            f"<span style='font-size:13px; font-weight:500; color:var(--text-primary);'>{ev['title']}</span>"
-                            f"<span style='font-size:13px; color:var(--text-muted);'>{s}~{e} · {venue}</span>"
-                            f"<span style='font-size:13px; color:var(--text-muted); margin-left:auto; white-space:nowrap;'>{date_label}</span>"
-                            f"</div>",
-                            unsafe_allow_html=True,
+        def render_event_card(ev, m_int):
+            color = category_color(ev.get("category", ""), color_map)
+            cat = ev.get("category", "")
+            s = ev.get("start_time", "")[:5] if ev.get("start_time") else ""
+            e = ev.get("end_time", "")[:5] if ev.get("end_time") else ""
+            venue = ev.get("venue", "")
+            d = date.fromisoformat(ev["event_date"])
+            date_label = f"{m_int}월 {d.day}일 ({weekdays[d.weekday()]})"
+
+            col_card, col_toggle = st.columns([6, 1])
+            with col_card:
+                st.markdown(
+                    f"<div style='display:flex; align-items:center; gap:10px; "
+                    f"padding:10px 14px; background:var(--surface-2); "
+                    f"border:0.5px solid var(--border); border-radius:8px; "
+                    f"border-left:4px solid {color}; margin-bottom:6px;'>"
+                    f"<span style='background:{color}; color:#fff; font-size:11px; "
+                    f"padding:2px 8px; border-radius:4px; white-space:nowrap;'>{cat}</span>"
+                    f"<span style='font-size:13px; font-weight:500; color:var(--text-primary);'>{ev['title']}</span>"
+                    f"<span style='font-size:13px; color:var(--text-muted);'>{s}~{e} · {venue}</span>"
+                    f"<span style='font-size:13px; color:var(--text-muted); margin-left:auto; white-space:nowrap;'>{date_label}</span>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+            with col_toggle:
+                if admin:
+                    new_req = st.toggle("참석설정", value=bool(ev.get("requires_check")),
+                                        key=f"list_req_{ev['id']}")
+                    if new_req != bool(ev.get("requires_check")):
+                        db.update_event(ev["id"], requires_check=new_req)
+                        st.rerun()
+                elif ev.get("requires_check"):
+                    current_att = ev["id"] in attended_ids
+                    new_val = st.toggle("참석", value=current_att, key=f"list_att_{ev['id']}")
+                    if new_val != current_att:
+                        db.toggle_attendance(ev["id"], user_email, new_val)
+                        st.session_state["my_attendance"] = (
+                            attended_ids + [ev["id"]] if new_val
+                            else [x for x in attended_ids if x != ev["id"]]
                         )
-                    with col_toggle:
-                        if admin:
-                            new_req = st.toggle("참석설정", value=bool(ev.get("requires_check")),
-                                                key=f"list_req_{ev['id']}")
-                            if new_req != bool(ev.get("requires_check")):
-                                db.update_event(ev["id"], requires_check=new_req)
-                                st.rerun()
-                        elif ev.get("requires_check"):
-                            current_att = ev["id"] in attended_ids
-                            new_val = st.toggle("참석", value=current_att, key=f"list_att_{ev['id']}")
-                            if new_val != current_att:
-                                db.toggle_attendance(ev["id"], user_email, new_val)
-                                st.session_state["my_attendance"] = (
-                                    attended_ids + [ev["id"]] if new_val
-                                    else [x for x in attended_ids if x != ev["id"]]
-                                )
-                                st.rerun()
+                        st.rerun()
+
+        # 현재월 이후: 월별 펼친 상태
+        for month, month_evs in groupby(future_events, key=month_key):
+            y, m = month.split("-")
+            with st.expander(f"{y}년 {int(m)}월", expanded=True):
+                for ev in list(month_evs):
+                    render_event_card(ev, int(m))
+
+        # 과거: 하나로 통합, 접힌 상태
+        if past_events:
+            past_months = sorted(set(ev["event_date"][:7] for ev in past_events))
+            first_y, first_m = past_months[0].split("-")
+            last_y, last_m = past_months[-1].split("-")
+            label = f"{first_y}년 {int(first_m)}월 ~ {last_y}년 {int(last_m)}월 기록"
+            with st.expander(label, expanded=False):
+                for ev in past_events:
+                    m_int = int(ev["event_date"][5:7])
+                    render_event_card(ev, m_int)
 
         # 하단 구분별 색상 범례
         all_cats = db.get_event_categories()
