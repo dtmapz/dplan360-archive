@@ -82,6 +82,8 @@ with tab_dl:
             unsafe_allow_html=True,
         )
     else:
+        # 전체 매체 행을 하나의 HTML로 통합
+        all_rows_html = []
         for media_name in filtered_names:
             products = guide_map.get(media_name, {})
             if not products:
@@ -118,24 +120,19 @@ with tab_dl:
 
             row_html = (
                 "<div style='display:flex;align-items:center;gap:0;padding:10px 0;"
-                "border-bottom:0.5px solid var(--border);'>"
+                "border-bottom:0.5px solid #e0e0e0;'>"
                 f"<div style='flex:0 0 80px;font-size:13px;font-weight:600;'>{media_name}</div>"
-                "<div style='width:1px;height:32px;background:var(--border-strong);margin:0 12px;'></div>"
+                "<div style='width:1px;height:32px;background:#ccc;margin:0 12px;flex-shrink:0;'></div>"
                 "<div style='display:flex;flex-wrap:wrap;gap:8px;flex:1;'>"
                 + "".join(btn_parts) +
                 "</div></div>"
             )
-            n = len(products)
-            row_height = 52 if n <= 5 else (85 if n <= 10 else 120)
-            st.markdown(
-                f"<style>iframe[title='st_click_detector.click_detector'][data-testid='stCustomComponentV1']:nth-of-type(1) {{}}</style>"
-                f"<style>.cg-row-{media_name.replace(' ','_')} iframe {{height:{row_height}px !important;min-height:0 !important;}}</style>"
-                f"<div class='cg-row-{media_name.replace(' ','_')}'>",
-                unsafe_allow_html=True,
-            )
-            clicked = click_detector(row_html, key=f"cg_det_{media_name}")
-            st.markdown("</div>", unsafe_allow_html=True)
-            last_key = f"_cg_last_{media_name}"
+            all_rows_html.append(row_html)
+
+        if all_rows_html:
+            full_html = "<div>" + "".join(all_rows_html) + "</div>"
+            clicked = click_detector(full_html, key="cg_det_all")
+            last_key = "_cg_last_all"
             if clicked and "||" in clicked and clicked != st.session_state.get(last_key):
                 st.session_state[last_key] = clicked
                 mn, pn = clicked.split("||", 1)
