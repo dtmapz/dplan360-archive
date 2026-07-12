@@ -223,7 +223,7 @@ with tab_list:
             with col_card:
                 st.markdown(
                     f"<div style='display:flex; align-items:center; gap:10px; "
-                    f"padding:10px 14px; background:var(--surface-2); "
+                    f"padding:10px 14px; background:{color}11; "
                     f"border:0.5px solid var(--border); border-radius:8px; "
                     f"border-left:4px solid {color}; margin-bottom:6px;'>"
                     f"<span style='background:{color}; color:#fff; font-size:11px; "
@@ -387,9 +387,10 @@ with tab_att:
                 att_map[(ev["id"], att["member_email"])] = True
 
     total_members = len(att_members)
-    total_events = len(att_all_events)
+    att_past = [ev for ev in att_all_events if ev["event_date"][:7] < current_month]
+    total_events = len(att_past)
 
-    # ===== 대시보드 데이터 계산 =====
+    # ===== 대시보드 데이터 계산 (전월까지만) =====
 
     # 인원별 참여 횟수
     member_counts = {}
@@ -397,7 +398,7 @@ with tab_att:
         email = mbr.get("email", "")
         name = mbr.get("name", "")
         team = mbr.get("team", "")
-        cnt = sum(1 for ev in att_all_events if att_map.get((ev["id"], email)))
+        cnt = sum(1 for ev in att_past if att_map.get((ev["id"], email)))
         member_counts[email] = {"name": name, "team": team, "count": cnt}
 
     # 팀별 평균 참여 횟수
@@ -413,7 +414,7 @@ with tab_att:
 
     # 월별 참여율
     monthly_rates = {}
-    for ev in att_all_events:
+    for ev in att_past:
         m = ev["event_date"][:7]
         monthly_rates.setdefault(m, []).append(ev)
     month_rate_data = {}
@@ -424,7 +425,7 @@ with tab_att:
 
     # 행사별 참여율 Top 5
     event_rates = []
-    for ev in att_all_events:
+    for ev in att_past:
         cnt = sum(1 for mbr in att_members if att_map.get((ev["id"], mbr.get("email", ""))))
         rate = round(cnt / total_members * 100, 1) if total_members > 0 else 0
         event_rates.append({"title": ev["title"], "date": ev["event_date"], "rate": rate})
@@ -434,14 +435,14 @@ with tab_att:
     event_rates_bottom = sorted(event_rates, key=lambda x: x["rate"])[:5]
 
     # ===== 대시보드 렌더링 =====
+    CS = "border:0.5px solid var(--border);border-radius:10px;padding:16px;background:var(--surface-0);"
 
     # Row 1: 팀별 평균 참여 + Top 10
     col_team, col_top = st.columns([1.2, 0.8])
     with col_team:
-        st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>팀별 평균 참여 횟수</div>", unsafe_allow_html=True)
+        bars_html = f"<div style='{CS}'><div style='font-size:14px;font-weight:600;margin-bottom:10px;'>팀별 평균 참여 횟수</div>"
         if team_avg_sorted:
             max_avg = team_avg_sorted[0][1] if team_avg_sorted else 1
-            bars_html = ""
             for team, avg in team_avg_sorted:
                 pct = min(avg / max_avg * 100, 100)
                 bars_html += (
@@ -451,14 +452,14 @@ with tab_att:
                     f"<div style='height:100%;width:{pct}%;background:#111;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{avg:.1f}회</div>"
                     f"</div></div>"
                 )
-            st.markdown(bars_html, unsafe_allow_html=True)
         else:
-            st.caption("데이터가 없습니다.")
+            bars_html += "<p style='color:var(--text-muted);font-size:13px;'>데이터가 없습니다.</p>"
+        bars_html += "</div>"
+        st.markdown(bars_html, unsafe_allow_html=True)
 
     with col_top:
-        st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>참여 횟수 Top 10</div>", unsafe_allow_html=True)
+        rank_html = f"<div style='{CS}'><div style='font-size:14px;font-weight:600;margin-bottom:10px;'>참여 횟수 Top 10</div>"
         if top10:
-            rank_html = ""
             for i, info in enumerate(top10, 1):
                 rank_html += (
                     f"<div style='display:flex;align-items:center;gap:8px;padding:5px 0;"
@@ -468,14 +469,16 @@ with tab_att:
                     f"<div style='font-size:12px;font-weight:600;color:#D4A017;'>{info['count']}회</div>"
                     f"</div>"
                 )
-            st.markdown(rank_html, unsafe_allow_html=True)
         else:
-            st.caption("데이터가 없습니다.")
+            rank_html += "<p style='color:var(--text-muted);font-size:13px;'>데이터가 없습니다.</p>"
+        rank_html += "</div>"
+        st.markdown(rank_html, unsafe_allow_html=True)
 
     st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
 
     # Row 2: 월별 참여율 추이
-    st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>월별 전체 참여율 추이</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='{CS}'><div style='font-size:14px;font-weight:600;margin-bottom:4px;'>월별 전체 참여율 추이</div></div>",
+                unsafe_allow_html=True)
     if month_rate_data:
         import altair as alt
         import pandas as pd
@@ -501,40 +504,40 @@ with tab_att:
     # Row 3: 행사별 참여율 Top 5 + Bottom 5
     col_high, col_low = st.columns(2)
     with col_high:
-        st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>참여율 높은 행사 Top 5</div>", unsafe_allow_html=True)
+        ev_html = f"<div style='{CS}'><div style='font-size:14px;font-weight:600;margin-bottom:10px;'>참여율 높은 행사 Top 5</div>"
         if event_rates_sorted:
-            ev_bars = ""
             for info in event_rates_sorted:
                 d = date.fromisoformat(info["date"])
                 label = f"{info['title']} ({d.month}/{d.day})"
-                ev_bars += (
+                ev_html += (
                     f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'>"
                     f"<div style='font-size:12px;width:160px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{label}</div>"
                     f"<div style='flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden;'>"
                     f"<div style='height:100%;width:{info['rate']}%;background:#111;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{info['rate']}%</div>"
                     f"</div></div>"
                 )
-            st.markdown(ev_bars, unsafe_allow_html=True)
         else:
-            st.caption("데이터가 없습니다.")
+            ev_html += "<p style='color:var(--text-muted);font-size:13px;'>데이터가 없습니다.</p>"
+        ev_html += "</div>"
+        st.markdown(ev_html, unsafe_allow_html=True)
 
     with col_low:
-        st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>참여율 낮은 행사 Top 5</div>", unsafe_allow_html=True)
+        ev_html2 = f"<div style='{CS}'><div style='font-size:14px;font-weight:600;margin-bottom:10px;'>참여율 낮은 행사 Top 5</div>"
         if event_rates_bottom:
-            ev_bars = ""
             for info in event_rates_bottom:
                 d = date.fromisoformat(info["date"])
                 label = f"{info['title']} ({d.month}/{d.day})"
-                ev_bars += (
+                ev_html2 += (
                     f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'>"
                     f"<div style='font-size:12px;width:160px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{label}</div>"
                     f"<div style='flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden;'>"
                     f"<div style='height:100%;width:{max(info['rate'], 3)}%;background:#D4A017;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{info['rate']}%</div>"
                     f"</div></div>"
                 )
-            st.markdown(ev_bars, unsafe_allow_html=True)
         else:
-            st.caption("데이터가 없습니다.")
+            ev_html2 += "<p style='color:var(--text-muted);font-size:13px;'>데이터가 없습니다.</p>"
+        ev_html2 += "</div>"
+        st.markdown(ev_html2, unsafe_allow_html=True)
 
     # ===== 관리자 전용: 전체 인원 테이블 =====
     if admin:
