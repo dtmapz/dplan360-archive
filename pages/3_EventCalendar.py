@@ -439,35 +439,42 @@ with tab_att:
     # ===== 대시보드 렌더링 =====
 
     # Row 1: 팀별 평균 참여 + Top 10
+    CARD_HEIGHT = 520  # 두 영역 공통 높이(px)
     col_team, col_top = st.columns([1.2, 0.8])
     with col_team:
         with st.container(border=True):
-            st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>팀별 평균 참여 횟수</div>", unsafe_allow_html=True)
+            st.markdown(
+                f"<div style='min-height:{CARD_HEIGHT}px;display:flex;flex-direction:column;'>"
+                f"<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>팀별 평균 참여 횟수</div>",
+                unsafe_allow_html=True,
+            )
             if team_avg_sorted:
                 max_avg = team_avg_sorted[0][1] if team_avg_sorted else 1
-                n_teams = len(team_avg_sorted)
-                # Top10 카드 높이(약 500px)에 맞춰 바 간격 계산: (500 - 헤더50 - 바높이18*n) / n
-                available = 460 - 18 * n_teams
-                bar_gap = max(int(available / max(n_teams, 1)), 8)
-                bars_html = ""
+                bars_html = "<div style='flex:1;display:flex;flex-direction:column;justify-content:space-around;'>"
                 for team, avg in team_avg_sorted:
                     pct = min(avg / max_avg * 100, 100)
                     bars_html += (
-                        f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:{bar_gap}px;'>"
+                        f"<div style='display:flex;align-items:center;gap:8px;'>"
                         f"<div style='font-size:11px;width:140px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{team}</div>"
                         f"<div style='flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden;'>"
                         f"<div style='height:100%;width:{pct}%;background:#111;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{avg:.1f}회</div>"
                         f"</div></div>"
                     )
+                bars_html += "</div>"
                 st.markdown(bars_html, unsafe_allow_html=True)
             else:
                 st.caption("데이터가 없습니다.")
+            st.markdown("</div>", unsafe_allow_html=True)
 
     with col_top:
         with st.container(border=True):
-            st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>참여 횟수 Top 10</div>", unsafe_allow_html=True)
+            st.markdown(
+                f"<div style='min-height:{CARD_HEIGHT}px;display:flex;flex-direction:column;'>"
+                f"<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>참여 횟수 Top 10</div>",
+                unsafe_allow_html=True,
+            )
             if top10:
-                rank_html = ""
+                rank_html = "<div style='flex:1;display:flex;flex-direction:column;justify-content:space-around;'>"
                 for i, info in enumerate(top10, 1):
                     rank_html += (
                         f"<div style='display:flex;align-items:center;gap:8px;padding:5px 0;"
@@ -477,9 +484,11 @@ with tab_att:
                         f"<div style='font-size:12px;font-weight:600;color:#D4A017;'>{info['count']}회</div>"
                         f"</div>"
                     )
+                rank_html += "</div>"
                 st.markdown(rank_html, unsafe_allow_html=True)
             else:
                 st.caption("데이터가 없습니다.")
+            st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
 
