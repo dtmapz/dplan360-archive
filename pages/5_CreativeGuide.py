@@ -9,6 +9,7 @@ import uuid
 set_current_page("creative_guide")
 
 user = get_current_user()
+user_email = user.get("email", "") if user else ""
 BUCKET = "creative-guides"
 
 guides = db.get_creative_guides()
@@ -114,8 +115,8 @@ with tab_dl:
                     btn_parts.append(
                         f"<a href='#' id='{pid}' style='text-decoration:none;'>"
                         f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
-                        f"box-shadow:0 0 0 0.5px #111 inset;"
-                        f"color:#111;cursor:pointer;display:inline-block;'>{product_name}</span></a>"
+                        f"box-shadow:0 0 0 0.5px #999 inset;"
+                        f"color:inherit;cursor:pointer;display:inline-block;'>{product_name}</span></a>"
                     )
 
             row_html = (
@@ -185,9 +186,6 @@ with tab_dl:
                                         new_ws[cell.coordinate].border = copy(cell.border)
                                         new_ws[cell.coordinate].alignment = copy(cell.alignment)
                                         new_ws[cell.coordinate].number_format = cell.number_format
-                            for merge in src_ws.merged_cells.ranges:
-                                new_ws.merge_cells(str(merge))
-                            new_ws.sheet_view.showGridLines = src_ws.sheet_view.showGridLines
                             for col_dim in src_ws.column_dimensions.values():
                                 new_ws.column_dimensions[col_dim.index].width = col_dim.width
                             for row_dim in src_ws.row_dimensions.values():
@@ -213,37 +211,101 @@ with tab_dl:
 # ============================
 with tab_up:
     media_options = sorted(set([m["name"] for m in all_media]))
-    col_u1, col_u2 = st.columns([2, 2])
-    with col_u1:
-        upload_media = st.selectbox("매체 선택", media_options, key="cg_upload_media")
-    with col_u2:
-        upload_product = st.text_input("상품명", key="cg_upload_product")
 
-    upload_file = st.file_uploader("엑셀 파일 업로드 (.xlsx)", type=["xlsx"], key="cg_upload_file")
+    def log_action(action, media_name, product_name, old_product_name=None):
+        try:
+            db.get_client().table("creative_guide_logs").insert({
+                "action": action,
+                "media_name": media_name,
+                "product_name": product_name,
+                "old_product_name": old_product_name,
+                "user_email": user_email,
+            }).execute()
+        except Exception as e:
+            st.warning(f"로그 기록 실패: {e}")
 
-    if st.button("저장", type="primary", key="cg_upload_btn"):
-        if not upload_media or not upload_product:
-            st.error("매체와 상품명을 입력해주세요.")
-        else:
-            existing = guide_map.get(upload_media, {}).get(upload_product)
-            if upload_file:
-                file_bytes = upload_file.read()
-                storage_path = f"{uuid.uuid4()}.xlsx"
-                if existing:
-                    if existing.get("storage_path"):
-                        db.delete_from_storage(BUCKET, existing["storage_path"])
-                    db.upload_to_storage(BUCKET, storage_path, file_bytes)
-                    db.update_creative_guide(existing["id"], storage_path)
-                else:
-                    db.upload_to_storage(BUCKET, storage_path, file_bytes)
-                    cat = media_cat_map.get(upload_media, "")
-                    db.create_creative_guide(upload_media, cat, upload_product, storage_path)
+    col_m, col_act = st.columns([2, 2])
+    with col_m:
+        up_media = st.selectbox("매체 선택", media_options, key="cg_up_media")
+    with col_act:
+        up_action = st.selectbox("작업 구분", ["등록", "수정", "삭제"], key="cg_up_action")
+
+    existing_products = sorted(guide_map.get(up_media, {}).keys())
+
+    # ---------- 등록 ----------
+    if up_action == "등록":
+        up_product = st.text_input("상품명", key="cg_up_product")
+        up_file = st.file_uploader("엑셀 파일 업로드 (.xlsx)", type=["xlsx"], key="cg_up_file")
+
+        if st.button("저장", type="primary", key="cg_up_save"):
+            if not up_media or not up_product:
+                st.error("매체와 상품명을 입력해주세요.")
             else:
-                if not existing:
-                    cat = media_cat_map.get(upload_media, "")
-                    db.create_creative_guide(upload_media, cat, upload_product, "")
-            st.session_state["_cg_upload_success"] = f"'{upload_media} · {upload_product}' 저장 완료."
-            st.rerun()
+                existing = guide_map.get(up_media, {}).get(up_product)
+                if up_file:
+                    file_bytes = up_file.read()
+                    storage_path = f"{uuid.uuid4()}.xlsx"
+                    if existing:
+                        if existing.get("storage_path"):
+                            db.delete_from_storage(BUCKET, existing["storage_path"])
+                        db.upload_to_storage(BUCKET, storage_path, file_bytes)
+                        db.update_creative_guide(existing["id"], storage_path)
+                    else:
+                        db.upload_to_storage(BUCKET, storage_path, file_bytes)
+                        cat = media_cat_map.get(up_media, "")
+                        db.create_creative_guide(up_media, cat, up_product, storage_path)
+                else:
+                    if not existing:
+                        cat = media_cat_map.get(up_media, "")
+                        db.create_creative_guide(up_media, cat, up_product, "")
+                log_action("등록", up_media, up_product)
+                st.session_state["_cg_upload_success"] = f"'{up_media} · {up_product}' 저장 완료."
+                st.rerun()
+
+    # ---------- 수정 ----------
+    elif up_action == "수정":
+        if not existing_products:
+            st.info("해당 매체에 등록된 상품이 없습니다.")
+        else:
+            col_old, col_new = st.columns([2, 2])
+            with col_old:
+                old_product = st.selectbox("기존 상품명", existing_products, key="cg_up_old")
+            with col_new:
+                new_product = st.text_input("변경할 상품명", key="cg_up_new")
+
+            if st.button("수정 저장", type="primary", key="cg_up_edit"):
+                if not new_product:
+                    st.error("변경할 상품명을 입력해주세요.")
+                elif new_product in existing_products:
+                    st.error("이미 존재하는 상품명입니다.")
+                else:
+                    guide = guide_map.get(up_media, {}).get(old_product)
+                    if guide:
+                        db.update_creative_guide_name(guide["id"], new_product)
+                        log_action("수정", up_media, new_product, old_product_name=old_product)
+                        st.session_state["_cg_upload_success"] = f"'{old_product}' → '{new_product}' 수정 완료."
+                        st.rerun()
+
+    # ---------- 삭제 ----------
+    elif up_action == "삭제":
+        if not existing_products:
+            st.info("해당 매체에 등록된 상품이 없습니다.")
+        else:
+            del_product = st.selectbox("삭제할 상품명", existing_products, key="cg_up_del")
+            confirm = st.checkbox("정말 삭제하시겠습니까?", key="cg_up_del_confirm")
+
+            if st.button("삭제", type="primary", key="cg_up_del_btn"):
+                if not confirm:
+                    st.error("삭제 확인 체크박스를 선택해주세요.")
+                else:
+                    guide = guide_map.get(up_media, {}).get(del_product)
+                    if guide:
+                        if guide.get("storage_path"):
+                            db.delete_from_storage(BUCKET, guide["storage_path"])
+                        db.delete_creative_guide(guide["id"])
+                        log_action("삭제", up_media, del_product)
+                        st.session_state["_cg_upload_success"] = f"'{up_media} · {del_product}' 삭제 완료."
+                        st.rerun()
 
     msg = st.session_state.pop("_cg_upload_success", None)
     if msg:
