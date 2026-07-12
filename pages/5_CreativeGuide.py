@@ -156,46 +156,54 @@ with tab_dl:
                 f"<div style='margin-top:16px;margin-bottom:8px;'>{tag_html}</div>",
                 unsafe_allow_html=True,
             )
-            try:
-                import openpyxl
-                from copy import copy
-                merged_wb = openpyxl.Workbook()
-                merged_wb.remove(merged_wb.active)
-                for (mn, pn) in selected:
-                    guide = guide_map.get(mn, {}).get(pn)
-                    if not guide:
-                        continue
-                    file_bytes = db.download_from_storage(BUCKET, guide["storage_path"])
-                    src_wb = openpyxl.load_workbook(io.BytesIO(file_bytes))
-                    for sheet_name in src_wb.sheetnames:
-                        src_ws = src_wb[sheet_name]
-                        new_ws = merged_wb.create_sheet(title=sheet_name[:31])
-                        for row in src_ws.iter_rows():
-                            for cell in row:
-                                new_ws[cell.coordinate].value = cell.value
-                                if cell.has_style:
-                                    new_ws[cell.coordinate].font = copy(cell.font)
-                                    new_ws[cell.coordinate].fill = copy(cell.fill)
-                                    new_ws[cell.coordinate].border = copy(cell.border)
-                                    new_ws[cell.coordinate].alignment = copy(cell.alignment)
-                                    new_ws[cell.coordinate].number_format = cell.number_format
-                        for col_dim in src_ws.column_dimensions.values():
-                            new_ws.column_dimensions[col_dim.index].width = col_dim.width
-                        for row_dim in src_ws.row_dimensions.values():
-                            new_ws.row_dimensions[row_dim.index].height = row_dim.height
-                buf = io.BytesIO()
-                merged_wb.save(buf)
-                buf.seek(0)
-                st.download_button(
-                    "선택한 제작가이드 통합 다운로드",
-                    data=buf,
-                    file_name="통합_제작가이드.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    type="primary",
-                    use_container_width=True,
-                )
-            except Exception as e:
-                st.error(f"다운로드 중 오류: {e}")
+
+            @st.fragment
+            def download_fragment():
+                sel = {k: v for k, v in st.session_state["cg_selected"].items() if v}
+                if not sel:
+                    return
+                try:
+                    import openpyxl
+                    from copy import copy
+                    merged_wb = openpyxl.Workbook()
+                    merged_wb.remove(merged_wb.active)
+                    for (mn, pn) in sel:
+                        guide = guide_map.get(mn, {}).get(pn)
+                        if not guide:
+                            continue
+                        file_bytes = db.download_from_storage(BUCKET, guide["storage_path"])
+                        src_wb = openpyxl.load_workbook(io.BytesIO(file_bytes))
+                        for sheet_name in src_wb.sheetnames:
+                            src_ws = src_wb[sheet_name]
+                            new_ws = merged_wb.create_sheet(title=sheet_name[:31])
+                            for row in src_ws.iter_rows():
+                                for cell in row:
+                                    new_ws[cell.coordinate].value = cell.value
+                                    if cell.has_style:
+                                        new_ws[cell.coordinate].font = copy(cell.font)
+                                        new_ws[cell.coordinate].fill = copy(cell.fill)
+                                        new_ws[cell.coordinate].border = copy(cell.border)
+                                        new_ws[cell.coordinate].alignment = copy(cell.alignment)
+                                        new_ws[cell.coordinate].number_format = cell.number_format
+                            for col_dim in src_ws.column_dimensions.values():
+                                new_ws.column_dimensions[col_dim.index].width = col_dim.width
+                            for row_dim in src_ws.row_dimensions.values():
+                                new_ws.row_dimensions[row_dim.index].height = row_dim.height
+                    buf = io.BytesIO()
+                    merged_wb.save(buf)
+                    buf.seek(0)
+                    st.download_button(
+                        "선택한 제작가이드 통합 다운로드",
+                        data=buf,
+                        file_name="통합_제작가이드.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        type="primary",
+                        use_container_width=True,
+                    )
+                except Exception as e:
+                    st.error(f"다운로드 중 오류: {e}")
+
+            download_fragment()
 
 # ============================
 # 업로드 탭
