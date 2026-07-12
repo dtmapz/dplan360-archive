@@ -136,16 +136,19 @@ if st.session_state.pop("_event_registered", False):
 
 # ---------- 색상 범례 (탭 우측 정렬) ----------
 all_legend_cats = db.get_event_categories()
-legend_html = "<div style='display:flex; gap:14px; justify-content:flex-end; margin-bottom:-60px; padding-right:4px; position:relative; z-index:1;'>"
+legend_items = ""
 for c in all_legend_cats:
-    legend_html += (
+    legend_items += (
         f"<span style='font-size:12px; color:var(--text-secondary); "
-        f"display:flex; align-items:center; gap:5px;'>"
+        f"display:inline-flex; align-items:center; gap:5px; margin-left:14px;'>"
         f"<span style='display:inline-block; width:10px; height:10px; "
         f"border-radius:2px; background:{c['color']};'></span>{c['name']}</span>"
     )
-legend_html += "</div>"
-st.markdown(legend_html, unsafe_allow_html=True)
+st.markdown(
+    f"<div style='display:flex; justify-content:flex-end; margin-bottom:-48px; "
+    f"position:relative; z-index:999; pointer-events:none;'>{legend_items}</div>",
+    unsafe_allow_html=True,
+)
 
 if admin:
     tab_cal, tab_list, tab_reg = st.tabs(["월별 달력", "리스트", "+ 행사 등록"])
