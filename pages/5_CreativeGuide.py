@@ -175,20 +175,8 @@ with tab_dl:
                         src_wb = openpyxl.load_workbook(io.BytesIO(file_bytes))
                         for sheet_name in src_wb.sheetnames:
                             src_ws = src_wb[sheet_name]
-                            new_ws = merged_wb.create_sheet(title=sheet_name[:31])
-                            for row in src_ws.iter_rows():
-                                for cell in row:
-                                    new_ws[cell.coordinate].value = cell.value
-                                    if cell.has_style:
-                                        new_ws[cell.coordinate].font = copy(cell.font)
-                                        new_ws[cell.coordinate].fill = copy(cell.fill)
-                                        new_ws[cell.coordinate].border = copy(cell.border)
-                                        new_ws[cell.coordinate].alignment = copy(cell.alignment)
-                                        new_ws[cell.coordinate].number_format = cell.number_format
-                            for col_dim in src_ws.column_dimensions.values():
-                                new_ws.column_dimensions[col_dim.index].width = col_dim.width
-                            for row_dim in src_ws.row_dimensions.values():
-                                new_ws.row_dimensions[row_dim.index].height = row_dim.height
+                            new_ws = merged_wb.copy_worksheet(src_ws)
+                            new_ws.title = sheet_name[:31]
                     buf = io.BytesIO()
                     merged_wb.save(buf)
                     buf.seek(0)
