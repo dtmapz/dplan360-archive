@@ -212,11 +212,10 @@ with tab_list:
 
         def render_event_card(ev, m_int):
             color = category_color(ev.get("category", ""), color_map)
-            cat = ev.get("category", "") or ""
+            cat = ev.get("category", "")
             s = ev.get("start_time", "")[:5] if ev.get("start_time") else ""
             e = ev.get("end_time", "")[:5] if ev.get("end_time") else ""
-            venue = ev.get("venue", "") or ""
-            title = ev.get("title", "") or ""
+            venue = ev.get("venue", "")
             d = date.fromisoformat(ev["event_date"])
             date_label = f"{m_int}월 {d.day}일 ({weekdays[d.weekday()]})"
 
@@ -478,7 +477,7 @@ with tab_att:
     st.markdown(
         "<div style='display:flex;gap:0;'>"
         + left_html
-        + "<div style='width:1px;background:var(--border-strong);margin:8px 0;'></div>"
+        + "<div style='width:1px;background:#ddd;align-self:stretch;'></div>"
         + right_html
         + "</div>",
         unsafe_allow_html=True,
@@ -549,7 +548,7 @@ with tab_att:
     st.markdown(
         "<div style='display:flex;gap:0;'>"
         + high_html
-        + "<div style='width:1px;background:var(--border-strong);margin:8px 0;'></div>"
+        + "<div style='width:1px;background:#ddd;align-self:stretch;'></div>"
         + low_html
         + "</div>",
         unsafe_allow_html=True,
