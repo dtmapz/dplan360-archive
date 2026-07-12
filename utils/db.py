@@ -332,3 +332,12 @@ def get_all_media() -> list[dict]:
         .execute()
     )
     return res.data
+
+def update_creative_guide_name(guide_id, new_product_name):
+    return get_client().table("creative_guides").update(
+        {"product_name": new_product_name}
+    ).eq("id", guide_id).execute()
+
+
+def delete_creative_guide(guide_id):
+    return get_client().table("creative_guides").delete().eq("id", guide_id).execute()
