@@ -43,8 +43,8 @@ def event_detail_dialog(event: dict):
         st.markdown(
             f"<div style='display:flex; align-items:center; gap:10px; margin-bottom:4px;'>"
             f"<span style='background:{color}; color:#fff; font-size:12px; "
-            f"padding:3px 10px; border-radius:4px; white-space:nowrap;'>{html.escape(cat)}</span>"
-            f"<span style='font-size:15px; font-weight:500;'>{html.escape(event['title'])}</span>"
+            f"padding:3px 10px; border-radius:4px; white-space:nowrap;'>{html.escape(cat or '-')}</span>"
+            f"<span style='font-size:15px; font-weight:500;'>{html.escape(event.get('title') or '')}</span>"
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -213,10 +213,11 @@ with tab_list:
 
         def render_event_card(ev, m_int):
             color = category_color(ev.get("category", ""), color_map)
-            cat = ev.get("category", "")
+            cat = ev.get("category", "") or ""
             s = ev.get("start_time", "")[:5] if ev.get("start_time") else ""
             e = ev.get("end_time", "")[:5] if ev.get("end_time") else ""
-            venue = ev.get("venue", "")
+            venue = ev.get("venue", "") or ""
+            title = ev.get("title", "") or ""
             d = date.fromisoformat(ev["event_date"])
             date_label = f"{m_int}월 {d.day}일 ({weekdays[d.weekday()]})"
 
@@ -229,7 +230,7 @@ with tab_list:
                     f"border-left:4px solid {color}; margin-bottom:6px;'>"
                     f"<span style='background:{color}; color:#fff; font-size:11px; "
                     f"padding:2px 8px; border-radius:4px; white-space:nowrap;'>{html.escape(cat)}</span>"
-                    f"<span style='font-size:13px; font-weight:500; color:var(--text-primary);'>{html.escape(ev['title'])}</span>"
+                    f"<span style='font-size:13px; font-weight:500; color:var(--text-primary);'>{html.escape(title)}</span>"
                     f"<span style='font-size:13px; color:var(--text-muted);'>{s}~{e} · {html.escape(venue)}</span>"
                     f"<span style='font-size:13px; color:var(--text-muted); margin-left:auto; white-space:nowrap;'>{date_label}</span>"
                     f"</div>",
@@ -314,7 +315,7 @@ with tab_att:
                 d = date.fromisoformat(ev["event_date"])
                 html += (f"<th style='border:0.5px solid var(--border); padding:5px 8px; "
                          f"background:{bg}; color:{fg2}; font-size:11px; white-space:nowrap;'>"
-                         f"{d.month}/{d.day}<br>{html.escape(ev['title'])}</th>")
+                         f"{d.month}/{d.day}<br>{html.escape(ev.get('title') or '')}</th>")
         html += "</tr>"
 
         html += "<tr>"
@@ -347,9 +348,9 @@ with tab_att:
                     html += (f"<td rowspan='{len(gmembers)}' style='border:0.5px solid var(--border); "
                              f"padding:6px 10px; background:var(--surface-1); font-weight:500; "
                              f"color:var(--text-secondary); white-space:nowrap; vertical-align:middle;'>"
-                             f"{html.escape(group)}</td>")
+                             f"{html.escape(group or '')}</td>")
                 html += (f"<td style='border:0.5px solid var(--border); padding:6px 10px; "
-                         f"text-align:left; white-space:nowrap;'>{html.escape(member.get('name', ''))}</td>")
+                         f"text-align:left; white-space:nowrap;'>{html.escape(member.get('name') or '')}</td>")
                 if show_count:
                     base = all_events_for_count if all_events_for_count is not None else events_list
                     cnt = sum(1 for ev in base if att_map.get((ev["id"], member.get("email", ""))))
@@ -450,7 +451,7 @@ with tab_att:
             pct = min(avg / max_avg * 100, 100)
             left_html += (
                 f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:{bar_gap}px;'>"
-                f"<div style='font-size:11px;width:140px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{html.escape(team)}</div>"
+                f"<div style='font-size:11px;width:140px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{html.escape(team or '')}</div>"
                 f"<div style='flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden;'>"
                 f"<div style='height:100%;width:{pct}%;background:#111;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{avg:.1f}회</div>"
                 f"</div></div>"
@@ -467,7 +468,7 @@ with tab_att:
             right_html += (
                 f"<div style='display:flex;align-items:center;gap:8px;padding:5px 0;{border}'>"
                 f"<div style='width:20px;font-size:12px;font-weight:600;color:var(--text-muted);text-align:center;'>{i}</div>"
-                f"<div style='font-size:12px;flex:1;'>{html.escape(info['name'])}</div>"
+                f"<div style='font-size:12px;flex:1;'>{html.escape(info['name'] or '')}</div>"
                 f"<div style='font-size:12px;font-weight:600;color:#D4A017;'>{info['count']}회</div>"
                 f"</div>"
             )
