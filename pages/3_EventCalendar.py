@@ -1,7 +1,6 @@
 import streamlit as st
 from datetime import datetime, date
 import re
-import html
 from utils import db
 from utils.auth import get_current_user, is_admin
 from utils.ui import set_current_page
@@ -43,8 +42,8 @@ def event_detail_dialog(event: dict):
         st.markdown(
             f"<div style='display:flex; align-items:center; gap:10px; margin-bottom:4px;'>"
             f"<span style='background:{color}; color:#fff; font-size:12px; "
-            f"padding:3px 10px; border-radius:4px; white-space:nowrap;'>{html.escape(cat or '-')}</span>"
-            f"<span style='font-size:15px; font-weight:500;'>{html.escape(event.get('title') or '')}</span>"
+            f"padding:3px 10px; border-radius:4px; white-space:nowrap;'>{cat}</span>"
+            f"<span style='font-size:15px; font-weight:500;'>{event['title']}</span>"
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -229,9 +228,9 @@ with tab_list:
                     f"border:0.5px solid var(--border); border-radius:8px; "
                     f"border-left:4px solid {color}; margin-bottom:6px;'>"
                     f"<span style='background:{color}; color:#fff; font-size:11px; "
-                    f"padding:2px 8px; border-radius:4px; white-space:nowrap;'>{html.escape(cat)}</span>"
-                    f"<span style='font-size:13px; font-weight:500; color:var(--text-primary);'>{html.escape(title)}</span>"
-                    f"<span style='font-size:13px; color:var(--text-muted);'>{s}~{e} · {html.escape(venue)}</span>"
+                    f"padding:2px 8px; border-radius:4px; white-space:nowrap;'>{cat}</span>"
+                    f"<span style='font-size:13px; font-weight:500; color:var(--text-primary);'>{ev['title']}</span>"
+                    f"<span style='font-size:13px; color:var(--text-muted);'>{s}~{e} · {venue}</span>"
                     f"<span style='font-size:13px; color:var(--text-muted); margin-left:auto; white-space:nowrap;'>{date_label}</span>"
                     f"</div>",
                     unsafe_allow_html=True,
@@ -315,7 +314,7 @@ with tab_att:
                 d = date.fromisoformat(ev["event_date"])
                 html += (f"<th style='border:0.5px solid var(--border); padding:5px 8px; "
                          f"background:{bg}; color:{fg2}; font-size:11px; white-space:nowrap;'>"
-                         f"{d.month}/{d.day}<br>{html.escape(ev.get('title') or '')}</th>")
+                         f"{d.month}/{d.day}<br>{ev['title']}</th>")
         html += "</tr>"
 
         html += "<tr>"
@@ -348,9 +347,9 @@ with tab_att:
                     html += (f"<td rowspan='{len(gmembers)}' style='border:0.5px solid var(--border); "
                              f"padding:6px 10px; background:var(--surface-1); font-weight:500; "
                              f"color:var(--text-secondary); white-space:nowrap; vertical-align:middle;'>"
-                             f"{html.escape(group or '')}</td>")
+                             f"{group}</td>")
                 html += (f"<td style='border:0.5px solid var(--border); padding:6px 10px; "
-                         f"text-align:left; white-space:nowrap;'>{html.escape(member.get('name') or '')}</td>")
+                         f"text-align:left; white-space:nowrap;'>{member.get('name', '')}</td>")
                 if show_count:
                     base = all_events_for_count if all_events_for_count is not None else events_list
                     cnt = sum(1 for ev in base if att_map.get((ev["id"], member.get("email", ""))))
@@ -451,7 +450,7 @@ with tab_att:
             pct = min(avg / max_avg * 100, 100)
             left_html += (
                 f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:{bar_gap}px;'>"
-                f"<div style='font-size:11px;width:140px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{html.escape(team or '')}</div>"
+                f"<div style='font-size:11px;width:140px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{team}</div>"
                 f"<div style='flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden;'>"
                 f"<div style='height:100%;width:{pct}%;background:#111;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{avg:.1f}회</div>"
                 f"</div></div>"
@@ -468,7 +467,7 @@ with tab_att:
             right_html += (
                 f"<div style='display:flex;align-items:center;gap:8px;padding:5px 0;{border}'>"
                 f"<div style='width:20px;font-size:12px;font-weight:600;color:var(--text-muted);text-align:center;'>{i}</div>"
-                f"<div style='font-size:12px;flex:1;'>{html.escape(info['name'] or '')}</div>"
+                f"<div style='font-size:12px;flex:1;'>{info['name']}</div>"
                 f"<div style='font-size:12px;font-weight:600;color:#D4A017;'>{info['count']}회</div>"
                 f"</div>"
             )
@@ -518,7 +517,7 @@ with tab_att:
     if event_rates_sorted:
         for info in event_rates_sorted:
             d = date.fromisoformat(info["date"])
-            label = html.escape(f"{info['title']} ({d.month}/{d.day})")
+            label = f"{info['title']} ({d.month}/{d.day})"
             high_html += (
                 f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'>"
                 f"<div style='font-size:12px;width:160px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{label}</div>"
@@ -535,7 +534,7 @@ with tab_att:
     if event_rates_bottom:
         for info in event_rates_bottom:
             d = date.fromisoformat(info["date"])
-            label = html.escape(f"{info['title']} ({d.month}/{d.day})")
+            label = f"{info['title']} ({d.month}/{d.day})"
             low_html += (
                 f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'>"
                 f"<div style='font-size:12px;width:160px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{label}</div>"
