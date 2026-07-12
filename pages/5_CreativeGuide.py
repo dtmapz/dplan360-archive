@@ -3,6 +3,7 @@ import io
 from utils import db
 from utils.auth import get_current_user
 from utils.ui import set_current_page
+from st_click_detector import click_detector
 import uuid
 
 set_current_page("creative_guide")
@@ -68,17 +69,6 @@ with tab_dl:
     if "cg_selected" not in st.session_state:
         st.session_state["cg_selected"] = {}
 
-    # query_params로 버튼 클릭 처리
-    params = st.query_params
-    if "cg_toggle" in params:
-        raw = params["cg_toggle"]
-        if "||" in raw:
-            mn, pn = raw.split("||", 1)
-            key = (mn, pn)
-            st.session_state["cg_selected"][key] = not st.session_state["cg_selected"].get(key, False)
-        st.query_params.clear()
-        st.rerun()
-
     if not any_filter:
         st.markdown(
             "<div style='margin:40px auto;max-width:480px;background:rgba(0,0,0,0.04);"
@@ -97,10 +87,9 @@ with tab_dl:
             if not products:
                 continue
 
-
             col_m, col_div, col_p = st.columns([1, 0.05, 5])
             col_m.markdown(
-                f"<div style='font-size:13px;font-weight:500;padding:10px 0;'>{media_name}</div>",
+                f"<div style='font-size:13px;font-weight:600;padding:10px 0;'>{media_name}</div>",
                 unsafe_allow_html=True,
             )
             col_div.markdown(
@@ -113,35 +102,47 @@ with tab_dl:
                     has_file = bool(guide.get("storage_path"))
                     key = (media_name, product_name)
                     is_on = st.session_state["cg_selected"].get(key, False)
-                    label = f"✓ {product_name}" if is_on else product_name
-                    encoded = f"{media_name}||{product_name}"
+                    pid = f"{media_name}||{product_name}"
 
                     if not has_file:
+                        # disabled - 클릭 불가 (a태그 없음)
                         btn_parts.append(
                             f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
-                            f"box-shadow:0 0 0 0.5px #ccc inset;"
-                            f"color:#bbb;cursor:not-allowed;display:inline-block;'>{product_name}</span>"
+                            f"box-shadow:0 0 0 0.5px #666 inset;"
+                            f"color:#999;opacity:0.45;cursor:not-allowed;"
+                            f"display:inline-block;'>{product_name}</span>"
                         )
                     elif is_on:
+                        # 선택됨 - 블랙 배경
                         btn_parts.append(
-                            f"<a href='?cg_toggle={encoded}' style='text-decoration:none;'>"
+                            f"<a href='#' id='{pid}' style='text-decoration:none;'>"
                             f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
-                            f"background:#111;color:#fff;cursor:pointer;display:inline-block;'>{label}</span></a>"
+                            f"background:#111;color:#fff;"
+                            f"cursor:pointer;display:inline-block;'>✓ {product_name}</span></a>"
                         )
                     else:
+                        # 미선택 - 테두리만
                         btn_parts.append(
-                            f"<a href='?cg_toggle={encoded}' style='text-decoration:none;'>"
+                            f"<a href='#' id='{pid}' style='text-decoration:none;'>"
                             f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
                             f"box-shadow:0 0 0 0.5px #999 inset;"
-                            f"color:var(--text-primary);cursor:pointer;display:inline-block;'>{product_name}</span></a>"
+                            f"color:inherit;cursor:pointer;display:inline-block;'>{product_name}</span></a>"
                         )
 
-                st.markdown(
-                    f"<div style='display:flex;flex-wrap:wrap;gap:8px;padding:6px 0;'>"
+                html = (
+                    "<div style='display:flex;flex-wrap:wrap;gap:8px;padding:6px 0;'>"
                     + "".join(btn_parts) +
-                    "</div>",
-                    unsafe_allow_html=True,
+                    "</div>"
                 )
+                clicked = click_detector(html, key=f"cg_det_{media_name}")
+                if clicked and "||" in clicked:
+                    mn, pn = clicked.split("||", 1)
+                    ck = (mn, pn)
+                    # 파일 있는 상품만 토글
+                    g = guide_map.get(mn, {}).get(pn)
+                    if g and bool(g.get("storage_path")):
+                        st.session_state["cg_selected"][ck] = not st.session_state["cg_selected"].get(ck, False)
+                        st.rerun()
 
             st.markdown(
                 "<div style='border-bottom:0.5px solid var(--border);margin:4px 0 8px 0;'></div>",
@@ -152,7 +153,7 @@ with tab_dl:
         selected = {k: v for k, v in st.session_state["cg_selected"].items() if v}
         if selected:
             tag_html = "".join(
-                f"<span style='font-size:12px;padding:4px 10px;border-radius:20px;"
+                f"<span style='font-size:12px;padding:4px 12px;border-radius:20px;"
                 f"box-shadow:0 0 0 0.5px #999 inset;"
                 f"display:inline-block;margin:3px;'>"
                 f"{mn} · {pn}</span>"
@@ -236,7 +237,6 @@ with tab_up:
                 if not existing:
                     cat = media_cat_map.get(upload_media, "")
                     db.create_creative_guide(upload_media, cat, upload_product, "")
-                # 이미 존재하면 파일 없이 저장 시 아무 변경 없음 (파일만 덮어쓰기 가능)
             st.session_state["_cg_upload_success"] = f"'{upload_media} · {upload_product}' 저장 완료."
             st.rerun()
 
