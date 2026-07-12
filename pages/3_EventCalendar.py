@@ -386,26 +386,191 @@ with tab_att:
             if att.get("attended"):
                 att_map[(ev["id"], att["member_email"])] = True
 
-    att_current_future = [ev for ev in att_all_events if ev["event_date"][:7] >= current_month]
-    att_past = [ev for ev in att_all_events if ev["event_date"][:7] < current_month]
+    total_members = len(att_members)
+    total_events = len(att_all_events)
 
-    # 이번달 이후
-    if att_current_future:
-        html = build_attendance_table(att_current_future, att_members, att_map,
-                                      show_count=True, all_events_for_count=att_all_events)
-        st.markdown(html, unsafe_allow_html=True)
+    # ===== 대시보드 데이터 계산 =====
+
+    # 인원별 참여 횟수
+    member_counts = {}
+    for mbr in att_members:
+        email = mbr.get("email", "")
+        name = mbr.get("name", "")
+        team = mbr.get("team", "")
+        cnt = sum(1 for ev in att_all_events if att_map.get((ev["id"], email)))
+        member_counts[email] = {"name": name, "team": team, "count": cnt}
+
+    # 팀별 평균 참여 횟수
+    team_totals = {}
+    for info in member_counts.values():
+        team = info["team"]
+        team_totals.setdefault(team, []).append(info["count"])
+    team_avg = {t: sum(counts) / len(counts) for t, counts in team_totals.items() if counts}
+    team_avg_sorted = sorted(team_avg.items(), key=lambda x: x[1], reverse=True)
+
+    # Top 10 참여자
+    top10 = sorted(member_counts.values(), key=lambda x: x["count"], reverse=True)[:10]
+
+    # 월별 참여율
+    monthly_rates = {}
+    for ev in att_all_events:
+        m = ev["event_date"][:7]
+        monthly_rates.setdefault(m, []).append(ev)
+    month_rate_data = {}
+    for m, evs in sorted(monthly_rates.items()):
+        total_slots = len(evs) * total_members
+        attended_slots = sum(1 for ev in evs for mbr in att_members if att_map.get((ev["id"], mbr.get("email", ""))))
+        month_rate_data[m] = round(attended_slots / total_slots * 100, 1) if total_slots > 0 else 0
+
+    # 행사별 참여율 Top 5
+    event_rates = []
+    for ev in att_all_events:
+        cnt = sum(1 for mbr in att_members if att_map.get((ev["id"], mbr.get("email", ""))))
+        rate = round(cnt / total_members * 100, 1) if total_members > 0 else 0
+        event_rates.append({"title": ev["title"], "date": ev["event_date"], "rate": rate})
+    event_rates_sorted = sorted(event_rates, key=lambda x: x["rate"], reverse=True)[:5]
+
+    # 참여율 구간 분포
+    member_rates_list = []
+    for info in member_counts.values():
+        r = round(info["count"] / total_events * 100, 1) if total_events > 0 else 0
+        member_rates_list.append(r)
+    high = sum(1 for r in member_rates_list if r >= 80)
+    mid = sum(1 for r in member_rates_list if 50 <= r < 80)
+    low = sum(1 for r in member_rates_list if r < 50)
+
+    # ===== 대시보드 렌더링 =====
+
+    # Row 1: 팀별 평균 참여 + Top 10
+    col_team, col_top = st.columns([1.2, 0.8])
+    with col_team:
+        st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>팀별 평균 참여 횟수</div>", unsafe_allow_html=True)
+        if team_avg_sorted:
+            max_avg = team_avg_sorted[0][1] if team_avg_sorted else 1
+            bars_html = ""
+            for team, avg in team_avg_sorted:
+                pct = min(avg / max_avg * 100, 100)
+                bars_html += (
+                    f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'>"
+                    f"<div style='font-size:12px;width:110px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{team}</div>"
+                    f"<div style='flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden;'>"
+                    f"<div style='height:100%;width:{pct}%;background:#1D9E75;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{avg:.1f}회</div>"
+                    f"</div></div>"
+                )
+            st.markdown(bars_html, unsafe_allow_html=True)
+        else:
+            st.caption("데이터가 없습니다.")
+
+    with col_top:
+        st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>참여 횟수 Top 10</div>", unsafe_allow_html=True)
+        if top10:
+            rank_html = ""
+            for i, info in enumerate(top10, 1):
+                rank_html += (
+                    f"<div style='display:flex;align-items:center;gap:8px;padding:5px 0;"
+                    f"border-bottom:0.5px solid var(--border);'>"
+                    f"<div style='width:20px;font-size:12px;font-weight:600;color:var(--text-muted);text-align:center;'>{i}</div>"
+                    f"<div style='font-size:12px;flex:1;'>{info['name']}</div>"
+                    f"<div style='font-size:12px;font-weight:600;color:#1D9E75;'>{info['count']}회</div>"
+                    f"</div>"
+                )
+            st.markdown(rank_html, unsafe_allow_html=True)
+        else:
+            st.caption("데이터가 없습니다.")
+
+    st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
+
+    # Row 2: 월별 참여율 추이
+    st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>월별 전체 참여율 추이</div>", unsafe_allow_html=True)
+    if month_rate_data:
+        import altair as alt
+        import pandas as pd
+        chart_data = pd.DataFrame([
+            {"월": f"{int(m.split('-')[1])}월", "참여율": rate, "sort": m}
+            for m, rate in month_rate_data.items()
+        ]).sort_values("sort")
+        chart = alt.Chart(chart_data).mark_line(
+            point=alt.OverlayMarkDef(filled=True, size=50),
+            color="#1D9E75",
+            strokeWidth=2.5
+        ).encode(
+            x=alt.X("월:N", sort=chart_data["월"].tolist(), axis=alt.Axis(labelAngle=0)),
+            y=alt.Y("참여율:Q", scale=alt.Scale(domain=[0, 100]), title="참여율 (%)"),
+            tooltip=["월", "참여율"]
+        ).properties(height=200, width="container")
+        st.altair_chart(chart, use_container_width=True)
     else:
-        st.caption("이번달 이후 등록된 행사가 없습니다.")
+        st.caption("데이터가 없습니다.")
 
-    # 과거 기록
-    if att_past:
-        past_months = sorted(set(ev["event_date"][:7] for ev in att_past))
-        y_start, m_start = past_months[0].split("-")
-        y_end, m_end = past_months[-1].split("-")
-        label = f"{y_start}년 {int(m_start)}월 ~ {y_end}년 {int(m_end)}월 기록"
-        with st.expander(label, expanded=False):
-            html = build_attendance_table(att_past, att_members, att_map, show_count=False)
-            st.markdown(html, unsafe_allow_html=True)
+    st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
+
+    # Row 3: 행사별 참여율 Top 5 + 참여율 구간 분포 도넛
+    col_ev, col_donut = st.columns([1.2, 0.8])
+    with col_ev:
+        st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>참여율 높은 행사 Top 5</div>", unsafe_allow_html=True)
+        if event_rates_sorted:
+            ev_bars = ""
+            for info in event_rates_sorted:
+                d = date.fromisoformat(info["date"])
+                label = f"{info['title']} ({d.month}/{d.day})"
+                ev_bars += (
+                    f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'>"
+                    f"<div style='font-size:12px;width:160px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{label}</div>"
+                    f"<div style='flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden;'>"
+                    f"<div style='height:100%;width:{info['rate']}%;background:#185FA5;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{info['rate']}%</div>"
+                    f"</div></div>"
+                )
+            st.markdown(ev_bars, unsafe_allow_html=True)
+        else:
+            st.caption("데이터가 없습니다.")
+
+    with col_donut:
+        st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>참여율 구간 분포</div>", unsafe_allow_html=True)
+        total_p = high + mid + low
+        if total_p > 0:
+            h_pct = round(high / total_p * 100)
+            m_pct = round(mid / total_p * 100)
+            l_pct = 100 - h_pct - m_pct
+            # SVG 도넛
+            circumference = 2 * 3.14159 * 48
+            h_len = circumference * h_pct / 100
+            m_len = circumference * m_pct / 100
+            l_len = circumference * l_pct / 100
+            donut_svg = (
+                f"<div style='display:flex;align-items:center;gap:20px;justify-content:center;'>"
+                f"<svg viewBox='0 0 120 120' width='110' height='110'>"
+                f"<circle cx='60' cy='60' r='48' fill='none' stroke='#1D9E75' stroke-width='20' "
+                f"stroke-dasharray='{h_len} {circumference - h_len}' stroke-dashoffset='0' transform='rotate(-90 60 60)'/>"
+                f"<circle cx='60' cy='60' r='48' fill='none' stroke='#F59E0B' stroke-width='20' "
+                f"stroke-dasharray='{m_len} {circumference - m_len}' stroke-dashoffset='-{h_len}' transform='rotate(-90 60 60)'/>"
+                f"<circle cx='60' cy='60' r='48' fill='none' stroke='#EF4444' stroke-width='20' "
+                f"stroke-dasharray='{l_len} {circumference - l_len}' stroke-dashoffset='-{h_len + m_len}' transform='rotate(-90 60 60)'/>"
+                f"<text x='60' y='58' font-size='14' font-weight='600' fill='var(--text-primary)' text-anchor='middle'>{total_p}명</text>"
+                f"<text x='60' y='72' font-size='10' fill='var(--text-muted)' text-anchor='middle'>전체</text>"
+                f"</svg>"
+                f"<div style='display:flex;flex-direction:column;gap:6px;'>"
+                f"<div style='display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);'>"
+                f"<span style='display:inline-block;width:10px;height:10px;border-radius:2px;background:#1D9E75;'></span>80%↑ {high}명 ({h_pct}%)</div>"
+                f"<div style='display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);'>"
+                f"<span style='display:inline-block;width:10px;height:10px;border-radius:2px;background:#F59E0B;'></span>50~80% {mid}명 ({m_pct}%)</div>"
+                f"<div style='display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);'>"
+                f"<span style='display:inline-block;width:10px;height:10px;border-radius:2px;background:#EF4444;'></span>50%↓ {low}명 ({l_pct}%)</div>"
+                f"</div></div>"
+            )
+            st.markdown(donut_svg, unsafe_allow_html=True)
+        else:
+            st.caption("데이터가 없습니다.")
+
+    # ===== 관리자 전용: 전체 인원 테이블 =====
+    if admin:
+        st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
+        with st.expander("전체 인원 참여 현황 상세 테이블", expanded=False):
+            if att_all_events:
+                html = build_attendance_table(att_all_events, att_members, att_map,
+                                              show_count=True, all_events_for_count=att_all_events)
+                st.markdown(html, unsafe_allow_html=True)
+            else:
+                st.caption("등록된 행사가 없습니다.")
 
 # ---------- 행사 등록 ----------
 if tab_reg is not None:
