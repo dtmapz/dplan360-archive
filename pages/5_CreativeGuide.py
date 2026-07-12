@@ -188,7 +188,7 @@ with tab_dl:
                             for col_dim in src_ws.column_dimensions.values():
                                 new_ws.column_dimensions[col_dim.index].width = col_dim.width
                             for row_dim in src_ws.row_dimensions.values():
-                                new_ws.row_dimensions[row_dim.index] = copy(row_dim)
+                                new_ws.row_dimensions[row_dim.index].height = row_dim.height
                     buf = io.BytesIO()
                     merged_wb.save(buf)
                     buf.seek(0)
