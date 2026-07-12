@@ -223,7 +223,7 @@ with tab_list:
             with col_card:
                 st.markdown(
                     f"<div style='display:flex; align-items:center; gap:10px; "
-                    f"padding:10px 14px; background:{color}11; "
+                    f"padding:10px 14px; background:var(--surface-2); "
                     f"border:0.5px solid var(--border); border-radius:8px; "
                     f"border-left:4px solid {color}; margin-bottom:6px;'>"
                     f"<span style='background:{color}; color:#fff; font-size:11px; "
@@ -430,14 +430,8 @@ with tab_att:
         event_rates.append({"title": ev["title"], "date": ev["event_date"], "rate": rate})
     event_rates_sorted = sorted(event_rates, key=lambda x: x["rate"], reverse=True)[:5]
 
-    # 참여율 구간 분포
-    member_rates_list = []
-    for info in member_counts.values():
-        r = round(info["count"] / total_events * 100, 1) if total_events > 0 else 0
-        member_rates_list.append(r)
-    high = sum(1 for r in member_rates_list if r >= 80)
-    mid = sum(1 for r in member_rates_list if 50 <= r < 80)
-    low = sum(1 for r in member_rates_list if r < 50)
+    # 행사별 참여율 Bottom 5
+    event_rates_bottom = sorted(event_rates, key=lambda x: x["rate"])[:5]
 
     # ===== 대시보드 렌더링 =====
 
@@ -454,7 +448,7 @@ with tab_att:
                     f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'>"
                     f"<div style='font-size:12px;width:110px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{team}</div>"
                     f"<div style='flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden;'>"
-                    f"<div style='height:100%;width:{pct}%;background:#1D9E75;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{avg:.1f}회</div>"
+                    f"<div style='height:100%;width:{pct}%;background:#111;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{avg:.1f}회</div>"
                     f"</div></div>"
                 )
             st.markdown(bars_html, unsafe_allow_html=True)
@@ -471,7 +465,7 @@ with tab_att:
                     f"border-bottom:0.5px solid var(--border);'>"
                     f"<div style='width:20px;font-size:12px;font-weight:600;color:var(--text-muted);text-align:center;'>{i}</div>"
                     f"<div style='font-size:12px;flex:1;'>{info['name']}</div>"
-                    f"<div style='font-size:12px;font-weight:600;color:#1D9E75;'>{info['count']}회</div>"
+                    f"<div style='font-size:12px;font-weight:600;color:#D4A017;'>{info['count']}회</div>"
                     f"</div>"
                 )
             st.markdown(rank_html, unsafe_allow_html=True)
@@ -491,7 +485,7 @@ with tab_att:
         ]).sort_values("sort")
         chart = alt.Chart(chart_data).mark_line(
             point=alt.OverlayMarkDef(filled=True, size=50),
-            color="#1D9E75",
+            color="#D4A017",
             strokeWidth=2.5
         ).encode(
             x=alt.X("월:N", sort=chart_data["월"].tolist(), axis=alt.Axis(labelAngle=0)),
@@ -504,9 +498,9 @@ with tab_att:
 
     st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
 
-    # Row 3: 행사별 참여율 Top 5 + 참여율 구간 분포 도넛
-    col_ev, col_donut = st.columns([1.2, 0.8])
-    with col_ev:
+    # Row 3: 행사별 참여율 Top 5 + Bottom 5
+    col_high, col_low = st.columns(2)
+    with col_high:
         st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>참여율 높은 행사 Top 5</div>", unsafe_allow_html=True)
         if event_rates_sorted:
             ev_bars = ""
@@ -517,47 +511,28 @@ with tab_att:
                     f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'>"
                     f"<div style='font-size:12px;width:160px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{label}</div>"
                     f"<div style='flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden;'>"
-                    f"<div style='height:100%;width:{info['rate']}%;background:#185FA5;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{info['rate']}%</div>"
+                    f"<div style='height:100%;width:{info['rate']}%;background:#111;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{info['rate']}%</div>"
                     f"</div></div>"
                 )
             st.markdown(ev_bars, unsafe_allow_html=True)
         else:
             st.caption("데이터가 없습니다.")
 
-    with col_donut:
-        st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>참여율 구간 분포</div>", unsafe_allow_html=True)
-        total_p = high + mid + low
-        if total_p > 0:
-            h_pct = round(high / total_p * 100)
-            m_pct = round(mid / total_p * 100)
-            l_pct = 100 - h_pct - m_pct
-            # SVG 도넛
-            circumference = 2 * 3.14159 * 48
-            h_len = circumference * h_pct / 100
-            m_len = circumference * m_pct / 100
-            l_len = circumference * l_pct / 100
-            donut_svg = (
-                f"<div style='display:flex;align-items:center;gap:20px;justify-content:center;'>"
-                f"<svg viewBox='0 0 120 120' width='110' height='110'>"
-                f"<circle cx='60' cy='60' r='48' fill='none' stroke='#1D9E75' stroke-width='20' "
-                f"stroke-dasharray='{h_len} {circumference - h_len}' stroke-dashoffset='0' transform='rotate(-90 60 60)'/>"
-                f"<circle cx='60' cy='60' r='48' fill='none' stroke='#F59E0B' stroke-width='20' "
-                f"stroke-dasharray='{m_len} {circumference - m_len}' stroke-dashoffset='-{h_len}' transform='rotate(-90 60 60)'/>"
-                f"<circle cx='60' cy='60' r='48' fill='none' stroke='#EF4444' stroke-width='20' "
-                f"stroke-dasharray='{l_len} {circumference - l_len}' stroke-dashoffset='-{h_len + m_len}' transform='rotate(-90 60 60)'/>"
-                f"<text x='60' y='58' font-size='14' font-weight='600' fill='var(--text-primary)' text-anchor='middle'>{total_p}명</text>"
-                f"<text x='60' y='72' font-size='10' fill='var(--text-muted)' text-anchor='middle'>전체</text>"
-                f"</svg>"
-                f"<div style='display:flex;flex-direction:column;gap:6px;'>"
-                f"<div style='display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);'>"
-                f"<span style='display:inline-block;width:10px;height:10px;border-radius:2px;background:#1D9E75;'></span>80%↑ {high}명 ({h_pct}%)</div>"
-                f"<div style='display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);'>"
-                f"<span style='display:inline-block;width:10px;height:10px;border-radius:2px;background:#F59E0B;'></span>50~80% {mid}명 ({m_pct}%)</div>"
-                f"<div style='display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);'>"
-                f"<span style='display:inline-block;width:10px;height:10px;border-radius:2px;background:#EF4444;'></span>50%↓ {low}명 ({l_pct}%)</div>"
-                f"</div></div>"
-            )
-            st.markdown(donut_svg, unsafe_allow_html=True)
+    with col_low:
+        st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>참여율 낮은 행사 Top 5</div>", unsafe_allow_html=True)
+        if event_rates_bottom:
+            ev_bars = ""
+            for info in event_rates_bottom:
+                d = date.fromisoformat(info["date"])
+                label = f"{info['title']} ({d.month}/{d.day})"
+                ev_bars += (
+                    f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'>"
+                    f"<div style='font-size:12px;width:160px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{label}</div>"
+                    f"<div style='flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden;'>"
+                    f"<div style='height:100%;width:{max(info['rate'], 3)}%;background:#D4A017;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{info['rate']}%</div>"
+                    f"</div></div>"
+                )
+            st.markdown(ev_bars, unsafe_allow_html=True)
         else:
             st.caption("데이터가 없습니다.")
 
