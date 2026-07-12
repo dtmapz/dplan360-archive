@@ -136,9 +136,9 @@ if st.session_state.pop("_event_registered", False):
 
 
 if admin:
-    tab_cal, tab_list, tab_reg = st.tabs(["월별 달력", "리스트", "+ 행사 등록"])
+    tab_cal, tab_list, tab_att, tab_reg = st.tabs(["월별 달력", "리스트", "교육 참여 체크", "+ 행사 등록"])
 else:
-    tab_cal, tab_list = st.tabs(["월별 달력", "리스트"])
+    tab_cal, tab_list, tab_att = st.tabs(["월별 달력", "리스트", "교육 참여 체크"])
     tab_reg = None
 
 # ---------- 월별 달력 ----------
@@ -271,6 +271,141 @@ with tab_list:
                     render_event_card(ev, m_int)
 
 
+
+# ---------- 교육 참여 체크 ----------
+with tab_att:
+    month_colors = [
+        ("#E1F5EE", "#0F6E56", "#085041"),
+        ("#E6F1FB", "#185FA5", "#0C447C"),
+        ("#FAEEDA", "#854F0B", "#633806"),
+        ("#FBEAF0", "#993556", "#72243E"),
+        ("#EAF3DE", "#3B6D11", "#27500A"),
+        ("#EEEDFE", "#534AB7", "#3C3489"),
+    ]
+
+    def build_attendance_table(events_list, members_list, att_map,
+                               show_count=True, all_events_for_count=None):
+        if not events_list or not members_list:
+            return "<p style='color:var(--text-muted); font-size:13px;'>데이터가 없습니다.</p>"
+
+        month_events = {}
+        for ev in events_list:
+            m = ev["event_date"][:7]
+            month_events.setdefault(m, []).append(ev)
+
+        html = "<div style='overflow-x:auto;'><table style='border-collapse:collapse; font-size:13px; min-width:100%;'>"
+        html += "<thead><tr>"
+        html += "<th rowspan='2' style='border:0.5px solid var(--border); padding:6px 10px; background:var(--surface-1); color:var(--text-secondary); font-weight:500; white-space:nowrap;'>소속</th>"
+        html += "<th rowspan='2' style='border:0.5px solid var(--border); padding:6px 10px; background:var(--surface-1); color:var(--text-secondary); font-weight:500; white-space:nowrap;'>구성원</th>"
+        if show_count:
+            html += "<th rowspan='2' style='border:0.5px solid var(--border); padding:6px 10px; background:var(--surface-1); color:var(--text-secondary); font-weight:500; white-space:nowrap;'>26년 누적<br>참여횟수</th>"
+
+        for i, (month, evs) in enumerate(month_events.items()):
+            bg, fg, _ = month_colors[i % len(month_colors)]
+            y, m = month.split("-")
+            html += (f"<th colspan='{len(evs)}' style='border:0.5px solid var(--border); "
+                     f"padding:6px 10px; background:{bg}; color:{fg}; font-weight:500;'>"
+                     f"{int(m)}월</th>")
+        html += "</tr><tr>"
+        for i, (month, evs) in enumerate(month_events.items()):
+            bg, _, fg2 = month_colors[i % len(month_colors)]
+            for ev in evs:
+                d = date.fromisoformat(ev["event_date"])
+                html += (f"<th style='border:0.5px solid var(--border); padding:5px 8px; "
+                         f"background:{bg}; color:{fg2}; font-size:11px; white-space:nowrap;'>"
+                         f"{d.month}/{d.day}<br>{ev['title']}</th>")
+        html += "</tr>"
+
+        html += "<tr>"
+        html += "<th style='border:0.5px solid var(--border); padding:5px 8px; background:var(--surface-1);'></th>"
+        html += "<th style='border:0.5px solid var(--border); padding:5px 8px; background:var(--surface-1);'></th>"
+        if show_count:
+            html += "<th style='border:0.5px solid var(--border); padding:5px 8px; background:var(--surface-1);'></th>"
+        for i, (month, evs) in enumerate(month_events.items()):
+            bg, _, fg2 = month_colors[i % len(month_colors)]
+            for ev in evs:
+                count = sum(
+                    1 for mbr in members_list
+                    if att_map.get((ev["id"], mbr.get("email", "")))
+                )
+                html += (f"<th style='border:0.5px solid var(--border); padding:5px 8px; "
+                         f"background:{bg}; color:{fg2}; font-size:11px; white-space:nowrap;'>"
+                         f"참여 {count}명</th>")
+        html += "</tr></thead><tbody>"
+
+        sorted_members = sorted(members_list, key=lambda x: (x.get("division", ""), x.get("team", ""), x.get("name", "")))
+        group_rows = {}
+        for mbr in sorted_members:
+            g = f"{mbr.get('division', '')} {mbr.get('team', '')}".strip()
+            group_rows.setdefault(g, []).append(mbr)
+
+        for group, gmembers in group_rows.items():
+            for idx, member in enumerate(gmembers):
+                html += "<tr>"
+                if idx == 0:
+                    html += (f"<td rowspan='{len(gmembers)}' style='border:0.5px solid var(--border); "
+                             f"padding:6px 10px; background:var(--surface-1); font-weight:500; "
+                             f"color:var(--text-secondary); white-space:nowrap; vertical-align:middle;'>"
+                             f"{group}</td>")
+                html += (f"<td style='border:0.5px solid var(--border); padding:6px 10px; "
+                         f"text-align:left; white-space:nowrap;'>{member.get('name', '')}</td>")
+                if show_count:
+                    base = all_events_for_count if all_events_for_count is not None else events_list
+                    cnt = sum(1 for ev in base if att_map.get((ev["id"], member.get("email", ""))))
+                    html += (f"<td style='border:0.5px solid var(--border); padding:6px 10px; "
+                             f"text-align:center;'>{cnt}</td>")
+                for evs in month_events.values():
+                    for ev in evs:
+                        attended = att_map.get((ev["id"], member.get("email", "")), False)
+                        cell = "<span style='color:#1D9E75; font-size:14px;'>✓</span>" if attended else ""
+                        html += (f"<td style='border:0.5px solid var(--border); "
+                                 f"padding:6px 10px; text-align:center;'>{cell}</td>")
+                html += "</tr>"
+
+        html += "</tbody></table></div>"
+        return html
+
+    # 데이터 로드
+    att_all_events = db.get_attendance_summary()
+    raw_members = db.get_client().table("organization").select("*").order("team").order("name").execute().data
+    att_members = [m for m in raw_members if m.get("team") and m.get("team") not in ("SP팀", "-", "")]
+    division_order = ["미디어컨설팅본부", "그로스마케팅본부"]
+
+    def div_key(m):
+        div = m.get("division", "")
+        try:
+            return (division_order.index(div), m.get("team", ""), m.get("name", ""))
+        except ValueError:
+            return (len(division_order), m.get("team", ""), m.get("name", ""))
+
+    att_members = sorted(att_members, key=div_key)
+
+    att_map = {}
+    for ev in att_all_events:
+        for att in (ev.get("attendance") or []):
+            if att.get("attended"):
+                att_map[(ev["id"], att["member_email"])] = True
+
+    att_current_future = [ev for ev in att_all_events if ev["event_date"][:7] >= current_month]
+    att_past = [ev for ev in att_all_events if ev["event_date"][:7] < current_month]
+
+    # 이번달 이후
+    if att_current_future:
+        html = build_attendance_table(att_current_future, att_members, att_map,
+                                      show_count=True, all_events_for_count=att_all_events)
+        st.markdown(html, unsafe_allow_html=True)
+    else:
+        st.caption("이번달 이후 등록된 행사가 없습니다.")
+
+    # 과거 기록
+    if att_past:
+        past_months = sorted(set(ev["event_date"][:7] for ev in att_past))
+        y_start, m_start = past_months[0].split("-")
+        y_end, m_end = past_months[-1].split("-")
+        label = f"{y_start}년 {int(m_start)}월 ~ {y_end}년 {int(m_end)}월 기록"
+        with st.expander(label, expanded=False):
+            html = build_attendance_table(att_past, att_members, att_map, show_count=False)
+            st.markdown(html, unsafe_allow_html=True)
 
 # ---------- 행사 등록 ----------
 if tab_reg is not None:
