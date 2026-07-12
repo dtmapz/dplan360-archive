@@ -446,7 +446,9 @@ with tab_att:
             if team_avg_sorted:
                 max_avg = team_avg_sorted[0][1] if team_avg_sorted else 1
                 n_teams = len(team_avg_sorted)
-                bar_gap = max(28 - n_teams, 8)
+                # Top10 카드 높이(약 500px)에 맞춰 바 간격 계산: (500 - 헤더50 - 바높이18*n) / n
+                available = 460 - 18 * n_teams
+                bar_gap = max(int(available / max(n_teams, 1)), 8)
                 bars_html = ""
                 for team, avg in team_avg_sorted:
                     pct = min(avg / max_avg * 100, 100)
