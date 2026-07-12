@@ -478,7 +478,7 @@ with tab_att:
     st.markdown(
         "<div style='display:flex;gap:0;'>"
         + left_html
-        + "<div style='width:1px;background:var(--border-strong);margin:8px 0;'></div>"
+        + "<div style='width:1px;background:#ddd;align-self:stretch;'></div>"
         + right_html
         + "</div>",
         unsafe_allow_html=True,
@@ -549,7 +549,7 @@ with tab_att:
     st.markdown(
         "<div style='display:flex;gap:0;'>"
         + high_html
-        + "<div style='width:1px;background:var(--border-strong);margin:8px 0;'></div>"
+        + "<div style='width:1px;background:#ddd;align-self:stretch;'></div>"
         + low_html
         + "</div>",
         unsafe_allow_html=True,
