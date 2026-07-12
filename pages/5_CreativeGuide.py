@@ -115,8 +115,8 @@ with tab_dl:
                     btn_parts.append(
                         f"<a href='#' id='{pid}' style='text-decoration:none;'>"
                         f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
-                        f"box-shadow:0 0 0 0.5px #999 inset;"
-                        f"color:inherit;cursor:pointer;display:inline-block;'>{product_name}</span></a>"
+                        f"box-shadow:0 0 0 0.5px #111 inset;"
+                        f"color:#111;cursor:pointer;display:inline-block;'>{product_name}</span></a>"
                     )
 
             row_html = (
