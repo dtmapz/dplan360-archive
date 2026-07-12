@@ -156,7 +156,7 @@ with tab_dl:
                 f"<div style='margin-top:16px;margin-bottom:8px;'>{tag_html}</div>",
                 unsafe_allow_html=True,
             )
-                try:
+            try:
                 import openpyxl
                 from copy import copy
                 merged_wb = openpyxl.Workbook()
