@@ -125,7 +125,16 @@ with tab_dl:
                 + "".join(btn_parts) +
                 "</div></div>"
             )
+            n = len(products)
+            row_height = 52 if n <= 5 else (85 if n <= 10 else 120)
+            st.markdown(
+                f"<style>iframe[title='st_click_detector.click_detector'][data-testid='stCustomComponentV1']:nth-of-type(1) {{}}</style>"
+                f"<style>.cg-row-{media_name.replace(' ','_')} iframe {{height:{row_height}px !important;min-height:0 !important;}}</style>"
+                f"<div class='cg-row-{media_name.replace(' ','_')}'>",
+                unsafe_allow_html=True,
+            )
             clicked = click_detector(row_html, key=f"cg_det_{media_name}")
+            st.markdown("</div>", unsafe_allow_html=True)
             last_key = f"_cg_last_{media_name}"
             if clicked and "||" in clicked and clicked != st.session_state.get(last_key):
                 st.session_state[last_key] = clicked
