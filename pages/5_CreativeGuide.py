@@ -187,6 +187,7 @@ with tab_dl:
                                         new_ws[cell.coordinate].number_format = cell.number_format
                             for merge in src_ws.merged_cells.ranges:
                                 new_ws.merge_cells(str(merge))
+                            new_ws.sheet_view.showGridLines = src_ws.sheet_view.showGridLines
                             for col_dim in src_ws.column_dimensions.values():
                                 new_ws.column_dimensions[col_dim.index].width = col_dim.width
                             for row_dim in src_ws.row_dimensions.values():
