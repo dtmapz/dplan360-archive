@@ -438,46 +438,50 @@ with tab_att:
 
     # ===== 대시보드 렌더링 =====
 
-    # Row 1: 팀별 평균 참여 + Top 10
-    col_team, col_top = st.columns([1.2, 0.8])
-    with col_team:
-        with st.container(border=True):
-            st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>팀별 평균 참여 횟수</div>", unsafe_allow_html=True)
-            if team_avg_sorted:
-                max_avg = team_avg_sorted[0][1] if team_avg_sorted else 1
-                n_teams = len(team_avg_sorted)
-                bar_gap = max(28 - n_teams, 8)
-                bars_html = ""
-                for team, avg in team_avg_sorted:
-                    pct = min(avg / max_avg * 100, 100)
-                    bars_html += (
-                        f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:{bar_gap}px;'>"
-                        f"<div style='font-size:11px;width:140px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{team}</div>"
-                        f"<div style='flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden;'>"
-                        f"<div style='height:100%;width:{pct}%;background:#111;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{avg:.1f}회</div>"
-                        f"</div></div>"
-                    )
-                st.markdown(bars_html, unsafe_allow_html=True)
-            else:
-                st.caption("데이터가 없습니다.")
+    # Row 1: 팀별 평균 참여 | 구분선 | Top 10
+    left_html = "<div style='flex:1.2;padding:8px 24px 8px 8px;'>"
+    left_html += "<div style='font-size:14px;font-weight:600;margin-bottom:14px;'>팀별 평균 참여 횟수</div>"
+    if team_avg_sorted:
+        max_avg = team_avg_sorted[0][1] if team_avg_sorted else 1
+        n_teams = len(team_avg_sorted)
+        bar_gap = max(28 - n_teams, 8)
+        for team, avg in team_avg_sorted:
+            pct = min(avg / max_avg * 100, 100)
+            left_html += (
+                f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:{bar_gap}px;'>"
+                f"<div style='font-size:11px;width:140px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{team}</div>"
+                f"<div style='flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden;'>"
+                f"<div style='height:100%;width:{pct}%;background:#111;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{avg:.1f}회</div>"
+                f"</div></div>"
+            )
+    else:
+        left_html += "<p style='color:var(--text-muted);font-size:13px;'>데이터가 없습니다.</p>"
+    left_html += "</div>"
 
-    with col_top:
-        with st.container(border=True):
-            st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>참여 횟수 Top 10</div>", unsafe_allow_html=True)
-            if top10:
-                rank_html = ""
-                for i, info in enumerate(top10, 1):
-                    rank_html += (
-                        f"<div style='display:flex;align-items:center;gap:8px;padding:5px 0;"
-                        f"border-bottom:0.5px solid var(--border);'>"
-                        f"<div style='width:20px;font-size:12px;font-weight:600;color:var(--text-muted);text-align:center;'>{i}</div>"
-                        f"<div style='font-size:12px;flex:1;'>{info['name']}</div>"
-                        f"<div style='font-size:12px;font-weight:600;color:#D4A017;'>{info['count']}회</div>"
-                        f"</div>"
-                    )
-                st.markdown(rank_html, unsafe_allow_html=True)
-            else:
-                st.caption("데이터가 없습니다.")
+    right_html = "<div style='flex:0.8;padding:8px 8px 8px 24px;'>"
+    right_html += "<div style='font-size:14px;font-weight:600;margin-bottom:14px;'>참여 횟수 Top 10</div>"
+    if top10:
+        for i, info in enumerate(top10, 1):
+            border = "" if i == len(top10) else "border-bottom:0.5px solid var(--border);"
+            right_html += (
+                f"<div style='display:flex;align-items:center;gap:8px;padding:5px 0;{border}'>"
+                f"<div style='width:20px;font-size:12px;font-weight:600;color:var(--text-muted);text-align:center;'>{i}</div>"
+                f"<div style='font-size:12px;flex:1;'>{info['name']}</div>"
+                f"<div style='font-size:12px;font-weight:600;color:#D4A017;'>{info['count']}회</div>"
+                f"</div>"
+            )
+    else:
+        right_html += "<p style='color:var(--text-muted);font-size:13px;'>데이터가 없습니다.</p>"
+    right_html += "</div>"
+
+    st.markdown(
+        "<div style='display:flex;gap:0;'>"
+        + left_html
+        + "<div style='width:1px;background:var(--border-strong);margin:8px 0;'></div>"
+        + right_html
+        + "</div>",
+        unsafe_allow_html=True,
+    )
 
     st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
 
@@ -506,45 +510,49 @@ with tab_att:
 
     st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
 
-    # Row 3: 행사별 참여율 Top 5 + Bottom 5
-    col_high, col_low = st.columns(2)
-    with col_high:
-        with st.container(border=True):
-            st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>참여율 높은 행사 Top 5</div>", unsafe_allow_html=True)
-            if event_rates_sorted:
-                ev_bars = ""
-                for info in event_rates_sorted:
-                    d = date.fromisoformat(info["date"])
-                    label = f"{info['title']} ({d.month}/{d.day})"
-                    ev_bars += (
-                        f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'>"
-                        f"<div style='font-size:12px;width:160px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{label}</div>"
-                        f"<div style='flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden;'>"
-                        f"<div style='height:100%;width:{info['rate']}%;background:#111;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{info['rate']}%</div>"
-                        f"</div></div>"
-                    )
-                st.markdown(ev_bars, unsafe_allow_html=True)
-            else:
-                st.caption("데이터가 없습니다.")
+    # Row 3: 참여율 높은 행사 Top 5 | 구분선 | 낮은 행사 Top 5
+    high_html = "<div style='flex:1;padding:8px 24px 8px 8px;'>"
+    high_html += "<div style='font-size:14px;font-weight:600;margin-bottom:12px;'>참여율 높은 행사 Top 5</div>"
+    if event_rates_sorted:
+        for info in event_rates_sorted:
+            d = date.fromisoformat(info["date"])
+            label = f"{info['title']} ({d.month}/{d.day})"
+            high_html += (
+                f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'>"
+                f"<div style='font-size:12px;width:160px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{label}</div>"
+                f"<div style='flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden;'>"
+                f"<div style='height:100%;width:{info['rate']}%;background:#111;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{info['rate']}%</div>"
+                f"</div></div>"
+            )
+    else:
+        high_html += "<p style='color:var(--text-muted);font-size:13px;'>데이터가 없습니다.</p>"
+    high_html += "</div>"
 
-    with col_low:
-        with st.container(border=True):
-            st.markdown("<div style='font-size:14px;font-weight:600;margin-bottom:10px;'>참여율 낮은 행사 Top 5</div>", unsafe_allow_html=True)
-            if event_rates_bottom:
-                ev_bars2 = ""
-                for info in event_rates_bottom:
-                    d = date.fromisoformat(info["date"])
-                    label = f"{info['title']} ({d.month}/{d.day})"
-                    ev_bars2 += (
-                        f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'>"
-                        f"<div style='font-size:12px;width:160px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{label}</div>"
-                        f"<div style='flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden;'>"
-                        f"<div style='height:100%;width:{max(info['rate'], 3)}%;background:#D4A017;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{info['rate']}%</div>"
-                        f"</div></div>"
-                    )
-                st.markdown(ev_bars2, unsafe_allow_html=True)
-            else:
-                st.caption("데이터가 없습니다.")
+    low_html = "<div style='flex:1;padding:8px 8px 8px 24px;'>"
+    low_html += "<div style='font-size:14px;font-weight:600;margin-bottom:12px;'>참여율 낮은 행사 Top 5</div>"
+    if event_rates_bottom:
+        for info in event_rates_bottom:
+            d = date.fromisoformat(info["date"])
+            label = f"{info['title']} ({d.month}/{d.day})"
+            low_html += (
+                f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'>"
+                f"<div style='font-size:12px;width:160px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{label}</div>"
+                f"<div style='flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden;'>"
+                f"<div style='height:100%;width:{max(info['rate'], 3)}%;background:#D4A017;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;'>{info['rate']}%</div>"
+                f"</div></div>"
+            )
+    else:
+        low_html += "<p style='color:var(--text-muted);font-size:13px;'>데이터가 없습니다.</p>"
+    low_html += "</div>"
+
+    st.markdown(
+        "<div style='display:flex;gap:0;'>"
+        + high_html
+        + "<div style='width:1px;background:var(--border-strong);margin:8px 0;'></div>"
+        + low_html
+        + "</div>",
+        unsafe_allow_html=True,
+    )
 
     # ===== 관리자 전용: 전체 인원 테이블 =====
     if admin:
