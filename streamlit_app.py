@@ -10,10 +10,9 @@ if not user:
     render_login_page()
     st.stop()
 
-st.logo("assets/m_logo_w-1.png", size="large")
-
 with st.sidebar:
     col_email, col_btn = st.columns([2, 1])
+    st.sidebar.image("assets/m_logo_w-1.png", width=180)
     with col_email:
         st.markdown(
             f"<div style='font-size:14px; color:#aaa; padding-top:8px;'>{user.get('email', '')}</div>",
