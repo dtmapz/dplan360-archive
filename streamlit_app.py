@@ -45,6 +45,7 @@ home_page       = st.Page("pages/1_Home.py",           title="HOME",          ic
 milestone_page  = st.Page("pages/2_Milestone.py",       title="MILESTONE",     icon="🗺️")
 calendar_page   = st.Page("pages/3_EventCalendar.py",   title="EVENT CALENDAR",icon="📅")
 creative_page   = st.Page("pages/5_CreativeGuide.py",   title="CREATIVE GUIDE", icon="🎨")
+media_guide_page = st.Page("pages/6_MediaGuide.py", title="MEDIA GUIDE", icon="❓")
 
 pages = [home_page, milestone_page, calendar_page, creative_page]
 
