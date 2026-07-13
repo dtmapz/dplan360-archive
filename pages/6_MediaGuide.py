@@ -529,7 +529,7 @@ else:
                 import os
                 pdf = FPDF()
                 pdf.add_page()
-                font_path = os.path.join(os.path.dirname(__file__), "assets", "NotoSansKR-Regular.ttf")
+                font_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "NotoSansKR-Regular.ttf")
                 if os.path.exists(font_path):
                     pdf.add_font("NotoSansKR", "", font_path, uni=True)
                     pdf.set_font("NotoSansKR", size=10)
