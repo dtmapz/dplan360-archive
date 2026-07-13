@@ -358,7 +358,7 @@ else:
                 f"box-shadow:0 0 0 0.5px #999 inset;"
                 f"color:111;cursor:pointer;display:inline-block;'>{m['title']}</span></a>"
             )
-    media_html = "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;'>" + "".join(media_chips) + "</div>"
+    media_html = "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;'>" + "".join(media_chips) + "</div>"
     media_clicked = click_detector(media_html, key="mg_media_det")
     if media_clicked and media_clicked.startswith("media__"):
         clicked_id = media_clicked.replace("media__", "")
@@ -375,9 +375,6 @@ else:
 
         if sub_pages:
             media_title = next((m["title"] for m in media_pages if m["id"] == selected_media_id), "")
-            st.markdown(f"<div style='font-size:12px;color:var(--text-muted);margin:0 0 4px;'>{media_title} 가이드 ↓</div>",
-                        unsafe_allow_html=True)
-
             selected_guide_id = st.session_state.get("mg_guide")
             guide_chips = []
             for sp in sub_pages:
