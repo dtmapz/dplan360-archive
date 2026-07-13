@@ -383,6 +383,7 @@ else:
                         f"box-shadow:0 0 0 0.5px #999 inset;"
                         f"color:#111;cursor:pointer;display:inline-block;'>{sp['title']}</span></a>"
                     )
+            combined_html += "<div style='border-top:0.5px solid #ddd;margin:4px 0;'></div>"
             combined_html += "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;'>" + "".join(guide_chips) + "</div>"
         else:
             st.session_state["mg_guide"] = selected_media_id
