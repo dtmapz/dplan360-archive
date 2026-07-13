@@ -2,8 +2,10 @@ import streamlit as st
 from utils.ui import inject_base_style
 from utils.auth import get_current_user, is_admin, logout, render_login_page
 import psutil
-mem = psutil.virtual_memory()
-st.sidebar.metric("메모리 사용", f"{mem.used / 1024**2:.0f} MB / {mem.total / 1024**2:.0f} MB", f"{mem.percent}%")
+import os
+process = psutil.Process(os.getpid())
+app_mem = process.memory_info().rss / 1024**2
+st.sidebar.metric("앱 메모리", f"{app_mem:.0f} MB", f"제한: 1,000 MB")
 
 st.set_page_config(page_title="D-PLAN360 ARCHIVE", layout="wide")
 inject_base_style()
