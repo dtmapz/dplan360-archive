@@ -11,10 +11,9 @@ user = get_current_user()
 # Notion API 연결
 # ============================
 NOTION_TOKEN = st.secrets.get("NOTION_TOKEN", "")
-HUB_PAGE_ID = st.secrets.get("NOTION_HUB_PAGE_ID", "")
 
-if not NOTION_TOKEN or not HUB_PAGE_ID:
-    st.error("Notion API 토큰 또는 허브 페이지 ID가 설정되지 않았습니다. Streamlit Secrets를 확인해주세요.")
+if not NOTION_TOKEN:
+    st.error("Notion API 토큰이 설정되지 않았습니다. Streamlit Secrets를 확인해주세요.")
     st.stop()
 
 notion = Client(auth=NOTION_TOKEN)
@@ -25,23 +24,31 @@ notion = Client(auth=NOTION_TOKEN)
 # ============================
 @st.cache_data(ttl=600)
 def get_hub_children():
-    """허브 페이지의 하위 페이지 목록 (매체별 그룹)"""
+    """워크스페이스 최상위 페이지 목록 (매체별 그룹)"""
     results = []
     cursor = None
     while True:
-        resp = notion.blocks.children.list(block_id=HUB_PAGE_ID, start_cursor=cursor, page_size=100)
+        kwargs = {"filter": {"property": "object", "value": "page"}, "page_size": 100}
+        if cursor:
+            kwargs["start_cursor"] = cursor
+        resp = notion.search(**kwargs)
         results.extend(resp["results"])
         if not resp["has_more"]:
             break
         cursor = resp["next_cursor"]
-    # child_page 블록만 필터
+    # parent가 workspace인 페이지만 (최상위)
     pages = []
-    for block in results:
-        if block["type"] == "child_page":
-            pages.append({
-                "id": block["id"],
-                "title": block["child_page"]["title"],
-            })
+    for page in results:
+        parent = page.get("parent", {})
+        if parent.get("type") == "workspace":
+            title = ""
+            for prop in page.get("properties", {}).values():
+                if prop.get("type") == "title":
+                    title_parts = prop.get("title", [])
+                    title = "".join([t.get("plain_text", "") for t in title_parts])
+                    break
+            if title:
+                pages.append({"id": page["id"], "title": title})
     return pages
 
 
