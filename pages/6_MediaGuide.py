@@ -383,7 +383,7 @@ else:
                         f"box-shadow:0 0 0 0.5px #999 inset;"
                         f"color:#111;cursor:pointer;display:inline-block;'>{sp['title']}</span></a>"
                     )
-            combined_html += "<div style='border-top:0.5px solid #ddd;margin:4px 0;'></div>"
+            combined_html += "<div style='border-top:0.5px solid #ddd;margin:8px 0;'></div>"
             combined_html += "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;'>" + "".join(guide_chips) + "</div>"
         else:
             st.session_state["mg_guide"] = selected_media_id
@@ -422,7 +422,7 @@ else:
                     guide_title = m["title"]
                     break
 
-        st.markdown(f"<div style='font-size:20px;font-weight:700;margin-bottom:4px;'>{guide_title}</div>",
+        st.markdown(f"<div style='font-size:20px;font-weight:700;margin-bottom:8px;'>{guide_title}</div>",
                     unsafe_allow_html=True)
         st.markdown(f"<div style='font-size:11px;color:var(--text-muted);margin-bottom:14px;"
                     f"padding-bottom:10px;border-bottom:0.5px solid var(--border);'>"
