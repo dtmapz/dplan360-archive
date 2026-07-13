@@ -24,31 +24,34 @@ notion = Client(auth=NOTION_TOKEN)
 # ============================
 @st.cache_data(ttl=600)
 def get_hub_children():
-    """워크스페이스 최상위 페이지 목록 (매체별 그룹)"""
+    """워크스페이스에서 DPLAN360 허브를 찾고, 그 하위 매체 페이지 목록 반환"""
+    # 1. Search로 최상위 페이지 중 허브 찾기
+    resp = notion.search(filter={"property": "object", "value": "page"}, page_size=100)
+    hub_id = None
+    for page in resp["results"]:
+        parent = page.get("parent", {})
+        if parent.get("type") == "workspace":
+            hub_id = page["id"]
+            break
+    if not hub_id:
+        return []
+
+    # 2. 허브 페이지의 하위 블록에서 child_page 추출
     results = []
     cursor = None
     while True:
-        kwargs = {"filter": {"property": "object", "value": "page"}, "page_size": 100}
-        if cursor:
-            kwargs["start_cursor"] = cursor
-        resp = notion.search(**kwargs)
+        resp = notion.blocks.children.list(block_id=hub_id, start_cursor=cursor, page_size=100)
         results.extend(resp["results"])
         if not resp["has_more"]:
             break
         cursor = resp["next_cursor"]
-    # parent가 workspace인 페이지만 (최상위)
     pages = []
-    for page in results:
-        parent = page.get("parent", {})
-        if parent.get("type") == "workspace":
-            title = ""
-            for prop in page.get("properties", {}).values():
-                if prop.get("type") == "title":
-                    title_parts = prop.get("title", [])
-                    title = "".join([t.get("plain_text", "") for t in title_parts])
-                    break
-            if title:
-                pages.append({"id": page["id"], "title": title})
+    for block in results:
+        if block["type"] == "child_page":
+            pages.append({
+                "id": block["id"],
+                "title": block["child_page"]["title"],
+            })
     return pages
 
 
