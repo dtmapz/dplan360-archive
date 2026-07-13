@@ -338,16 +338,17 @@ if search_kw:
         st.info(f"'{search_kw}'에 대한 검색 결과가 없습니다.")
 
 else:
-    # 매체 선택 (HTML 칩 + click_detector)
-    media_names = [m["title"] for m in media_pages]
+    # 매체 + 가이드 칩을 하나의 click_detector로 통합
     selected_media_id = st.session_state.get("mg_media")
+    selected_guide_id = st.session_state.get("mg_guide")
 
+    # 매체 칩 HTML
     media_chips = []
     for m in media_pages:
         is_active = (m["id"] == selected_media_id)
         if is_active:
             media_chips.append(
-                f"<a href='#' id='media__{m['id']}' style='text-decoration:none;color:#111;'>"
+                f"<a href='#' id='media__{m['id']}' style='text-decoration:none;'>"
                 f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
                 f"background:#111;color:#fff;cursor:pointer;display:inline-block;'>{m['title']}</span></a>"
             )
@@ -356,26 +357,16 @@ else:
                 f"<a href='#' id='media__{m['id']}' style='text-decoration:none;color:#111;'>"
                 f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
                 f"box-shadow:0 0 0 0.5px #999 inset;"
-                f"color:111;cursor:pointer;display:inline-block;'>{m['title']}</span></a>"
+                f"color:#111;cursor:pointer;display:inline-block;'>{m['title']}</span></a>"
             )
-    media_html = "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;'>" + "".join(media_chips) + "</div>"
-    media_clicked = click_detector(media_html, key="mg_media_det")
-    if media_clicked and media_clicked.startswith("media__"):
-        clicked_id = media_clicked.replace("media__", "")
-        if clicked_id != st.session_state.get("mg_media"):
-            st.session_state["mg_media"] = clicked_id
-            st.session_state.pop("mg_guide", None)
-            st.session_state["_mg_media_last"] = media_clicked
-            st.rerun()
 
-    # 하위 가이드 선택 (HTML 칩 + click_detector)
-    if "mg_media" in st.session_state:
-        selected_media_id = st.session_state["mg_media"]
+    combined_html = "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;'>" + "".join(media_chips) + "</div>"
+
+    # 가이드 칩 HTML (매체 선택 시만)
+    sub_pages = []
+    if selected_media_id:
         sub_pages = get_sub_pages(selected_media_id)
-
         if sub_pages:
-            media_title = next((m["title"] for m in media_pages if m["id"] == selected_media_id), "")
-            selected_guide_id = st.session_state.get("mg_guide")
             guide_chips = []
             for sp in sub_pages:
                 is_active = (sp["id"] == selected_guide_id)
@@ -387,22 +378,29 @@ else:
                     )
                 else:
                     guide_chips.append(
-                        f"<a href='#' id='guide__{sp['id']}' style='text-decoration:none;'>"
+                        f"<a href='#' id='guide__{sp['id']}' style='text-decoration:none;color:#111;'>"
                         f"<span style='padding:5px 12px;font-size:12px;border-radius:6px;"
                         f"box-shadow:0 0 0 0.5px #999 inset;"
-                        f"color:111;cursor:pointer;display:inline-block;'>{sp['title']}</span></a>"
+                        f"color:#111;cursor:pointer;display:inline-block;'>{sp['title']}</span></a>"
                     )
-            guide_html = "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;'>" + "".join(guide_chips) + "</div>"
-            guide_clicked = click_detector(guide_html, key="mg_guide_det")
-            if guide_clicked and guide_clicked.startswith("guide__"):
-                clicked_id = guide_clicked.replace("guide__", "")
-                if clicked_id != st.session_state.get("mg_guide"):
-                    st.session_state["mg_guide"] = clicked_id
-                    st.session_state["_mg_guide_last"] = guide_clicked
-                    st.rerun()
+            combined_html += "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;'>" + "".join(guide_chips) + "</div>"
         else:
-            # 하위 가이드가 없으면 매체 페이지 자체를 바로 표시
             st.session_state["mg_guide"] = selected_media_id
+
+    # 통합 click_detector
+    clicked = click_detector(combined_html, key="mg_chip_det")
+    if clicked:
+        if clicked.startswith("media__"):
+            clicked_id = clicked.replace("media__", "")
+            if clicked_id != st.session_state.get("mg_media"):
+                st.session_state["mg_media"] = clicked_id
+                st.session_state.pop("mg_guide", None)
+                st.rerun()
+        elif clicked.startswith("guide__"):
+            clicked_id = clicked.replace("guide__", "")
+            if clicked_id != st.session_state.get("mg_guide"):
+                st.session_state["mg_guide"] = clicked_id
+                st.rerun()
 
     # 가이드 본문 렌더링
     if "mg_guide" in st.session_state:
