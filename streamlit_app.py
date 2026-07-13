@@ -11,7 +11,6 @@ if not user:
     st.stop()
 
 with st.sidebar:
-    st.sidebar.image("assets/m_logo_w-1.png", width=180)
     col_email, col_btn = st.columns([2, 1])
     with col_email:
         st.markdown(
