@@ -360,7 +360,7 @@ else:
                 f"color:#111;cursor:pointer;display:inline-block;'>{m['title']}</span></a>"
             )
 
-    combined_html = "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;'>" + "".join(media_chips) + "</div>"
+    combined_html = "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;'>" + "".join(media_chips) + "</div>"
 
     # 가이드 칩 HTML (매체 선택 시만)
     sub_pages = []
@@ -383,7 +383,7 @@ else:
                         f"box-shadow:0 0 0 0.5px #999 inset;"
                         f"color:#111;cursor:pointer;display:inline-block;'>{sp['title']}</span></a>"
                     )
-            combined_html += "<div style='border-top:0.5px solid #ddd;margin:4px 0;'></div>"
+            combined_html += "<div style='border-top:0.5px solid #ddd;margin:2px 0;'></div>"
             combined_html += "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;'>" + "".join(guide_chips) + "</div>"
         else:
             st.session_state["mg_guide"] = selected_media_id
