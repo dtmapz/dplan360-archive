@@ -356,7 +356,7 @@ else:
                 f"<a href='#' id='media__{m['id']}' style='text-decoration:none;'>"
                 f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
                 f"box-shadow:0 0 0 0.5px #999 inset;"
-                f"color:inherit;cursor:pointer;display:inline-block;'>{m['title']}</span></a>"
+                f"color:111;cursor:pointer;display:inline-block;'>{m['title']}</span></a>"
             )
     media_html = "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;'>" + "".join(media_chips) + "</div>"
     media_clicked = click_detector(media_html, key="mg_media_det")
@@ -393,7 +393,7 @@ else:
                         f"<a href='#' id='guide__{sp['id']}' style='text-decoration:none;'>"
                         f"<span style='padding:5px 12px;font-size:12px;border-radius:6px;"
                         f"box-shadow:0 0 0 0.5px #999 inset;"
-                        f"color:inherit;cursor:pointer;display:inline-block;'>{sp['title']}</span></a>"
+                        f"color:111;cursor:pointer;display:inline-block;'>{sp['title']}</span></a>"
                     )
             guide_html = "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;'>" + "".join(guide_chips) + "</div>"
             guide_clicked = click_detector(guide_html, key="mg_guide_det")
