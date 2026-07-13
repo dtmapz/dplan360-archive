@@ -337,51 +337,71 @@ if search_kw:
         st.info(f"'{search_kw}'에 대한 검색 결과가 없습니다.")
 
 else:
-    # 매체 선택 (칩)
+    # 매체 선택 (HTML 칩 + click_detector)
     media_names = [m["title"] for m in media_pages]
-    selected_media_idx = None
+    selected_media_id = st.session_state.get("mg_media")
 
-    if "mg_media" in st.session_state:
-        for i, m in enumerate(media_pages):
-            if m["id"] == st.session_state["mg_media"]:
-                selected_media_idx = i
-                break
+    media_chips = []
+    for m in media_pages:
+        is_active = (m["id"] == selected_media_id)
+        if is_active:
+            media_chips.append(
+                f"<a href='#' id='media__{m['id']}' style='text-decoration:none;'>"
+                f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
+                f"background:#111;color:#fff;cursor:pointer;display:inline-block;'>{m['title']}</span></a>"
+            )
+        else:
+            media_chips.append(
+                f"<a href='#' id='media__{m['id']}' style='text-decoration:none;'>"
+                f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
+                f"box-shadow:0 0 0 0.5px #999 inset;"
+                f"color:inherit;cursor:pointer;display:inline-block;'>{m['title']}</span></a>"
+            )
+    media_html = "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;'>" + "".join(media_chips) + "</div>"
+    media_clicked = click_detector(media_html, key="mg_media_det")
+    if media_clicked and media_clicked.startswith("media__"):
+        clicked_id = media_clicked.replace("media__", "")
+        if clicked_id != st.session_state.get("mg_media"):
+            st.session_state["mg_media"] = clicked_id
+            st.session_state.pop("mg_guide", None)
+            st.session_state["_mg_media_last"] = media_clicked
+            st.rerun()
 
-    cols = st.columns(min(len(media_names), 8))
-    for i, name in enumerate(media_names):
-        with cols[i % 8]:
-            is_active = (selected_media_idx == i)
-            btn_type = "primary" if is_active else "secondary"
-            if st.button(name, key=f"mg_media_{i}", type=btn_type):
-                st.session_state["mg_media"] = media_pages[i]["id"]
-                st.session_state.pop("mg_guide", None)
-                st.rerun()
-
-    # 하위 가이드 선택 (칩)
+    # 하위 가이드 선택 (HTML 칩 + click_detector)
     if "mg_media" in st.session_state:
         selected_media_id = st.session_state["mg_media"]
         sub_pages = get_sub_pages(selected_media_id)
 
         if sub_pages:
             media_title = next((m["title"] for m in media_pages if m["id"] == selected_media_id), "")
-            st.markdown(f"<div style='font-size:12px;color:var(--text-muted);margin:8px 0 4px;'>{media_title} 가이드 ↓</div>",
+            st.markdown(f"<div style='font-size:12px;color:var(--text-muted);margin:4px 0 4px;'>{media_title} 가이드 ↓</div>",
                         unsafe_allow_html=True)
 
-            sub_cols = st.columns(min(len(sub_pages), 8))
-            selected_guide_idx = None
-            if "mg_guide" in st.session_state:
-                for i, s in enumerate(sub_pages):
-                    if s["id"] == st.session_state["mg_guide"]:
-                        selected_guide_idx = i
-                        break
-
-            for i, sp in enumerate(sub_pages):
-                with sub_cols[i % 8]:
-                    is_active = (selected_guide_idx == i)
-                    btn_type = "primary" if is_active else "secondary"
-                    if st.button(sp["title"], key=f"mg_guide_{i}", type=btn_type):
-                        st.session_state["mg_guide"] = sp["id"]
-                        st.rerun()
+            selected_guide_id = st.session_state.get("mg_guide")
+            guide_chips = []
+            for sp in sub_pages:
+                is_active = (sp["id"] == selected_guide_id)
+                if is_active:
+                    guide_chips.append(
+                        f"<a href='#' id='guide__{sp['id']}' style='text-decoration:none;'>"
+                        f"<span style='padding:5px 12px;font-size:12px;border-radius:6px;"
+                        f"background:#F2A93B;color:#fff;cursor:pointer;display:inline-block;'>{sp['title']}</span></a>"
+                    )
+                else:
+                    guide_chips.append(
+                        f"<a href='#' id='guide__{sp['id']}' style='text-decoration:none;'>"
+                        f"<span style='padding:5px 12px;font-size:12px;border-radius:6px;"
+                        f"box-shadow:0 0 0 0.5px #999 inset;"
+                        f"color:inherit;cursor:pointer;display:inline-block;'>{sp['title']}</span></a>"
+                    )
+            guide_html = "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;'>" + "".join(guide_chips) + "</div>"
+            guide_clicked = click_detector(guide_html, key="mg_guide_det")
+            if guide_clicked and guide_clicked.startswith("guide__"):
+                clicked_id = guide_clicked.replace("guide__", "")
+                if clicked_id != st.session_state.get("mg_guide"):
+                    st.session_state["mg_guide"] = clicked_id
+                    st.session_state["_mg_guide_last"] = guide_clicked
+                    st.rerun()
         else:
             # 하위 가이드가 없으면 매체 페이지 자체를 바로 표시
             st.session_state["mg_guide"] = selected_media_id
@@ -392,7 +412,6 @@ else:
 
         # 제목 + 메타
         page_meta = get_page_meta(guide_id)
-        # 제목은 sub_pages 또는 media_pages에서 가져오기
         guide_title = ""
         if "mg_media" in st.session_state:
             sub_pages = get_sub_pages(st.session_state["mg_media"])
@@ -406,10 +425,10 @@ else:
                     guide_title = m["title"]
                     break
 
-        st.markdown(f"<div style='font-size:22px;font-weight:700;margin-bottom:4px;'>{guide_title}</div>",
+        st.markdown(f"<div style='font-size:20px;font-weight:700;margin-bottom:4px;'>{guide_title}</div>",
                     unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size:12px;color:var(--text-muted);margin-bottom:16px;"
-                    f"padding-bottom:12px;border-bottom:0.5px solid var(--border);'>"
+        st.markdown(f"<div style='font-size:11px;color:var(--text-muted);margin-bottom:14px;"
+                    f"padding-bottom:10px;border-bottom:0.5px solid var(--border);'>"
                     f"Notion 자동 연동 · 최종 수정 {page_meta}</div>",
                     unsafe_allow_html=True)
 
@@ -420,21 +439,23 @@ else:
         toc = build_toc(blocks)
         if toc:
             toc_html = ("<div style='background:#FFF8E1;border:0.5px solid #F2A93B44;"
-                        "border-radius:8px;padding:14px 18px;margin-bottom:20px;'>"
-                        "<div style='font-size:12px;font-weight:700;color:#8A6D1F;margin-bottom:8px;'>📑 목차</div>")
+                        "border-radius:8px;padding:12px 16px;margin-bottom:18px;'>"
+                        "<div style='font-size:11px;font-weight:700;color:#8A6D1F;margin-bottom:6px;'>📑 목차</div>")
             for item in toc:
-                indent = (item["level"] - 1) * 16
-                toc_html += f"<div style='font-size:13px;padding:2px 0 2px {indent}px;color:var(--text-primary);'>{item['text']}</div>"
+                indent = (item["level"] - 1) * 14
+                toc_html += f"<div style='font-size:12px;padding:2px 0 2px {indent}px;color:var(--text-primary);'>{item['text']}</div>"
             toc_html += "</div>"
             st.markdown(toc_html, unsafe_allow_html=True)
 
-        # 본문 렌더링
+        # 본문 렌더링 (90% 스케일)
+        st.markdown("<div style='font-size:90%;'>", unsafe_allow_html=True)
         render_blocks(blocks)
+        st.markdown("</div>", unsafe_allow_html=True)
 
         # 하단 안내
         st.markdown(
-            "<div style='font-size:11px;color:var(--text-muted);text-align:right;"
-            "margin-top:20px;padding-top:12px;border-top:0.5px solid var(--border);'>"
+            "<div style='font-size:10px;color:var(--text-muted);text-align:right;"
+            "margin-top:18px;padding-top:10px;border-top:0.5px solid var(--border);'>"
             "🔄 Notion 수정 시 최대 10분 내 자동 반영</div>",
             unsafe_allow_html=True,
         )
