@@ -1,6 +1,9 @@
 import streamlit as st
 from utils.ui import inject_base_style
 from utils.auth import get_current_user, is_admin, logout, render_login_page
+import psutil
+mem = psutil.virtual_memory()
+st.sidebar.metric("메모리 사용", f"{mem.used / 1024**2:.0f} MB / {mem.total / 1024**2:.0f} MB", f"{mem.percent}%")
 
 st.set_page_config(page_title="D-PLAN360 ARCHIVE", layout="wide")
 inject_base_style()
@@ -50,7 +53,3 @@ pages = [home_page, milestone_page, calendar_page, creative_page]
 
 pg = st.navigation(pages)
 pg.run()
-
-import psutil
-mem = psutil.virtual_memory()
-st.sidebar.metric("메모리 사용", f"{mem.used / 1024**2:.0f} MB / {mem.total / 1024**2:.0f} MB", f"{mem.percent}%")
