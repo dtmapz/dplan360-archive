@@ -347,13 +347,13 @@ else:
         is_active = (m["id"] == selected_media_id)
         if is_active:
             media_chips.append(
-                f"<a href='#' id='media__{m['id']}' style='text-decoration:none;'>"
+                f"<a href='#' id='media__{m['id']}' style='text-decoration:none;color:#111;'>"
                 f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
                 f"background:#111;color:#fff;cursor:pointer;display:inline-block;'>{m['title']}</span></a>"
             )
         else:
             media_chips.append(
-                f"<a href='#' id='media__{m['id']}' style='text-decoration:none;'>"
+                f"<a href='#' id='media__{m['id']}' style='text-decoration:none;color:#111;'>"
                 f"<span style='padding:6px 14px;font-size:13px;border-radius:8px;"
                 f"box-shadow:0 0 0 0.5px #999 inset;"
                 f"color:111;cursor:pointer;display:inline-block;'>{m['title']}</span></a>"
