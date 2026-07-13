@@ -36,7 +36,7 @@ def get_hub_children():
     if not hub_id:
         return []
 
-    # 2. 허브 페이지의 하위 블록에서 child_page 추출
+    # 2. 허브 페이지의 블록 조회
     results = []
     cursor = None
     while True:
@@ -45,6 +45,8 @@ def get_hub_children():
         if not resp["has_more"]:
             break
         cursor = resp["next_cursor"]
+
+    # 3. child_page 추출 (직접 + column_list 내부)
     pages = []
     for block in results:
         if block["type"] == "child_page":
@@ -52,6 +54,18 @@ def get_hub_children():
                 "id": block["id"],
                 "title": block["child_page"]["title"],
             })
+        elif block["type"] == "column_list" and block.get("has_children"):
+            # column_list > column > child_page
+            columns = notion.blocks.children.list(block_id=block["id"], page_size=100)["results"]
+            for col in columns:
+                if col["type"] == "column" and col.get("has_children"):
+                    col_children = notion.blocks.children.list(block_id=col["id"], page_size=100)["results"]
+                    for child in col_children:
+                        if child["type"] == "child_page":
+                            pages.append({
+                                "id": child["id"],
+                                "title": child["child_page"]["title"],
+                            })
     return pages
 
 
