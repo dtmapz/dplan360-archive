@@ -1,5 +1,6 @@
 import streamlit as st
 from notion_client import Client
+from st_click_detector import click_detector
 from utils.auth import get_current_user
 from utils.ui import set_current_page
 
