@@ -550,7 +550,7 @@ else:
                             prefix = "• " if btype == "bulleted_list_item" else ""
                             pdf.multi_cell(0, 5, prefix + text)
                             pdf.ln(2)
-                pdf_bytes = pdf.output()
+                pdf_bytes = bytes(pdf.output())
 
                 st.download_button(
                     "📄 PDF 다운로드",
