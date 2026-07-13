@@ -3,6 +3,7 @@ from notion_client import Client
 from st_click_detector import click_detector
 from utils.auth import get_current_user
 from utils.ui import set_current_page
+from datetime import date
 
 set_current_page("media_guide")
 
@@ -512,13 +513,8 @@ else:
             return html_out
 
         # --- 제목 행 + PDF 버튼 ---
-        col_title, col_pdf = st.columns([5, 2])
-        with col_title:
-            st.markdown(f"<div style='font-size:20px;font-weight:700;margin-bottom:4px;'>{guide_title}</div>",
-                        unsafe_allow_html=True)
-        with col_pdf:
-            pdf_method = st.selectbox("PDF 방식", ["weasyprint", "fpdf2"],
-                                       label_visibility="collapsed", key="mg_pdf_method")
+        st.markdown(f"<div style='font-size:20px;font-weight:700;margin-bottom:4px;'>{guide_title}</div>",
+                    unsafe_allow_html=True)
 
         st.markdown(f"<div style='font-size:11px;color:var(--text-muted);margin-bottom:14px;"
                     f"padding-bottom:10px;border-bottom:0.5px solid var(--border);'>"
@@ -528,40 +524,33 @@ else:
         # PDF 생성 + 다운로드
         @st.fragment
         def pdf_download_section():
-            pdf_html = blocks_to_html(blocks, guide_title, page_meta)
             try:
-                if pdf_method == "weasyprint":
-                    from weasyprint import HTML as WeasyprintHTML
-                    pdf_bytes = WeasyprintHTML(string=pdf_html).write_pdf()
+                from fpdf import FPDF
+                import os
+                pdf = FPDF()
+                pdf.add_page()
+                font_path = os.path.join(os.path.dirname(__file__), "assets", "NotoSansKR-Regular.ttf")
+                if os.path.exists(font_path):
+                    pdf.add_font("NotoSansKR", "", font_path, uni=True)
+                    pdf.set_font("NotoSansKR", size=10)
                 else:
-                    from fpdf import FPDF
-                    import tempfile, os
-                    # fpdf2는 HTML을 직접 렌더링 못하므로 텍스트 기반으로 생성
-                    pdf = FPDF()
-                    pdf.add_page()
-                    font_path = os.path.join(os.path.dirname(__file__), "assets", "NotoSansKR-Regular.ttf")
-                    if os.path.exists(font_path):
-                        pdf.add_font("NotoSansKR", "", font_path, uni=True)
-                        pdf.set_font("NotoSansKR", size=10)
-                    else:
-                        pdf.set_font("Helvetica", size=10)
-                    pdf.cell(0, 10, guide_title, ln=True)
-                    pdf.ln(4)
-                    for block in blocks:
-                        btype = block["type"]
-                        text = ""
-                        if btype in ("heading_1", "heading_2", "heading_3"):
-                            text = extract_rich_text(block[btype].get("rich_text", []))
-                            pdf.set_font(size=13 if btype == "heading_1" else 11)
-                            pdf.cell(0, 8, text, ln=True)
-                            pdf.set_font(size=10)
-                        elif btype in ("paragraph", "bulleted_list_item", "numbered_list_item", "callout", "quote"):
-                            text = extract_rich_text(block[btype].get("rich_text", []))
-                            if text:
-                                prefix = "• " if btype == "bulleted_list_item" else ""
-                                pdf.multi_cell(0, 5, prefix + text)
-                                pdf.ln(2)
-                    pdf_bytes = pdf.output()
+                    pdf.set_font("Helvetica", size=10)
+                pdf.cell(0, 10, guide_title, ln=True)
+                pdf.ln(4)
+                for block in blocks:
+                    btype = block["type"]
+                    if btype in ("heading_1", "heading_2", "heading_3"):
+                        text = extract_rich_text(block[btype].get("rich_text", []))
+                        pdf.set_font(size=13 if btype == "heading_1" else 11)
+                        pdf.cell(0, 8, text, ln=True)
+                        pdf.set_font(size=10)
+                    elif btype in ("paragraph", "bulleted_list_item", "numbered_list_item", "callout", "quote"):
+                        text = extract_rich_text(block[btype].get("rich_text", []))
+                        if text:
+                            prefix = "• " if btype == "bulleted_list_item" else ""
+                            pdf.multi_cell(0, 5, prefix + text)
+                            pdf.ln(2)
+                pdf_bytes = pdf.output()
 
                 st.download_button(
                     "📄 PDF 다운로드",
