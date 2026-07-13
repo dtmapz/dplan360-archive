@@ -10,7 +10,7 @@ if not user:
     render_login_page()
     st.stop()
 
-st.logo("assets/m_logo_w-1.png", size="large")
+st.logo("assets/m_logo_w-1.png", icon_image="assets/logo.png", size="large")
 
 with st.sidebar:
     col_email, col_btn = st.columns([2, 1])
