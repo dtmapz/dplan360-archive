@@ -277,7 +277,8 @@ def build_toc(blocks):
 def search_all_guides(_media_pages):
     """모든 가이드 페이지의 텍스트를 수집 (검색용)"""
     all_text = []
-    for media in _media_pages:
+    for media_frozen in _media_pages:
+        media = dict(media_frozen)
         sub_pages = get_sub_pages(media["id"])
         for guide in sub_pages:
             blocks = get_page_blocks(guide["id"])
@@ -312,7 +313,7 @@ if not media_pages:
 
 # 검색 모드
 if search_kw:
-    all_guides = search_all_guides(tuple((m["id"], m["title"]) for m in media_pages))
+    all_guides = search_all_guides(tuple(frozenset(m.items()) for m in media_pages))
     results = []
     for g in all_guides:
         if search_kw.lower() in g["content"].lower() or search_kw.lower() in g["guide"].lower():
