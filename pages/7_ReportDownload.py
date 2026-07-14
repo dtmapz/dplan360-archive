@@ -113,11 +113,9 @@ TABLE_MAP = {
 
 COLUMNS = [
     "date", "media", "ad_account_id", "ad_account_name",
-    "campaign_id", "campaign_name", "adgroup_id", "adgroup_name",
-    "creative_id", "creative_name", "ad_format",
+    "campaign_name", "adgroup_name", "creative_name", "ad_format",
     "impressions", "clicks", "cost", "views",
 ]
-
 
 def build_query(accounts, start_date, end_date):
     """선택 매체·계정 UNION ALL 쿼리 생성"""
@@ -173,19 +171,17 @@ def build_excel(df):
 # ============================
 # UI
 # ============================
-st.markdown("<div style='font-size:20px;font-weight:700;margin-bottom:4px;'>📊 REPORT DOWNLOAD</div>",
+st.markdown("<div style='font-size:20px;font-weight:700;margin-bottom:4px;'>📊 DAILY REPORT DOWNLOAD</div>",
             unsafe_allow_html=True)
-st.markdown("<div style='font-size:12px;color:var(--text-muted);margin-bottom:16px;'>"
-            "광고주별 리포트를 BigQuery에서 조회해 엑셀로 다운로드합니다.</div>",
+st.markdown("<div style='font-size:13px;color:var(--text-muted);margin-bottom:16px;'>"
+            "추출 기간, 담당 광고주 선택 → 데일리 리포트 데이터 통합 다운로드</div>",
             unsafe_allow_html=True)
 
 # 매핑 시트 로드
 try:
     mapping = load_mapping()
 except Exception as e:
-    import traceback
-    st.error(f"매핑 시트 조회 실패: {type(e).__name__}: {e}")
-    st.code(traceback.format_exc())
+    st.error(f"매핑 시트 조회 실패: {e}")
     st.stop()
 
 advertisers = get_unique_advertisers(mapping)
@@ -207,7 +203,7 @@ with col_adv:
     selected_adv = st.selectbox("광고주", advertisers, key="rd_adv")
 
 # 매체 선택
-st.markdown("<div style='font-size:12px;color:var(--text-muted);margin:12px 0 6px;'>매체 선택</div>",
+st.markdown("<div style='font-size:13px;color:var(--text-muted);margin:12px 0 6px;'>매체 선택</div>",
             unsafe_allow_html=True)
 if "rd_media" not in st.session_state:
     st.session_state["rd_media"] = ["구글", "카카오", "네이버"]
@@ -273,21 +269,21 @@ if "네이버" in selected_media:
 
 preview_html = f"""
 <div style='background:#f5f5f5;border-radius:8px;padding:14px 18px;margin-bottom:16px;border:0.5px solid #ddd;'>
-    <div style='font-size:11px;color:var(--text-muted);margin-bottom:8px;'>📋 다운로드 요약</div>
+    <div style='font-size:13px;color:var(--text-muted);margin-bottom:8px;'>📋 다운로드 요약</div>
     <div style='display:flex;gap:8px;margin-bottom:2px;font-size:13px;'>
-        <span style='color:var(--text-muted);min-width:90px;font-size:12px;'>광고주</span>
+        <span style='color:var(--text-muted);min-width:90px;font-size:13px;'>광고주</span>
         <span style='color:var(--text-primary);font-weight:500;'>{selected_adv}</span>
     </div>
     <div style='display:flex;gap:8px;margin-bottom:2px;font-size:13px;'>
-        <span style='color:var(--text-muted);min-width:90px;font-size:12px;'>기간</span>
+        <span style='color:var(--text-muted);min-width:90px;font-size:13px;'>기간</span>
         <span style='color:var(--text-primary);font-weight:500;'>{start_date.isoformat()} ~ {end_date.isoformat()} ({days}일)</span>
     </div>
     <div style='display:flex;gap:8px;margin-bottom:2px;font-size:13px;'>
-        <span style='color:var(--text-muted);min-width:90px;font-size:12px;'>매체</span>
+        <span style='color:var(--text-muted);min-width:90px;font-size:13px;'>매체</span>
         <span>{badge_google}{badge_kakao}{badge_naver}</span>
     </div>
     <div style='display:flex;gap:8px;margin-bottom:2px;font-size:13px;'>
-        <span style='color:var(--text-muted);min-width:90px;font-size:12px;'>광고계정</span>
+        <span style='color:var(--text-muted);min-width:90px;font-size:13px;'>광고계정</span>
         <span style='color:var(--text-primary);font-weight:500;'>{len(accounts)}개 ({', '.join(acc_detail_parts)})</span>
     </div>
 </div>
@@ -301,27 +297,44 @@ if not accounts:
 # 다운로드 (fragment로 격리)
 @st.fragment
 def download_section():
-    if st.button("📥 통합 데이터 다운로드", type="primary", use_container_width=True, key="rd_download_btn"):
-        with st.spinner("BigQuery 조회 중..."):
-            try:
-                query = build_query(accounts, start_date, end_date)
-                df = run_query(query, start_date, end_date)
-                if df.empty:
-                    st.warning("해당 조건에 데이터가 없습니다.")
-                    return
-                buf = build_excel(df)
-                file_name = f"report_daily_{start_date.isoformat()}_{end_date.isoformat()}_{selected_adv}_{today.isoformat()}.xlsx"
-                st.download_button(
-                    "📥 파일 저장",
-                    data=buf,
-                    file_name=file_name,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    type="primary",
-                    use_container_width=True,
-                )
-                st.success(f"조회 완료: 총 {len(df):,}행")
-            except Exception as e:
-                st.error(f"다운로드 중 오류: {e}")
+    # 조회 조건 키 (조건 바뀌면 조회 결과 리셋)
+    query_key = f"{selected_adv}_{start_date}_{end_date}_{','.join(sorted(selected_media))}"
+
+    if st.session_state.get("_rd_query_key") != query_key:
+        st.session_state.pop("_rd_result", None)
+        st.session_state["_rd_query_key"] = query_key
+
+    if "_rd_result" not in st.session_state:
+        # 조회 전
+        if st.button("🔍 통합 데이터 조회", type="primary", use_container_width=True, key="rd_search_btn"):
+            with st.spinner("BigQuery 조회 중..."):
+                try:
+                    query = build_query(accounts, start_date, end_date)
+                    df = run_query(query, start_date, end_date)
+                    if df.empty:
+                        st.warning("해당 조건에 데이터가 없습니다.")
+                        return
+                    buf = build_excel(df)
+                    st.session_state["_rd_result"] = {
+                        "buf": buf.getvalue(),
+                        "rows": len(df),
+                    }
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"조회 중 오류: {e}")
+    else:
+        # 조회 완료 → 다운로드 버튼
+        result = st.session_state["_rd_result"]
+        file_name = f"report_daily_{start_date.isoformat()}_{end_date.isoformat()}_{selected_adv}_{today.isoformat()}.xlsx"
+        st.download_button(
+            "📥 통합 데이터 다운로드",
+            data=result["buf"],
+            file_name=file_name,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary",
+            use_container_width=True,
+        )
+        st.success(f"조회 완료: 총 {result['rows']:,}행")
 
 download_section()
 
