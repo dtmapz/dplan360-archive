@@ -488,6 +488,8 @@ def answer_with_fallback(question, all_guides):
 
     반환: (answer, notion_refs, link_refs)
     """
+    debug_log = []
+
     # 1단계: Notion 가이드
     relevant_guides = find_relevant_guides(question, all_guides)
     notion_context = ""
@@ -502,20 +504,28 @@ def answer_with_fallback(question, all_guides):
             })
         notion_context = "\n\n---\n\n".join(parts)
 
+    debug_log.append(f"1단계 Notion: {len(relevant_guides)}개 가이드 매칭")
+
     answer = get_gemini_response(question, notion_context, "", use_web_search=False)
+    debug_log.append(f"1단계 답변 부족? {is_answer_insufficient(answer)}")
 
     if not is_answer_insufficient(answer):
         return answer, notion_refs[:3], []
 
     # 2단계: 관리자 등록 링크
     links = load_reference_links()
+    debug_log.append(f"2단계 시트 링크 로드: {len(links)}개")
+
     relevant_links = find_relevant_links(question, links)
+    debug_log.append(f"2단계 관련 링크 매칭: {len(relevant_links)}개")
+
     link_context = ""
     link_refs = []
     if relevant_links:
         parts = []
         for link in relevant_links[:3]:
             content = fetch_link_content(link["url"])
+            debug_log.append(f"  fetch {link['url'][:50]}: {len(content)}자")
             if content:
                 parts.append(f"[링크: {link.get('title') or link['url']}]\n{content}")
                 link_refs.append(link)
@@ -523,12 +533,16 @@ def answer_with_fallback(question, all_guides):
 
     if link_context:
         answer = get_gemini_response(question, notion_context, link_context, use_web_search=False)
+        debug_log.append(f"2단계 답변 부족? {is_answer_insufficient(answer)}")
         if not is_answer_insufficient(answer):
-            return answer, notion_refs[:3], link_refs
+            debug_info = "\n\n---\n🔍 디버그:\n" + "\n".join(debug_log)
+            return answer + debug_info, notion_refs[:3], link_refs
 
     # 3단계: 웹 검색
+    debug_log.append("3단계 웹 검색 시도")
     answer = get_gemini_response(question, notion_context, link_context, use_web_search=True)
-    return answer, notion_refs[:3], link_refs
+    debug_info = "\n\n---\n🔍 디버그:\n" + "\n".join(debug_log)
+    return answer + debug_info, notion_refs[:3], link_refs
     """질문 키워드와 매칭되는 가이드 찾기 (간단한 텍스트 매칭)"""
     q_lower = question.lower()
     q_words = set(w for w in q_lower.split() if len(w) >= 2)
