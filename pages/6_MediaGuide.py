@@ -497,6 +497,9 @@ if st.session_state["mg_mode"] == "ai":
                 dialog_title = sp["title"]
                 break
 
+        if "_mg_dialog_shown" not in st.session_state:
+            st.session_state["_mg_dialog_shown"] = False
+
         @st.dialog(f"{dialog_media_title} · {dialog_title}", width="large")
         def show_guide_dialog():
             page_meta = get_page_meta(dialog_guide_id)
@@ -521,11 +524,6 @@ if st.session_state["mg_mode"] == "ai":
             st.markdown("<div style='font-size:90%;'>", unsafe_allow_html=True)
             render_blocks(blocks)
             st.markdown("</div>", unsafe_allow_html=True)
-
-            if st.button("닫기", key="mg_dialog_close", use_container_width=True):
-                del st.session_state["_mg_dialog_guide"]
-                st.session_state.pop("_mg_dialog_media", None)
-                st.rerun()
 
         show_guide_dialog()
 
