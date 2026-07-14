@@ -227,7 +227,7 @@ for m in all_media:
         )
 
 from st_click_detector import click_detector
-media_html = "<div style='display:flex;gap:12px;margin-bottom:8px;'>" + "".join(media_chips) + "</div>"
+media_html = "<div style='display:flex;gap:12px;margin-bottom:16px;'>" + "".join(media_chips) + "</div>"
 clicked = click_detector(media_html, key="rd_media_det")
 if clicked and clicked.startswith("media__"):
     m = clicked.replace("media__", "")
