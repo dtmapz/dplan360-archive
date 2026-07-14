@@ -333,39 +333,43 @@ def fetch_link_content(url):
     """링크 fetch → 텍스트 반환 (24시간 캐시)"""
     try:
         import requests
-        from html.parser import HTMLParser
-
         headers = {
-            "User-Agent": "Mozilla/5.0 (compatible; DPLAN360-Bot/1.0)"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
         }
-        resp = requests.get(url, headers=headers, timeout=10)
+        resp = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
         resp.raise_for_status()
 
-        # 간단한 HTML 태그 제거
-        class TextExtractor(HTMLParser):
-            def __init__(self):
-                super().__init__()
-                self.texts = []
-                self.skip = False
-            def handle_starttag(self, tag, attrs):
-                if tag in ("script", "style", "nav", "footer"):
-                    self.skip = True
-            def handle_endtag(self, tag):
-                if tag in ("script", "style", "nav", "footer"):
-                    self.skip = False
-            def handle_data(self, data):
-                if not self.skip:
-                    text = data.strip()
-                    if text:
-                        self.texts.append(text)
+        # GitBook은 .md 붙이면 마크다운 반환
+        if "gitbook.io" in url and not url.endswith(".md"):
+            try:
+                md_url = url.rstrip("/") + ".md"
+                md_resp = requests.get(md_url, headers=headers, timeout=15)
+                if md_resp.status_code == 200 and len(md_resp.text) > 100:
+                    return md_resp.text[:8000]
+            except Exception:
+                pass
 
-        parser = TextExtractor()
-        parser.feed(resp.text)
-        content = "\n".join(parser.texts)
-        # 최대 5000자로 제한
-        return content[:5000] if content else ""
-    except Exception:
-        return ""
+        # BeautifulSoup 사용 (더 안정적)
+        try:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(resp.text, "html.parser")
+            # 불필요한 태그 제거
+            for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
+                tag.decompose()
+            text = soup.get_text(separator="\n", strip=True)
+            return text[:8000] if text else f"⚠️ 파싱 결과 빈 텍스트 (HTML 길이: {len(resp.text)})"
+        except ImportError:
+            # BeautifulSoup 없으면 간단히 태그 제거
+            import re
+            text = re.sub(r"<script[^>]*>.*?</script>", "", resp.text, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r"<[^>]+>", " ", text)
+            text = re.sub(r"\s+", " ", text).strip()
+            return text[:8000] if text else f"⚠️ 파싱 결과 빈 텍스트"
+    except Exception as e:
+        return f"⚠️ fetch 실패: {type(e).__name__}: {str(e)[:200]}"
 
 
 def find_relevant_guides(question, all_guides):
