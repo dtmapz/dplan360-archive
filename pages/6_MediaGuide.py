@@ -474,10 +474,60 @@ if st.session_state["mg_mode"] == "ai":
         parts = ref_clicked.replace("ref__", "").split("__")
         if len(parts) == 2:
             media_id, guide_id = parts
-            st.session_state["mg_mode"] = "search"
-            st.session_state["mg_media"] = media_id
-            st.session_state["mg_guide"] = guide_id
-            st.rerun()
+            if st.session_state.get("_mg_dialog_guide") != guide_id:
+                st.session_state["_mg_dialog_guide"] = guide_id
+                st.session_state["_mg_dialog_media"] = media_id
+                st.rerun()
+
+    # 팝업 표시
+    if "_mg_dialog_guide" in st.session_state:
+        dialog_guide_id = st.session_state["_mg_dialog_guide"]
+        dialog_media_id = st.session_state.get("_mg_dialog_media")
+
+        # 제목 조회
+        dialog_title = ""
+        dialog_media_title = ""
+        for m in media_pages:
+            if m["id"] == dialog_media_id:
+                dialog_media_title = m["title"]
+                break
+        sub_pages_dialog = get_sub_pages(dialog_media_id) if dialog_media_id else []
+        for sp in sub_pages_dialog:
+            if sp["id"] == dialog_guide_id:
+                dialog_title = sp["title"]
+                break
+
+        @st.dialog(f"{dialog_media_title} · {dialog_title}", width="large")
+        def show_guide_dialog():
+            page_meta = get_page_meta(dialog_guide_id)
+            st.markdown(
+                f"<div style='font-size:11px;color:var(--text-muted);margin-bottom:12px;'>"
+                f"Notion 자동 연동 · 최종 수정 {page_meta}</div>",
+                unsafe_allow_html=True,
+            )
+            blocks = get_page_blocks(dialog_guide_id)
+
+            toc = build_toc(blocks)
+            if toc:
+                toc_html = ("<div style='background:#FFF8E1;border:0.5px solid #F2A93B44;"
+                            "border-radius:8px;padding:12px 16px;margin-bottom:18px;'>"
+                            "<div style='font-size:11px;font-weight:700;color:#8A6D1F;margin-bottom:6px;'>📑 목차</div>")
+                for item in toc:
+                    indent = (item["level"] - 1) * 14
+                    toc_html += f"<div style='font-size:12px;padding:2px 0 2px {indent}px;color:var(--text-primary);'>{item['text']}</div>"
+                toc_html += "</div>"
+                st.markdown(toc_html, unsafe_allow_html=True)
+
+            st.markdown("<div style='font-size:90%;'>", unsafe_allow_html=True)
+            render_blocks(blocks)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            if st.button("닫기", key="mg_dialog_close", use_container_width=True):
+                del st.session_state["_mg_dialog_guide"]
+                st.session_state.pop("_mg_dialog_media", None)
+                st.rerun()
+
+        show_guide_dialog()
 
     st.stop()
 
