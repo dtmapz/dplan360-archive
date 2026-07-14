@@ -497,11 +497,11 @@ if st.session_state["mg_mode"] == "ai":
                 dialog_title = sp["title"]
                 break
 
-        if "_mg_dialog_shown" not in st.session_state:
-            st.session_state["_mg_dialog_shown"] = False
-
         @st.dialog(f"{dialog_media_title} · {dialog_title}", width="large")
         def show_guide_dialog():
+            st.session_state.pop("_mg_dialog_guide", None)
+            st.session_state.pop("_mg_dialog_media", None)
+            
             page_meta = get_page_meta(dialog_guide_id)
             st.markdown(
                 f"<div style='font-size:11px;color:var(--text-muted);margin-bottom:12px;'>"
