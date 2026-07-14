@@ -334,7 +334,7 @@ def get_gemini_response(question, context_texts):
 
     try:
         response = client.models.generate_content(
-            model="gemini-flash-latest",
+            model="gemini-2.5-flash-lite",
             contents=prompt,
         )
         answer = response.text if response.text else "답변을 생성할 수 없습니다."
@@ -446,7 +446,9 @@ if st.session_state["mg_mode"] == "ai":
             sources_html = ""
             if msg.get("sources"):
                 src_links = "".join(
-                    f"<div style='padding:2px 0;color:#1A73E8;'>→ {s['media']} &gt; {s['guide']}</div>"
+                    f"<a href='#' id='ref__{s['media_id']}__{s['guide_id']}' "
+                    f"style='text-decoration:none;color:#1A73E8;padding:2px 0;display:block;cursor:pointer;'>"
+                    f"→ {s['media']} &gt; {s['guide']}</a>"
                     for s in msg["sources"]
                 )
                 sources_html = (
@@ -466,7 +468,16 @@ if st.session_state["mg_mode"] == "ai":
                 f"</div></div>"
             )
     chat_html += "</div>"
-    st.markdown(chat_html, unsafe_allow_html=True)
+
+    ref_clicked = click_detector(chat_html, key="mg_chat_det")
+    if ref_clicked and ref_clicked.startswith("ref__"):
+        parts = ref_clicked.replace("ref__", "").split("__")
+        if len(parts) == 2:
+            media_id, guide_id = parts
+            st.session_state["mg_mode"] = "search"
+            st.session_state["mg_media"] = media_id
+            st.session_state["mg_guide"] = guide_id
+            st.rerun()
 
     st.stop()
 
