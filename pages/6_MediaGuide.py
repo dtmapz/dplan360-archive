@@ -291,9 +291,110 @@ def search_all_guides(_media_pages):
 
 
 # ============================
+# Gemini API 연결
+# ============================
+GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
+
+
+def get_gemini_response(question, context_texts):
+    """Gemini API 호출 → 답변 + 참고 가이드 반환"""
+    try:
+        from google import genai
+    except ImportError:
+        return "❌ google-genai 패키지가 설치되지 않았습니다.", []
+
+    if not GEMINI_API_KEY:
+        return "❌ Gemini API 키가 설정되지 않았습니다.", []
+
+    client = genai.Client(api_key=GEMINI_API_KEY)
+
+    # 컨텍스트 조립 (가장 관련 있는 가이드 3개까지)
+    context_parts = []
+    referenced = []
+    for i, ctx in enumerate(context_texts[:5]):
+        context_parts.append(f"[가이드 {i+1}: {ctx['media']} > {ctx['guide']}]\n{ctx['content'][:2000]}")
+        referenced.append({"media": ctx['media'], "guide": ctx['guide'], "guide_id": ctx['guide_id'], "media_id": ctx['media_id']})
+
+    context_str = "\n\n---\n\n".join(context_parts)
+
+    prompt = f"""당신은 D-PLAN360의 매체 가이드 도우미입니다. 아래 노션 가이드 내용을 참고해 사용자 질문에 답변하세요.
+
+규칙:
+- 가이드에 있는 내용만 답변하세요
+- 가이드에 없는 내용은 "해당 가이드에는 없습니다. 담당자에게 문의해주세요."라고 답하세요
+- 답변은 한국어로 명확하고 간결하게 작성하세요
+- 필요 시 단계별로 정리하세요
+
+[참고 가이드]
+{context_str}
+
+[질문]
+{question}
+"""
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=prompt,
+        )
+        answer = response.text if response.text else "답변을 생성할 수 없습니다."
+        return answer, referenced[:3]
+    except Exception as e:
+        return f"❌ AI 응답 오류: {e}", []
+
+
+def find_relevant_guides(question, all_guides):
+    """질문 키워드와 매칭되는 가이드 찾기 (간단한 텍스트 매칭)"""
+    q_lower = question.lower()
+    q_words = set(w for w in q_lower.split() if len(w) >= 2)
+
+    scored = []
+    for g in all_guides:
+        content_lower = g["content"].lower()
+        guide_lower = g["guide"].lower()
+        media_lower = g["media"].lower()
+
+        # 스코어링: 제목 매칭 3점, 매체명 매칭 2점, 본문 단어 매칭 1점씩
+        score = 0
+        for word in q_words:
+            if word in guide_lower:
+                score += 3
+            if word in media_lower:
+                score += 2
+            if word in content_lower:
+                score += 1
+
+        if score > 0:
+            scored.append((score, g))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [g for _, g in scored]
+
+
+# ============================
 # 메인 UI
 # ============================
-search_kw = st.text_input("", placeholder="🔍 전체 가이드 검색", label_visibility="collapsed", key="mg_search")
+if "mg_mode" not in st.session_state:
+    st.session_state["mg_mode"] = "search"
+
+col_input, col_toggle = st.columns([5, 1.2])
+with col_input:
+    if st.session_state["mg_mode"] == "search":
+        search_kw = st.text_input("", placeholder="🔍 전체 가이드 검색", label_visibility="collapsed", key="mg_search")
+        ai_question = None
+    else:
+        search_kw = None
+        ai_question = st.text_input("", placeholder="💬 질문을 입력해주세요", label_visibility="collapsed", key="mg_ai_input")
+
+with col_toggle:
+    if st.session_state["mg_mode"] == "search":
+        if st.button("🤖 AI 모드 전환", key="mg_mode_toggle", use_container_width=True):
+            st.session_state["mg_mode"] = "ai"
+            st.rerun()
+    else:
+        if st.button("🔍 검색 모드 전환", key="mg_mode_toggle", use_container_width=True):
+            st.session_state["mg_mode"] = "search"
+            st.rerun()
 
 media_pages = get_hub_children()
 
@@ -301,7 +402,78 @@ if not media_pages:
     st.warning("허브 페이지에 하위 매체 페이지가 없습니다. Notion 구조를 확인해주세요.")
     st.stop()
 
+# ============================
+# AI 모드
+# ============================
+if st.session_state["mg_mode"] == "ai":
+    st.markdown(
+        "<div style='font-size:12px;color:var(--text-muted);margin-bottom:12px;'>"
+        "Notion에 등록된 매체 가이드 기반으로 답변합니다. 정확한 절차는 원본 가이드도 확인해주세요."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    # 대화 히스토리
+    if "mg_chat" not in st.session_state:
+        st.session_state["mg_chat"] = [
+            {"role": "ai", "text": "안녕하세요! 매체 가이드 관련 궁금한 점을 편하게 물어보세요.<br>예) \"네이버 GFA 계정 이관은 어떻게 하나요?\"", "sources": []}
+        ]
+
+    # 새 질문 처리
+    if ai_question and ai_question != st.session_state.get("_mg_last_q"):
+        st.session_state["_mg_last_q"] = ai_question
+        st.session_state["mg_chat"].append({"role": "user", "text": ai_question})
+
+        with st.spinner("답변 생성 중..."):
+            all_guides = search_all_guides(tuple(frozenset(m.items()) for m in media_pages))
+            relevant = find_relevant_guides(ai_question, all_guides)
+            if not relevant:
+                relevant = all_guides[:3]
+            answer, referenced = get_gemini_response(ai_question, relevant)
+            st.session_state["mg_chat"].append({"role": "ai", "text": answer.replace("\n", "<br>"), "sources": referenced})
+        st.rerun()
+
+    # 대화창 렌더링
+    chat_html = "<div style='border:0.5px solid #ddd;border-radius:8px;background:#fafafa;padding:12px 4px;max-height:600px;overflow-y:auto;'>"
+    for msg in st.session_state["mg_chat"]:
+        if msg["role"] == "user":
+            chat_html += (
+                f"<div style='display:flex;justify-content:flex-end;margin-bottom:12px;padding:0 12px;'>"
+                f"<div style='background:#111;color:#fff;padding:10px 14px;border-radius:14px 14px 4px 14px;max-width:70%;font-size:13px;line-height:1.5;'>{msg['text']}</div>"
+                f"</div>"
+            )
+        else:
+            sources_html = ""
+            if msg.get("sources"):
+                src_links = "".join(
+                    f"<div style='padding:2px 0;color:#1A73E8;'>→ {s['media']} &gt; {s['guide']}</div>"
+                    for s in msg["sources"]
+                )
+                sources_html = (
+                    f"<div style='margin-top:6px;padding:8px 12px;background:#FFF8E1;"
+                    f"border-left:3px solid #F2A93B;border-radius:4px;font-size:11px;'>"
+                    f"<div style='color:#8A6D1F;font-weight:600;margin-bottom:4px;'>📚 참고 가이드</div>"
+                    f"{src_links}</div>"
+                )
+            chat_html += (
+                f"<div style='display:flex;align-items:flex-start;gap:8px;margin-bottom:16px;padding:0 12px;'>"
+                f"<div style='width:28px;height:28px;border-radius:50%;background:#F2A93B;color:#fff;"
+                f"font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;'>AI</div>"
+                f"<div style='flex:1;'>"
+                f"<div style='background:#fff;border:0.5px solid #ddd;padding:10px 14px;"
+                f"border-radius:4px 14px 14px 14px;font-size:13px;line-height:1.6;color:#111;'>{msg['text']}</div>"
+                f"{sources_html}"
+                f"</div></div>"
+            )
+    chat_html += "</div>"
+    st.markdown(chat_html, unsafe_allow_html=True)
+
+    st.stop()
+
+# ============================
 # 검색 모드
+# ============================
+# 검색 실행
 if search_kw:
     all_guides = search_all_guides(tuple(frozenset(m.items()) for m in media_pages))
     results = []
