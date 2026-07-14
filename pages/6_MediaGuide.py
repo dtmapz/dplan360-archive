@@ -334,7 +334,7 @@ def get_gemini_response(question, context_texts):
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
+            model="gemini-flash-latest",
             contents=prompt,
         )
         answer = response.text if response.text else "답변을 생성할 수 없습니다."
