@@ -9,3 +9,4 @@ google-cloud-bigquery
 google-auth
 gspread
 db-dtypes
+google-genai
