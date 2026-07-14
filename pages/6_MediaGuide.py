@@ -294,38 +294,134 @@ def search_all_guides(_media_pages):
 # Gemini API 연결
 # ============================
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
+SHEET_ID = st.secrets.get("BIGQUERY_MAPPING_SHEET_ID", "")
+AI_LINKS_SHEET_NAME = "ai_reference_links"
 
 
-def get_gemini_response(question, context_texts):
-    """Gemini API 호출 → 답변 + 참고 가이드 반환"""
+@st.cache_data(ttl=300)
+def load_reference_links():
+    """시트에서 관리자 등록 링크 목록 조회"""
+    try:
+        from google.oauth2 import service_account
+        import gspread
+
+        creds = service_account.Credentials.from_service_account_info(
+            dict(st.secrets["gcp_service_account"]),
+            scopes=[
+                "https://www.googleapis.com/auth/spreadsheets.readonly",
+                "https://www.googleapis.com/auth/drive.readonly",
+            ],
+        )
+        gc = gspread.authorize(creds)
+        sh = gc.open_by_key(SHEET_ID)
+        ws = sh.worksheet(AI_LINKS_SHEET_NAME)
+        rows = ws.get_all_records()
+        # 빈 링크 제외
+        return [
+            {"media": str(r.get("매체", "")).strip(),
+             "url": str(r.get("링크", "")).strip(),
+             "title": str(r.get("제목", "")).strip()}
+            for r in rows
+            if str(r.get("링크", "")).strip()
+        ]
+    except Exception as e:
+        return []
+
+
+@st.cache_data(ttl=86400)
+def fetch_link_content(url):
+    """링크 fetch → 텍스트 반환 (24시간 캐시)"""
+    try:
+        import requests
+        from html.parser import HTMLParser
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (compatible; DPLAN360-Bot/1.0)"
+        }
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+
+        # 간단한 HTML 태그 제거
+        class TextExtractor(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.texts = []
+                self.skip = False
+            def handle_starttag(self, tag, attrs):
+                if tag in ("script", "style", "nav", "footer"):
+                    self.skip = True
+            def handle_endtag(self, tag):
+                if tag in ("script", "style", "nav", "footer"):
+                    self.skip = False
+            def handle_data(self, data):
+                if not self.skip:
+                    text = data.strip()
+                    if text:
+                        self.texts.append(text)
+
+        parser = TextExtractor()
+        parser.feed(resp.text)
+        content = "\n".join(parser.texts)
+        # 최대 5000자로 제한
+        return content[:5000] if content else ""
+    except Exception:
+        return ""
+
+
+def find_relevant_links(question, links):
+    """질문 키워드와 매칭되는 링크 찾기"""
+    q_lower = question.lower()
+    q_words = set(w for w in q_lower.split() if len(w) >= 2)
+
+    scored = []
+    for link in links:
+        title_lower = link.get("title", "").lower()
+        media_lower = link.get("media", "").lower()
+
+        score = 0
+        for word in q_words:
+            if word in title_lower:
+                score += 3
+            if word in media_lower:
+                score += 2
+
+        if score > 0:
+            scored.append((score, link))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [l for _, l in scored]
+
+
+def get_gemini_response(question, notion_context, link_context, use_web_search=False):
+    """Gemini API 호출 → 답변 반환 (3단계 fallback)"""
     try:
         from google import genai
+        from google.genai import types
     except ImportError:
-        return "❌ google-genai 패키지가 설치되지 않았습니다.", []
+        return "❌ google-genai 패키지가 설치되지 않았습니다."
 
     if not GEMINI_API_KEY:
-        return "❌ Gemini API 키가 설정되지 않았습니다.", []
+        return "❌ Gemini API 키가 설정되지 않았습니다."
 
     client = genai.Client(api_key=GEMINI_API_KEY)
 
-    # 컨텍스트 조립 (가장 관련 있는 가이드 3개까지)
     context_parts = []
-    referenced = []
-    for i, ctx in enumerate(context_texts[:5]):
-        context_parts.append(f"[가이드 {i+1}: {ctx['media']} > {ctx['guide']}]\n{ctx['content'][:2000]}")
-        referenced.append({"media": ctx['media'], "guide": ctx['guide'], "guide_id": ctx['guide_id'], "media_id": ctx['media_id']})
+    if notion_context:
+        context_parts.append(f"[Notion 가이드]\n{notion_context}")
+    if link_context:
+        context_parts.append(f"[관리자 등록 링크 콘텐츠]\n{link_context}")
 
-    context_str = "\n\n---\n\n".join(context_parts)
+    context_str = "\n\n---\n\n".join(context_parts) if context_parts else "(참고 자료 없음)"
 
-    prompt = f"""당신은 D-PLAN360의 매체 가이드 도우미입니다. 아래 노션 가이드 내용을 참고해 사용자 질문에 답변하세요.
+    prompt = f"""당신은 D-PLAN360의 매체 가이드 도우미입니다. 아래 참고 자료를 바탕으로 사용자 질문에 답변하세요.
 
 규칙:
-- 가이드에 있는 내용만 답변하세요
-- 가이드에 없는 내용은 "해당 가이드에는 없습니다. 담당자에게 문의해주세요."라고 답하세요
+- 참고 자료에 있는 내용만 답변하세요
+- 참고 자료에 답이 없으면 "해당 자료에는 없습니다."라고 답하세요
 - 답변은 한국어로 명확하고 간결하게 작성하세요
 - 필요 시 단계별로 정리하세요
 
-[참고 가이드]
+[참고 자료]
 {context_str}
 
 [질문]
@@ -333,17 +429,79 @@ def get_gemini_response(question, context_texts):
 """
 
     try:
+        config = None
+        if use_web_search:
+            config = types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())]
+            )
         response = client.models.generate_content(
             model="gemini-flash-latest",
             contents=prompt,
+            config=config,
         )
-        answer = response.text if response.text else "답변을 생성할 수 없습니다."
-        return answer, referenced[:3]
+        return response.text if response.text else "답변을 생성할 수 없습니다."
     except Exception as e:
-        return f"❌ AI 응답 오류: {e}", []
+        return f"❌ AI 응답 오류: {e}"
 
 
-def find_relevant_guides(question, all_guides):
+def is_answer_insufficient(answer):
+    """답변이 부족한지 판단"""
+    insufficient_phrases = [
+        "해당 자료에는 없습니다",
+        "해당 가이드에는 없습니다",
+        "정보가 없습니다",
+        "확인할 수 없습니다",
+        "찾을 수 없습니다",
+    ]
+    return any(p in answer for p in insufficient_phrases)
+
+
+def answer_with_fallback(question, all_guides):
+    """3단계 fallback으로 답변 생성
+
+    반환: (answer, notion_refs, link_refs)
+    """
+    # 1단계: Notion 가이드
+    relevant_guides = find_relevant_guides(question, all_guides)
+    notion_context = ""
+    notion_refs = []
+    if relevant_guides:
+        parts = []
+        for i, g in enumerate(relevant_guides[:5]):
+            parts.append(f"[가이드 {i+1}: {g['media']} > {g['guide']}]\n{g['content'][:2000]}")
+            notion_refs.append({
+                "media": g['media'], "guide": g['guide'],
+                "guide_id": g['guide_id'], "media_id": g['media_id']
+            })
+        notion_context = "\n\n---\n\n".join(parts)
+
+    answer = get_gemini_response(question, notion_context, "", use_web_search=False)
+
+    if not is_answer_insufficient(answer):
+        return answer, notion_refs[:3], []
+
+    # 2단계: 관리자 등록 링크
+    links = load_reference_links()
+    relevant_links = find_relevant_links(question, links)
+    link_context = ""
+    link_refs = []
+    if relevant_links:
+        parts = []
+        for link in relevant_links[:3]:
+            content = fetch_link_content(link["url"])
+            if content:
+                parts.append(f"[링크: {link.get('title') or link['url']}]\n{content}")
+                link_refs.append(link)
+        link_context = "\n\n---\n\n".join(parts)
+
+    if link_context:
+        answer = get_gemini_response(question, notion_context, link_context, use_web_search=False)
+        if not is_answer_insufficient(answer):
+            return answer, notion_refs[:3], link_refs
+
+    # 3단계: 웹 검색
+    answer = get_gemini_response(question, notion_context, link_context, use_web_search=True)
+    return answer, notion_refs[:3], link_refs
     """질문 키워드와 매칭되는 가이드 찾기 (간단한 텍스트 매칭)"""
     q_lower = question.lower()
     q_words = set(w for w in q_lower.split() if len(w) >= 2)
@@ -426,11 +584,13 @@ if st.session_state["mg_mode"] == "ai":
 
         with st.spinner("답변 생성 중..."):
             all_guides = search_all_guides(tuple(frozenset(m.items()) for m in media_pages))
-            relevant = find_relevant_guides(ai_question, all_guides)
-            if not relevant:
-                relevant = all_guides[:3]
-            answer, referenced = get_gemini_response(ai_question, relevant)
-            st.session_state["mg_chat"].append({"role": "ai", "text": answer.replace("\n", "<br>"), "sources": referenced})
+            answer, notion_refs, link_refs = answer_with_fallback(ai_question, all_guides)
+            st.session_state["mg_chat"].append({
+                "role": "ai",
+                "text": answer.replace("\n", "<br>"),
+                "sources": notion_refs,
+                "link_sources": link_refs,
+            })
         st.rerun()
 
     # 대화창 렌더링
@@ -457,6 +617,20 @@ if st.session_state["mg_mode"] == "ai":
                     f"<div style='color:#8A6D1F;font-weight:600;margin-bottom:4px;'>📚 참고 가이드</div>"
                     f"{src_links}</div>"
                 )
+            link_sources_html = ""
+            if msg.get("link_sources"):
+                link_html = "".join(
+                    f"<a href='{l['url']}' target='_blank' rel='noopener' "
+                    f"style='text-decoration:none;color:#1A73E8;padding:2px 0;display:block;'>"
+                    f"→ {l.get('title') or l['url']}</a>"
+                    for l in msg["link_sources"]
+                )
+                link_sources_html = (
+                    f"<div style='margin-top:6px;padding:8px 12px;background:#FFF8E1;"
+                    f"border-left:3px solid #F2A93B;border-radius:4px;font-size:11px;'>"
+                    f"<div style='color:#8A6D1F;font-weight:600;margin-bottom:4px;'>🌐 참고 링크</div>"
+                    f"{link_html}</div>"
+                )
             chat_html += (
                 f"<div style='display:flex;align-items:flex-start;gap:8px;margin-bottom:16px;padding:0 12px;'>"
                 f"<div style='width:28px;height:28px;border-radius:50%;background:#F2A93B;color:#fff;"
@@ -465,6 +639,7 @@ if st.session_state["mg_mode"] == "ai":
                 f"<div style='background:#fff;border:0.5px solid #ddd;padding:10px 14px;"
                 f"border-radius:4px 14px 14px 14px;font-size:13px;line-height:1.6;color:#111;'>{msg['text']}</div>"
                 f"{sources_html}"
+                f"{link_sources_html}"
                 f"</div></div>"
             )
     chat_html += "</div>"
@@ -499,9 +674,6 @@ if st.session_state["mg_mode"] == "ai":
 
         @st.dialog(f"{dialog_media_title} · {dialog_title}", width="large")
         def show_guide_dialog():
-            st.session_state.pop("_mg_dialog_guide", None)
-            st.session_state.pop("_mg_dialog_media", None)
-            
             page_meta = get_page_meta(dialog_guide_id)
             st.markdown(
                 f"<div style='font-size:11px;color:var(--text-muted);margin-bottom:12px;'>"
@@ -524,6 +696,11 @@ if st.session_state["mg_mode"] == "ai":
             st.markdown("<div style='font-size:90%;'>", unsafe_allow_html=True)
             render_blocks(blocks)
             st.markdown("</div>", unsafe_allow_html=True)
+
+            if st.button("닫기", key="mg_dialog_close", use_container_width=True):
+                del st.session_state["_mg_dialog_guide"]
+                st.session_state.pop("_mg_dialog_media", None)
+                st.rerun()
 
         show_guide_dialog()
 
