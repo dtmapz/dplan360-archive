@@ -183,7 +183,9 @@ st.markdown("<div style='font-size:12px;color:var(--text-muted);margin-bottom:16
 try:
     mapping = load_mapping()
 except Exception as e:
-    st.error(f"매핑 시트 조회 실패: {e}")
+    import traceback
+    st.error(f"매핑 시트 조회 실패: {type(e).__name__}: {e}")
+    st.code(traceback.format_exc())
     st.stop()
 
 advertisers = get_unique_advertisers(mapping)
