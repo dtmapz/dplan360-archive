@@ -272,7 +272,7 @@ if "네이버" in selected_media:
     acc_detail_parts.append(f"네이버 {counts['naver_gfa']}")
 
 preview_html = f"""
-<div style='background:var(--surface-2);border-radius:8px;padding:14px 18px;margin-bottom:16px;border:0.5px solid var(--border);'>
+<div style='background:#f5f5f5;border-radius:8px;padding:14px 18px;margin-bottom:16px;border:0.5px solid #ddd;'>
     <div style='font-size:11px;color:var(--text-muted);margin-bottom:8px;'>📋 다운로드 요약</div>
     <div style='display:flex;gap:8px;margin-bottom:2px;font-size:13px;'>
         <span style='color:var(--text-muted);min-width:90px;font-size:12px;'>광고주</span>
