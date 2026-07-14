@@ -203,7 +203,7 @@ with col_adv:
     selected_adv = st.selectbox("광고주", advertisers, key="rd_adv")
 
 # 매체 선택
-st.markdown("<div style='font-size:13px;color:var(--text-muted);margin:12px 0 6px;'>매체 선택</div>",
+st.markdown("<div style='font-size:13px;color:var(--text-muted);margin:12px 0 -8px;'>매체 선택</div>",
             unsafe_allow_html=True)
 if "rd_media" not in st.session_state:
     st.session_state["rd_media"] = ["구글", "카카오", "네이버"]
@@ -227,7 +227,7 @@ for m in all_media:
         )
 
 from st_click_detector import click_detector
-media_html = "<div style='display:flex;gap:12px;margin-bottom:16px;'>" + "".join(media_chips) + "</div>"
+media_html = "<div style='display:flex;gap:12px;margin-bottom:8px;'>" + "".join(media_chips) + "</div>"
 clicked = click_detector(media_html, key="rd_media_det")
 if clicked and clicked.startswith("media__"):
     m = clicked.replace("media__", "")
