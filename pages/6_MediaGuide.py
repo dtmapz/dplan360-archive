@@ -368,6 +368,33 @@ def fetch_link_content(url):
         return ""
 
 
+def find_relevant_guides(question, all_guides):
+    """질문 키워드와 매칭되는 노션 가이드 찾기"""
+    q_lower = question.lower()
+    q_words = set(w for w in q_lower.split() if len(w) >= 2)
+
+    scored = []
+    for g in all_guides:
+        content_lower = g["content"].lower()
+        guide_lower = g["guide"].lower()
+        media_lower = g["media"].lower()
+
+        score = 0
+        for word in q_words:
+            if word in guide_lower:
+                score += 3
+            if word in media_lower:
+                score += 2
+            if word in content_lower:
+                score += 1
+
+        if score > 0:
+            scored.append((score, g))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [g for _, g in scored]
+
+
 def find_relevant_links(question, links):
     """질문 키워드와 매칭되는 링크 찾기"""
     q_lower = question.lower()
