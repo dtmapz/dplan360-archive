@@ -329,6 +329,26 @@ def load_reference_links():
 
 
 @st.cache_data(ttl=86400)
+def fetch_gitbook_llms_txt(base_url):
+    """GitBook의 llms.txt에서 하위 페이지 링크 목록 조회"""
+    try:
+        import requests
+        # base_url에서 도메인 부분 추출
+        from urllib.parse import urlparse
+        parsed = urlparse(base_url)
+        llms_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path.rstrip('/')}/llms.txt"
+        resp = requests.get(llms_url, timeout=10)
+        if resp.status_code != 200:
+            return []
+        # llms.txt에서 URL 추출
+        import re
+        urls = re.findall(r'https?://[^\s\)]+\.md', resp.text)
+        return list(set(urls))[:50]  # 최대 50개
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=86400)
 def fetch_link_content(url):
     """링크 fetch → 텍스트 반환 (24시간 캐시)"""
     try:
@@ -351,25 +371,49 @@ def fetch_link_content(url):
             except Exception:
                 pass
 
-        # BeautifulSoup 사용 (더 안정적)
+        # BeautifulSoup 사용
         try:
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(resp.text, "html.parser")
-            # 불필요한 태그 제거
             for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
                 tag.decompose()
             text = soup.get_text(separator="\n", strip=True)
-            return text[:8000] if text else f"⚠️ 파싱 결과 빈 텍스트 (HTML 길이: {len(resp.text)})"
+            return text[:8000] if text else f"⚠️ 빈 텍스트 (HTML {len(resp.text)}자)"
         except ImportError:
-            # BeautifulSoup 없으면 간단히 태그 제거
             import re
             text = re.sub(r"<script[^>]*>.*?</script>", "", resp.text, flags=re.DOTALL | re.IGNORECASE)
             text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
             text = re.sub(r"<[^>]+>", " ", text)
             text = re.sub(r"\s+", " ", text).strip()
-            return text[:8000] if text else f"⚠️ 파싱 결과 빈 텍스트"
+            return text[:8000] if text else f"⚠️ 빈 텍스트"
     except Exception as e:
         return f"⚠️ fetch 실패: {type(e).__name__}: {str(e)[:200]}"
+
+
+def fetch_gitbook_with_search(base_url, question):
+    """GitBook의 ?ask= 파라미터로 AI 질의 (하위 문서 전체 검색)"""
+    try:
+        import requests
+        from urllib.parse import quote
+        # GitBook의 master.md에 ?ask= 붙여서 AI 질의
+        parsed_url = base_url.rstrip("/")
+        # 이미 .md면 그대로, 아니면 /master.md 또는 llms.txt에서 가져온 형태로
+        if not parsed_url.endswith(".md"):
+            # GitBook 루트 문서 규칙
+            if "/main" in parsed_url or "/guide" in parsed_url or "/business.daangn" in parsed_url:
+                ask_url = f"{parsed_url}.md" if parsed_url.count("/") > 3 else f"{parsed_url}/master.md"
+            else:
+                ask_url = f"{parsed_url}/master.md"
+        else:
+            ask_url = parsed_url
+
+        ask_url = f"{ask_url}?ask={quote(question)}"
+        resp = requests.get(ask_url, timeout=20)
+        if resp.status_code == 200 and len(resp.text) > 100:
+            return resp.text[:8000]
+        return ""
+    except Exception:
+        return ""
 
 
 def find_relevant_guides(question, all_guides):
@@ -528,10 +572,19 @@ def answer_with_fallback(question, all_guides):
     if relevant_links:
         parts = []
         for link in relevant_links[:3]:
-            content = fetch_link_content(link["url"])
-            debug_log.append(f"  fetch {link['url'][:50]}: {len(content)}자")
-            if content:
-                parts.append(f"[링크: {link.get('title') or link['url']}]\n{content}")
+            url = link["url"]
+            # GitBook은 ?ask= 로 AI 검색
+            if "gitbook.io" in url:
+                content = fetch_gitbook_with_search(url, question)
+                debug_log.append(f"  gitbook ask {url[:50]}: {len(content)}자")
+                if not content:
+                    content = fetch_link_content(url)
+                    debug_log.append(f"  gitbook fallback fetch: {len(content)}자")
+            else:
+                content = fetch_link_content(url)
+                debug_log.append(f"  fetch {url[:50]}: {len(content)}자")
+            if content and not content.startswith("⚠️"):
+                parts.append(f"[링크: {link.get('title') or url}]\n{content}")
                 link_refs.append(link)
         link_context = "\n\n---\n\n".join(parts)
 
