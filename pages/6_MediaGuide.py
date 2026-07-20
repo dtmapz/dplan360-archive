@@ -25,7 +25,6 @@ notion = Client(auth=NOTION_TOKEN)
 # ============================
 @st.cache_data(ttl=600)
 def get_hub_children():
-    """워크스페이스에서 DPLAN360 허브를 찾고, 그 하위 매체 페이지 목록 반환"""
     resp = notion.search(filter={"property": "object", "value": "page"}, page_size=100)
     hub_id = None
     for page in resp["results"]:
@@ -48,10 +47,7 @@ def get_hub_children():
     pages = []
     for block in results:
         if block["type"] == "child_page":
-            pages.append({
-                "id": block["id"],
-                "title": block["child_page"]["title"],
-            })
+            pages.append({"id": block["id"], "title": block["child_page"]["title"]})
         elif block["type"] == "column_list" and block.get("has_children"):
             columns = notion.blocks.children.list(block_id=block["id"], page_size=100)["results"]
             for col in columns:
@@ -59,16 +55,12 @@ def get_hub_children():
                     col_children = notion.blocks.children.list(block_id=col["id"], page_size=100)["results"]
                     for child in col_children:
                         if child["type"] == "child_page":
-                            pages.append({
-                                "id": child["id"],
-                                "title": child["child_page"]["title"],
-                            })
+                            pages.append({"id": child["id"], "title": child["child_page"]["title"]})
     return pages
 
 
 @st.cache_data(ttl=600)
 def get_sub_pages(page_id: str):
-    """매체 페이지의 하위 가이드 페이지 목록"""
     results = []
     cursor = None
     while True:
@@ -80,16 +72,12 @@ def get_sub_pages(page_id: str):
     pages = []
     for block in results:
         if block["type"] == "child_page":
-            pages.append({
-                "id": block["id"],
-                "title": block["child_page"]["title"],
-            })
+            pages.append({"id": block["id"], "title": block["child_page"]["title"]})
     return pages
 
 
 @st.cache_data(ttl=600)
 def get_page_blocks(page_id: str):
-    """페이지의 모든 블록 가져오기"""
     results = []
     cursor = None
     while True:
@@ -102,7 +90,6 @@ def get_page_blocks(page_id: str):
 
 
 def get_page_meta(page_id: str):
-    """페이지 메타 정보"""
     page = notion.pages.retrieve(page_id=page_id)
     last_edited = page.get("last_edited_time", "")[:10]
     return last_edited
@@ -300,7 +287,6 @@ AI_LINKS_SHEET_NAME = "ai_reference_links"
 
 @st.cache_data(ttl=300)
 def load_reference_links():
-    """시트에서 관리자 등록 링크 목록 조회"""
     try:
         from google.oauth2 import service_account
         import gspread
@@ -316,7 +302,6 @@ def load_reference_links():
         sh = gc.open_by_key(SHEET_ID)
         ws = sh.worksheet(AI_LINKS_SHEET_NAME)
         rows = ws.get_all_records()
-        # 빈 링크 제외
         return [
             {"media": str(r.get("매체", "")).strip(),
              "url": str(r.get("링크", "")).strip(),
@@ -324,33 +309,29 @@ def load_reference_links():
             for r in rows
             if str(r.get("링크", "")).strip()
         ]
-    except Exception as e:
+    except Exception:
         return []
 
 
 @st.cache_data(ttl=86400)
 def fetch_gitbook_llms_txt(base_url):
-    """GitBook의 llms.txt에서 하위 페이지 링크 목록 조회"""
     try:
         import requests
-        # base_url에서 도메인 부분 추출
         from urllib.parse import urlparse
         parsed = urlparse(base_url)
         llms_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path.rstrip('/')}/llms.txt"
         resp = requests.get(llms_url, timeout=10)
         if resp.status_code != 200:
             return []
-        # llms.txt에서 URL 추출
         import re
         urls = re.findall(r'https?://[^\s\)]+\.md', resp.text)
-        return list(set(urls))[:50]  # 최대 50개
+        return list(set(urls))[:50]
     except Exception:
         return []
 
 
 @st.cache_data(ttl=86400)
 def fetch_link_content(url):
-    """링크 fetch → 텍스트 반환 (24시간 캐시)"""
     try:
         import requests
         headers = {
@@ -361,7 +342,6 @@ def fetch_link_content(url):
         resp = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
         resp.raise_for_status()
 
-        # GitBook은 .md 붙이면 마크다운 반환
         if "gitbook.io" in url and not url.endswith(".md"):
             try:
                 md_url = url.rstrip("/") + ".md"
@@ -371,35 +351,30 @@ def fetch_link_content(url):
             except Exception:
                 pass
 
-        # BeautifulSoup 사용
         try:
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(resp.text, "html.parser")
             for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
                 tag.decompose()
             text = soup.get_text(separator="\n", strip=True)
-            return text[:8000] if text else f"⚠️ 빈 텍스트 (HTML {len(resp.text)}자)"
+            return text[:8000] if text else ""
         except ImportError:
             import re
             text = re.sub(r"<script[^>]*>.*?</script>", "", resp.text, flags=re.DOTALL | re.IGNORECASE)
             text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
             text = re.sub(r"<[^>]+>", " ", text)
             text = re.sub(r"\s+", " ", text).strip()
-            return text[:8000] if text else f"⚠️ 빈 텍스트"
-    except Exception as e:
-        return f"⚠️ fetch 실패: {type(e).__name__}: {str(e)[:200]}"
+            return text[:8000] if text else ""
+    except Exception:
+        return ""
 
 
 def fetch_gitbook_with_search(base_url, question):
-    """GitBook의 ?ask= 파라미터로 AI 질의 (하위 문서 전체 검색)"""
     try:
         import requests
         from urllib.parse import quote
-        # GitBook의 master.md에 ?ask= 붙여서 AI 질의
         parsed_url = base_url.rstrip("/")
-        # 이미 .md면 그대로, 아니면 /master.md 또는 llms.txt에서 가져온 형태로
         if not parsed_url.endswith(".md"):
-            # GitBook 루트 문서 규칙
             if "/main" in parsed_url or "/guide" in parsed_url or "/business.daangn" in parsed_url:
                 ask_url = f"{parsed_url}.md" if parsed_url.count("/") > 3 else f"{parsed_url}/master.md"
             else:
@@ -417,7 +392,6 @@ def fetch_gitbook_with_search(base_url, question):
 
 
 def find_relevant_guides(question, all_guides):
-    """질문 키워드와 매칭되는 노션 가이드 찾기"""
     q_lower = question.lower()
     q_words = set(w for w in q_lower.split() if len(w) >= 2)
 
@@ -444,7 +418,6 @@ def find_relevant_guides(question, all_guides):
 
 
 def find_relevant_links(question, links):
-    """질문 키워드와 매칭되는 링크 찾기"""
     q_lower = question.lower()
     q_words = set(w for w in q_lower.split() if len(w) >= 2)
 
@@ -468,7 +441,6 @@ def find_relevant_links(question, links):
 
 
 def get_gemini_response(question, notion_context, link_context, use_web_search=False):
-    """Gemini API 호출 → 답변 반환 (3단계 fallback)"""
     try:
         from google import genai
         from google.genai import types
@@ -520,7 +492,6 @@ def get_gemini_response(question, notion_context, link_context, use_web_search=F
 
 
 def is_answer_insufficient(answer):
-    """답변이 부족한지 판단"""
     insufficient_phrases = [
         "해당 자료에는 없습니다",
         "해당 가이드에는 없습니다",
@@ -532,12 +503,7 @@ def is_answer_insufficient(answer):
 
 
 def answer_with_fallback(question, all_guides):
-    """3단계 fallback으로 답변 생성
-
-    반환: (answer, notion_refs, link_refs)
-    """
-    debug_log = []
-
+    """3단계 fallback으로 답변 생성. 반환: (answer, notion_refs, link_refs)"""
     # 1단계: Notion 가이드
     relevant_guides = find_relevant_guides(question, all_guides)
     notion_context = ""
@@ -552,20 +518,14 @@ def answer_with_fallback(question, all_guides):
             })
         notion_context = "\n\n---\n\n".join(parts)
 
-    debug_log.append(f"1단계 Notion: {len(relevant_guides)}개 가이드 매칭")
-
     answer = get_gemini_response(question, notion_context, "", use_web_search=False)
-    debug_log.append(f"1단계 답변 부족? {is_answer_insufficient(answer)}")
 
     if not is_answer_insufficient(answer):
         return answer, notion_refs[:3], []
 
     # 2단계: 관리자 등록 링크
     links = load_reference_links()
-    debug_log.append(f"2단계 시트 링크 로드: {len(links)}개")
-
     relevant_links = find_relevant_links(question, links)
-    debug_log.append(f"2단계 관련 링크 매칭: {len(relevant_links)}개")
 
     link_context = ""
     link_refs = []
@@ -573,16 +533,12 @@ def answer_with_fallback(question, all_guides):
         parts = []
         for link in relevant_links[:3]:
             url = link["url"]
-            # GitBook은 ?ask= 로 AI 검색
             if "gitbook.io" in url:
                 content = fetch_gitbook_with_search(url, question)
-                debug_log.append(f"  gitbook ask {url[:50]}: {len(content)}자")
                 if not content:
                     content = fetch_link_content(url)
-                    debug_log.append(f"  gitbook fallback fetch: {len(content)}자")
             else:
                 content = fetch_link_content(url)
-                debug_log.append(f"  fetch {url[:50]}: {len(content)}자")
             if content and not content.startswith("⚠️"):
                 parts.append(f"[링크: {link.get('title') or url}]\n{content}")
                 link_refs.append(link)
@@ -590,41 +546,12 @@ def answer_with_fallback(question, all_guides):
 
     if link_context:
         answer = get_gemini_response(question, notion_context, link_context, use_web_search=False)
-        debug_log.append(f"2단계 답변 부족? {is_answer_insufficient(answer)}")
         if not is_answer_insufficient(answer):
-            debug_info = "\n\n---\n🔍 디버그:\n" + "\n".join(debug_log)
-            return answer + debug_info, notion_refs[:3], link_refs
+            return answer, notion_refs[:3], link_refs
 
     # 3단계: 웹 검색
-    debug_log.append("3단계 웹 검색 시도")
     answer = get_gemini_response(question, notion_context, link_context, use_web_search=True)
-    debug_info = "\n\n---\n🔍 디버그:\n" + "\n".join(debug_log)
-    return answer + debug_info, notion_refs[:3], link_refs
-    """질문 키워드와 매칭되는 가이드 찾기 (간단한 텍스트 매칭)"""
-    q_lower = question.lower()
-    q_words = set(w for w in q_lower.split() if len(w) >= 2)
-
-    scored = []
-    for g in all_guides:
-        content_lower = g["content"].lower()
-        guide_lower = g["guide"].lower()
-        media_lower = g["media"].lower()
-
-        # 스코어링: 제목 매칭 3점, 매체명 매칭 2점, 본문 단어 매칭 1점씩
-        score = 0
-        for word in q_words:
-            if word in guide_lower:
-                score += 3
-            if word in media_lower:
-                score += 2
-            if word in content_lower:
-                score += 1
-
-        if score > 0:
-            scored.append((score, g))
-
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return [g for _, g in scored]
+    return answer, notion_refs[:3], link_refs
 
 
 # ============================
@@ -669,13 +596,11 @@ if st.session_state["mg_mode"] == "ai":
         unsafe_allow_html=True,
     )
 
-    # 대화 히스토리
     if "mg_chat" not in st.session_state:
         st.session_state["mg_chat"] = [
             {"role": "ai", "text": "안녕하세요! 매체 가이드 관련 궁금한 점을 편하게 물어보세요.<br>예) \"네이버 GFA 계정 이관은 어떻게 하나요?\"", "sources": []}
         ]
 
-    # 새 질문 처리
     if ai_question and ai_question != st.session_state.get("_mg_last_q"):
         st.session_state["_mg_last_q"] = ai_question
         st.session_state["mg_chat"].append({"role": "user", "text": ai_question})
@@ -691,7 +616,6 @@ if st.session_state["mg_mode"] == "ai":
             })
         st.rerun()
 
-    # 대화창 렌더링
     chat_html = "<div style='border:0.5px solid #ddd;border-radius:8px;background:#fafafa;padding:12px 4px;max-height:600px;overflow-y:auto;'>"
     for msg in st.session_state["mg_chat"]:
         if msg["role"] == "user":
@@ -752,12 +676,10 @@ if st.session_state["mg_mode"] == "ai":
                 st.session_state["_mg_dialog_media"] = media_id
                 st.rerun()
 
-    # 팝업 표시
     if "_mg_dialog_guide" in st.session_state:
         dialog_guide_id = st.session_state["_mg_dialog_guide"]
         dialog_media_id = st.session_state.get("_mg_dialog_media")
 
-        # 제목 조회
         dialog_title = ""
         dialog_media_title = ""
         for m in media_pages:
@@ -772,6 +694,9 @@ if st.session_state["mg_mode"] == "ai":
 
         @st.dialog(f"{dialog_media_title} · {dialog_title}", width="large")
         def show_guide_dialog():
+            st.session_state.pop("_mg_dialog_guide", None)
+            st.session_state.pop("_mg_dialog_media", None)
+
             page_meta = get_page_meta(dialog_guide_id)
             st.markdown(
                 f"<div style='font-size:11px;color:var(--text-muted);margin-bottom:12px;'>"
@@ -795,11 +720,6 @@ if st.session_state["mg_mode"] == "ai":
             render_blocks(blocks)
             st.markdown("</div>", unsafe_allow_html=True)
 
-            if st.button("닫기", key="mg_dialog_close", use_container_width=True):
-                del st.session_state["_mg_dialog_guide"]
-                st.session_state.pop("_mg_dialog_media", None)
-                st.rerun()
-
         show_guide_dialog()
 
     st.stop()
@@ -807,7 +727,6 @@ if st.session_state["mg_mode"] == "ai":
 # ============================
 # 검색 모드
 # ============================
-# 검색 실행
 if search_kw:
     all_guides = search_all_guides(tuple(frozenset(m.items()) for m in media_pages))
     results = []
@@ -845,7 +764,6 @@ if search_kw:
                 st.session_state["mg_search_selected"] = clicked_id
                 st.rerun()
 
-        # 선택된 가이드 본문 렌더링
         if selected_search_id:
             selected_guide = next((r for r in results if r["guide_id"] == selected_search_id), None)
             if selected_guide:
@@ -877,11 +795,9 @@ if search_kw:
         st.info(f"'{search_kw}'에 대한 검색 결과가 없습니다.")
 
 else:
-    # 매체 + 가이드 칩을 하나의 click_detector로 통합
     selected_media_id = st.session_state.get("mg_media")
     selected_guide_id = st.session_state.get("mg_guide")
 
-    # 매체 칩 HTML
     media_chips = []
     for m in media_pages:
         is_active = (m["id"] == selected_media_id)
@@ -901,7 +817,6 @@ else:
 
     combined_html = "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;'>" + "".join(media_chips) + "</div>"
 
-    # 가이드 칩 HTML
     sub_pages = []
     if selected_media_id:
         sub_pages = get_sub_pages(selected_media_id)
@@ -927,7 +842,6 @@ else:
         else:
             st.session_state["mg_guide"] = selected_media_id
 
-    # 통합 click_detector
     clicked = click_detector(combined_html, key="mg_chip_det")
     if clicked:
         if clicked.startswith("media__"):
@@ -942,7 +856,6 @@ else:
                 st.session_state["mg_guide"] = clicked_id
                 st.rerun()
 
-    # 가이드 본문 렌더링
     if "mg_guide" in st.session_state:
         guide_id = st.session_state["mg_guide"]
 
