@@ -341,3 +341,36 @@ def update_creative_guide_name(guide_id, new_product_name):
 
 def delete_creative_guide(guide_id):
     return get_client().table("creative_guides").delete().eq("id", guide_id).execute()
+
+
+# ---------- organization (report download 담당자 필터용) ----------
+
+@st.cache_data(ttl=1800)
+def get_org_by_email(email: str) -> dict | None:
+    """이메일로 조직 정보 조회. 없으면 None."""
+    if not email:
+        return None
+    sb = get_client()
+    res = (
+        sb.table("organization")
+        .select("division, team, name, position")
+        .eq("email", email)
+        .limit(1)
+        .execute()
+    )
+    return res.data[0] if res.data else None
+
+
+@st.cache_data(ttl=1800)
+def get_all_org_members() -> list[dict]:
+    """organization 전체 조회 (admin impersonate용)."""
+    sb = get_client()
+    res = (
+        sb.table("organization")
+        .select("division, team, name, position, email")
+        .order("division")
+        .order("team")
+        .order("name")
+        .execute()
+    )
+    return res.data
