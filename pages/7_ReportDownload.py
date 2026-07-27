@@ -1,7 +1,8 @@
 import streamlit as st
 from datetime import date, timedelta
 import io
-from utils.auth import get_current_user
+from utils.auth import get_current_user, is_admin
+from utils.db import get_org_by_email, get_all_org_members
 from utils.ui import set_current_page
 
 set_current_page("report_download")
@@ -75,6 +76,57 @@ def get_unique_advertisers(mapping):
         if adv and adv != "종료":
             names.add(adv)
     return sorted(names)
+
+
+# 본부 단위 조회 권한 직급 (실장/본부장은 division 전체 조회)
+DIVISION_LEVEL_POSITIONS = {"실장", "본부장"}
+
+
+def filter_mapping_by_user(mapping, user_email, impersonate_email=None):
+    """로그인 유저 권한에 맞게 매핑 필터링.
+    - admin: 전체 노출 (단, impersonate_email 지정 시 그 유저 시야로 렌더)
+    - 실장/본부장: 같은 담당본부 전체
+    - 그 외: 같은 담당본부 + 담당팀 일치
+    - 조직 정보 없음: 빈 리스트 반환 (호출부에서 안내 처리)
+    """
+    if impersonate_email:
+        # 관리자 미리보기 모드 — impersonate 유저 관점으로 필터
+        org = get_org_by_email(impersonate_email)
+        if not org:
+            return [], {"scope": "unknown", "impersonate": impersonate_email}
+    elif is_admin():
+        return mapping, {"scope": "admin"}
+    else:
+        org = get_org_by_email(user_email)
+        if not org:
+            return [], {"scope": "unknown"}
+
+    division = (org.get("division") or "").strip()
+    team = (org.get("team") or "").strip()
+    position = (org.get("position") or "").strip()
+    name = (org.get("name") or "").strip()
+
+    if position in DIVISION_LEVEL_POSITIONS:
+        filtered = [
+            r for r in mapping
+            if str(r.get("담당본부", "")).strip() == division
+        ]
+        return filtered, {
+            "scope": "division", "division": division, "team": team,
+            "position": position, "name": name,
+            "impersonate": impersonate_email,
+        }
+
+    filtered = [
+        r for r in mapping
+        if str(r.get("담당본부", "")).strip() == division
+        and str(r.get("담당팀", "")).strip() == team
+    ]
+    return filtered, {
+        "scope": "team", "division": division, "team": team,
+        "position": position, "name": name,
+        "impersonate": impersonate_email,
+    }
 
 
 def get_accounts_for_advertiser(mapping, advertiser, selected_media):
@@ -184,9 +236,80 @@ except Exception as e:
     st.error(f"매핑 시트 조회 실패: {e}")
     st.stop()
 
+user_email = (user or {}).get("email", "")
+
+# ============================
+# 관리자 전용: 다른 유저 관점으로 미리보기
+# ============================
+impersonate_email = None
+if is_admin():
+    with st.expander("🎭 다른 유저로 보기 (관리자 전용)", expanded=False):
+        st.caption(
+            "다른 팀원 관점에서 어떤 광고주가 노출되는지 확인할 때 사용하세요. "
+            "선택 해제하면 원래 관리자 시야로 돌아갑니다."
+        )
+        try:
+            members = get_all_org_members()
+        except Exception as e:
+            st.error(f"organization 조회 실패: {e}")
+            members = []
+
+        options = ["(선택 안 함 — 관리자 시야)"] + [
+            f"{m.get('division', '')} / {m.get('team', '')} / "
+            f"{m.get('name', '')} ({m.get('position', '')}) — {m.get('email', '')}"
+            for m in members if m.get("email")
+        ]
+        selected_idx = st.selectbox(
+            "미리보기 대상",
+            range(len(options)),
+            format_func=lambda i: options[i],
+            key="rd_impersonate_idx",
+        )
+        if selected_idx > 0:
+            impersonate_email = members[selected_idx - 1].get("email")
+
+# 로그인 유저 권한에 맞게 필터 (impersonate 우선)
+mapping, access = filter_mapping_by_user(mapping, user_email, impersonate_email)
+
+if access.get("impersonate"):
+    st.markdown(
+        f"<div style='background:#FFF8E1;border-left:3px solid #F2A93B;"
+        f"padding:8px 14px;border-radius:6px;font-size:12px;margin-bottom:12px;'>"
+        f"🎭 관리자 미리보기 중: <b>{access.get('name', '')}</b> "
+        f"({access.get('division', '')} {access.get('team', '')} · {access.get('position', '')})"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+if access["scope"] == "unknown":
+    st.warning(
+        "소속 조직 정보를 찾을 수 없습니다. "
+        "관리자에게 문의해 organization 테이블에 계정을 등록해주세요."
+    )
+    st.stop()
+
 advertisers = get_unique_advertisers(mapping)
+
+# 접근 권한 안내 라인
+if access["scope"] == "admin":
+    scope_label = "전체 광고주 (관리자)"
+elif access["scope"] == "division":
+    scope_label = f"{access['division']} 전체 ({access['position']} 권한)"
+else:
+    scope_label = f"{access['division']} {access['team']}"
+
+st.markdown(
+    f"<div style='font-size:12px;color:var(--text-muted);margin-bottom:8px;'>"
+    f"본인 접근 범위: <b>{scope_label}</b> · 담당 광고주 {len(advertisers)}개"
+    f"</div>",
+    unsafe_allow_html=True,
+)
+
 if not advertisers:
-    st.warning("등록된 광고주가 없습니다.")
+    st.warning(
+        "담당하는 광고주가 없습니다. "
+        "매핑 시트의 담당본부/담당팀 값 배정을 확인해주세요."
+    )
     st.stop()
 
 # 기간 + 광고주 (한 행)
