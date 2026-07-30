@@ -1,5 +1,10 @@
 import streamlit as st
-from utils import db
+from utils.sheets import (
+    search_media,
+    get_major_categories,
+    get_sub_categories,
+    get_media_by_category,
+)
 from utils.ui import request_register, render_pending_dialog, render_result_table, render_contact_table, set_current_page
 
 set_current_page("home")
@@ -13,7 +18,6 @@ mode = st.segmented_control(
 )
 
 if mode == "매체":
-    # 입력창에서 엔터(제출) 시 바로 검색 실행
     media_keyword = st.text_input(
         "매체명", placeholder="매체명을 입력하세요 (Enter로 검색)",
         label_visibility="collapsed",
@@ -22,8 +26,8 @@ if mode == "매체":
         st.session_state["_last_media_keyword"] = media_keyword
         st.session_state["search_term"] = media_keyword
 
-else:  # 카테고리 모드
-    majors = db.get_major_categories()
+else:
+    majors = get_major_categories()
     col_major, col_sub = st.columns([1, 1])
 
     with col_major:
@@ -31,7 +35,7 @@ else:  # 카테고리 모드
 
     with col_sub:
         if major_sel == "05 버티컬 미디어":
-            subs = db.get_sub_categories(major_sel)
+            subs = get_sub_categories(major_sel)
             sub_sel = st.selectbox(
                 "중분류", subs, index=None,
                 placeholder="중분류를 선택하세요", label_visibility="collapsed",
@@ -40,7 +44,6 @@ else:  # 카테고리 모드
             sub_sel = None
             st.selectbox("중분류", ["(해당 없음)"], label_visibility="collapsed", disabled=True)
 
-    # 중분류가 있는 카테고리면 중분류 선택 즉시, 없으면 대분류 선택 즉시 검색
     if major_sel == "05 버티컬 미디어":
         if sub_sel:
             st.session_state["search_term"] = sub_sel
@@ -55,11 +58,11 @@ st.divider()
 keyword = st.session_state["search_term"]
 if keyword:
     st.markdown("#### 검색 결과")
-    results = db.search_media(keyword)
+    results = search_media(keyword)
     render_result_table(results, key_prefix="search")
 else:
     st.markdown("#### 주요 매체 컨택포인트")
-    default_list = db.get_media_by_category("01 매스미디어")
+    default_list = get_media_by_category("01 매스미디어")
     render_contact_table(default_list)
 
 render_pending_dialog()

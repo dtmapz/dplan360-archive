@@ -1,5 +1,12 @@
 import streamlit as st
-from utils import db
+from utils.sheets import (
+    get_major_categories,
+    get_sub_categories,
+    get_media_detail,
+    update_media_info,
+    create_media_info,
+    to_download_url,
+)
 
 NAVY = "#1E2761"
 ICE = "#CADCFC"
@@ -41,10 +48,8 @@ def inject_base_style() -> None:
             white-space: nowrap;
         }
 
-        /* segmented_control 텍스트를 버튼 텍스트와 동일하게 (14px) */
         div[data-testid="stSegmentedControl"] * { font-size: 14px !important; }
 
-        /* 마일스톤 카드(매체 버튼)와 05 익스팬더 높이 통일 (48px) */
         div[data-testid="stExpander"] { margin-bottom: 8px !important; }
         div[data-testid="stExpander"] summary {
             height: 48px !important;
@@ -57,7 +62,6 @@ def inject_base_style() -> None:
             font-size: 14px !important;
             margin: 0 !important;
         }
-        /* 탭 폰트 크기를 리스트 행사 폰트와 통일 */
         div[data-testid="stTabs"] button p {
             font-size: 13px !important;
         }
@@ -68,7 +72,6 @@ def inject_base_style() -> None:
 
 
 def set_current_page(page_name: str) -> None:
-    """각 페이지 상단에서 호출. 팝업이 어느 페이지에서 열렸는지 추적하기 위함."""
     st.session_state["_current_page"] = page_name
 
 
@@ -78,13 +81,6 @@ def _current_page() -> str:
 
 # ---------------------------------------------------------------------------
 # 단일 dialog 디스패처
-# - 같은 실행(run) 안에서 dialog 함수가 두 번 이상 호출되면 Streamlit이 에러를 내므로,
-#   모든 버튼은 session_state에 "어떤 dialog를 열지"만 기록하고, 페이지 마지막에
-#   render_pending_dialog() 한 번만 호출해서 실제로 연다.
-# - Streamlit의 dialog는 X(닫기)/ESC로 닫아도 session_state가 자동으로 비워지지 않는다.
-#   그 상태로 다른 페이지로 이동하면 session_state가 그대로 남아있어 팝업이 다시 떠버린다.
-#   이를 막기 위해 dialog를 열 때 "어느 페이지에서 열렸는지"를 같이 저장해두고,
-#   현재 페이지와 다르면 자동으로 폐기(클리어)한다.
 # ---------------------------------------------------------------------------
 
 def request_detail(media_id: str) -> None:
@@ -93,7 +89,6 @@ def request_detail(media_id: str) -> None:
 
 
 def request_update(media_id: str) -> None:
-    """상세 팝업을 곧바로 수정(편집) 모드로 열기"""
     st.session_state[f"edit_{media_id}"] = True
     st.session_state["_active_dialog"] = ("detail", media_id, _current_page())
     st.rerun()
@@ -114,7 +109,6 @@ def render_pending_dialog() -> None:
         st.session_state["_active_dialog"] = None
         return
 
-    # dialog 호출 전 session_state 클리어 (X 닫기 또는 재실행 시 중복 방지)
     st.session_state["_active_dialog"] = None
 
     if kind == "detail":
@@ -130,7 +124,7 @@ def _close_dialog() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 카드 그리드 (마일스톤, 매체명만 표시, 콘텐츠 양만큼 자동 줄바꿈)
+# 카드 그리드
 # ---------------------------------------------------------------------------
 
 def render_media_grid(media_list: list[dict], key_prefix: str, n_cols: int = 5) -> None:
@@ -153,7 +147,7 @@ def render_media_grid(media_list: list[dict], key_prefix: str, n_cols: int = 5) 
 
 
 # ---------------------------------------------------------------------------
-# 표 형태 결과 (검색 결과 전용 - 상세버튼 포함)
+# 검색 결과 표
 # ---------------------------------------------------------------------------
 
 def render_result_table(media_list: list[dict], key_prefix: str) -> None:
@@ -180,13 +174,23 @@ def render_result_table(media_list: list[dict], key_prefix: str) -> None:
         phone = contact.get("phone") or ""
         email = contact.get("email") or ""
         team_email = contact.get("team_email") or ""
+        intro_url = m.get("intro_doc_url") or ""
 
         cols = st.columns(col_ratio)
-        cols[0].write(m["name"])
+        # 매체명 — 소개서 URL 있으면 하이퍼링크
+        if intro_url:
+            cols[0].markdown(
+                f"<a href='{intro_url}' target='_blank' rel='noopener' "
+                f"style='color:#0B0B0B; text-decoration:underline; "
+                f"text-decoration-color:#B0B0B0; text-underline-offset:3px;' "
+                f"title='매체소개서 열기'>{m['name']}</a>",
+                unsafe_allow_html=True,
+            )
+        else:
+            cols[0].write(m["name"])
         cols[1].write(contact.get("manager_name") or "-")
         cols[2].write(contact.get("position") or "-")
 
-        # 연락처: 전화번호 클릭 시 tel: 링크
         if phone:
             cols[3].markdown(
                 f"<a href='tel:{phone.replace('-','')}' style='color:#0B0B0B;'>{phone}</a>",
@@ -198,11 +202,9 @@ def render_result_table(media_list: list[dict], key_prefix: str) -> None:
         cols[4].write(email or "-")
         cols[5].write(team_email or "-")
 
-        # 업데이트
         if cols[6].button("업데이트", key=f"upd_{key_prefix}_{m['id']}", use_container_width=True):
             request_update(m["id"])
 
-        # 메일
         has_email = bool(email or team_email)
         if has_email:
             if cols[7].button("메일", key=f"mail_{key_prefix}_{m['id']}", use_container_width=True):
@@ -211,8 +213,9 @@ def render_result_table(media_list: list[dict], key_prefix: str) -> None:
         else:
             cols[7].button("메일", key=f"mail_{key_prefix}_{m['id']}", disabled=True, use_container_width=True)
 
+
 # ---------------------------------------------------------------------------
-# HOME 기본 화면용 컨택포인트 표 (클릭 불가, 단순 조회용)
+# HOME 기본 컨택포인트 표
 # ---------------------------------------------------------------------------
 
 def render_contact_table(media_list: list[dict]) -> None:
@@ -240,9 +243,10 @@ def render_contact_table(media_list: list[dict]) -> None:
 # ---------------------------------------------------------------------------
 
 def format_updated_at(value: str | None) -> str:
-    """ISO(UTC) 문자열을 Asia/Seoul 기준 YYYY-MM-DD 로 변환"""
     if not value:
         return "-"
+    if "T" not in str(value):
+        return str(value)
     from datetime import datetime
     from zoneinfo import ZoneInfo
     try:
@@ -254,7 +258,6 @@ def format_updated_at(value: str | None) -> str:
 
 
 def render_contact_detail_table(contact: dict) -> None:
-    """매체 상세 팝업 내 담당자 컨택포인트 - 5행 표 형태"""
     manager_label = " ".join(
         p for p in [contact.get("manager_name"), contact.get("position")] if p
     ) or "-"
@@ -277,7 +280,7 @@ def render_contact_detail_table(contact: dict) -> None:
 
 @st.dialog("매체 상세 정보")
 def _detail_dialog(media_id: str) -> None:
-    m = db.get_media_detail(media_id)
+    m = get_media_detail(media_id)
     contact = (m.get("contacts") or [{}])[0] if m.get("contacts") else {}
     cat = m.get("categories") or {}
 
@@ -294,12 +297,26 @@ def _detail_dialog(media_id: str) -> None:
     if not edit_mode:
         st.write("**매체소개서**")
         if m.get("intro_doc_url"):
-            st.link_button("확인 / 다운로드", m["intro_doc_url"])
+            col_view, col_dl = st.columns([1, 1])
+            with col_view:
+                st.link_button("확인", m["intro_doc_url"], use_container_width=True)
+            with col_dl:
+                st.link_button("다운로드", to_download_url(m["intro_doc_url"]),
+                              use_container_width=True)
         else:
             st.caption("등록된 소개서 링크가 없습니다.")
 
         st.write("**담당자 컨택 포인트**")
         render_contact_detail_table(contact)
+
+        if m.get("memo"):
+            st.write("**메모**")
+            st.markdown(
+                f"<div style='background:#F6F8FC; border:1px solid #E5EAF5; "
+                f"border-radius:8px; padding:10px 12px; font-size:13px; "
+                f"white-space:pre-wrap; line-height:1.5;'>{m['memo']}</div>",
+                unsafe_allow_html=True,
+            )
 
         st.caption(f"업데이트 일자: {format_updated_at(m.get('updated_at'))}")
 
@@ -308,13 +325,13 @@ def _detail_dialog(media_id: str) -> None:
             st.rerun()
 
     else:
-        majors = db.get_major_categories()
+        majors = get_major_categories()
         cur_major = cat.get("major_category", majors[0] if majors else "")
         major = st.selectbox("대분류", majors, index=majors.index(cur_major) if cur_major in majors else 0)
 
         sub = None
         if major == "05 버티컬 미디어":
-            subs = db.get_sub_categories(major)
+            subs = get_sub_categories(major)
             cur_sub = cat.get("sub_category")
             options = subs + ["+ 새 중분류 추가"]
             default_idx = options.index(cur_sub) if cur_sub in options else 0
@@ -331,14 +348,27 @@ def _detail_dialog(media_id: str) -> None:
         email = st.text_input("담당자 메일", value=contact.get("email") or "")
         team_email = st.text_input("팀메일", value=contact.get("team_email") or "")
         last_contact = st.text_input("마지막 컨택일 (YYYY-MM-DD)", value=contact.get("last_contact_date") or "")
+        memo = st.text_area("메모", value=m.get("memo") or "", height=80,
+                            placeholder="계약 조건 · 특약사항 · 담당자 부재 정보 등 자유 입력")
 
         if st.button("저장", type="primary"):
             if not name or not major or not manager_name:
                 st.error("매체명 / 대분류 / 담당자명은 필수입니다.")
             else:
-                db.update_media(media_id, name, major, sub, doc_url or None)
-                db.upsert_contact(contact.get("id"), media_id, manager_name, position or None,
-                                   phone or None, email or None, team_email or None, last_contact or None)
+                update_media_info(
+                    media_id,
+                    name=name,
+                    major=major,
+                    sub=sub,
+                    doc_url=doc_url or None,
+                    manager_name=manager_name,
+                    position=position or None,
+                    phone=phone or None,
+                    email=email or None,
+                    team_email=team_email or None,
+                    last_contact=last_contact or None,
+                    memo=memo or None,
+                )
                 st.session_state[f"edit_{media_id}"] = False
                 _close_dialog()
                 st.success("저장되었습니다.")
@@ -347,14 +377,14 @@ def _detail_dialog(media_id: str) -> None:
 
 @st.dialog("신규 매체 등록")
 def _register_dialog() -> None:
-    majors = db.get_major_categories()
+    majors = get_major_categories()
     major_options = majors + ["+ 새 대분류 추가"]
     major_choice = st.selectbox("대분류*", major_options)
     major = st.text_input("새 대분류명 입력") if major_choice == "+ 새 대분류 추가" else major_choice
 
     sub = None
     if major == "05 버티컬 미디어":
-        subs = db.get_sub_categories(major)
+        subs = get_sub_categories(major)
         sub_options = subs + ["+ 새 중분류 추가"]
         sub_choice = st.selectbox("중분류*", sub_options)
         sub = st.text_input("새 중분류명 입력") if sub_choice == "+ 새 중분류 추가" else sub_choice
@@ -369,17 +399,30 @@ def _register_dialog() -> None:
     email = st.text_input("담당자메일")
     team_email = st.text_input("팀메일")
     last_contact = st.text_input("마지막컨택일 (YYYY-MM-DD)")
+    memo = st.text_area("메모", value="", height=80,
+                        placeholder="계약 조건 · 특약사항 · 담당자 부재 정보 등 자유 입력")
 
     if st.button("등록", type="primary"):
         if not major or not name or not manager_name or (major == "05 버티컬 미디어" and not sub):
             st.error("필수값(대분류 / 중분류(05인 경우) / 매체명 / 담당자명)을 확인해주세요.")
         else:
-            db.create_media(name, major, sub, doc_url or None, manager_name,
-                             position or None, phone or None, email or None,
-                             team_email or None, last_contact or None)
+            create_media_info(
+                name=name,
+                major=major,
+                sub=sub,
+                doc_url=doc_url or None,
+                manager_name=manager_name,
+                position=position or None,
+                phone=phone or None,
+                email=email or None,
+                team_email=team_email or None,
+                last_contact=last_contact or None,
+                memo=memo or None,
+            )
             _close_dialog()
             st.success(f"'{name}' 매체가 등록되었습니다.")
             st.rerun()
+
 
 @st.dialog("메일 보내기")
 def _mail_dialog(payload) -> None:

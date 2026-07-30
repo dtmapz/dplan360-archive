@@ -1,11 +1,15 @@
 import streamlit as st
-from utils import db
+from utils.sheets import (
+    get_all_media_with_categories,
+    get_major_categories,
+    get_sub_categories,
+)
 from utils.ui import render_media_grid, render_pending_dialog, set_current_page
 
-all_media = db.get_all_media()
+all_media = get_all_media_with_categories()
 set_current_page("milestone")
 
-majors = db.get_major_categories()
+majors = get_major_categories()
 m01_04 = [m for m in majors if not m.startswith("05")]
 cat_05 = [m for m in majors if m.startswith("05")]
 
@@ -34,7 +38,7 @@ with right:
         major = cat_05[0]
         with st.container(border=True):
             st.markdown(f"<div class='section-title'>{major}</div>", unsafe_allow_html=True)
-        subs = db.get_sub_categories(major)
+        subs = get_sub_categories(major)
         sub_cols = st.columns(2)
         for i, sub in enumerate(subs):
             with sub_cols[i % 2]:

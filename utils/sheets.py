@@ -126,6 +126,7 @@ def _row_to_media(row: dict, cat_lookup: dict | None = None) -> dict:
         "name": row["매체명"],
         "intro_doc_url": row.get("소개서링크") or None,
         "updated_at": row.get("업데이트일자") or None,
+        "memo": row.get("메모") or None,
         "contacts": [{
             "id": media_id,
             "manager_name": row.get("담당자이름") or None,
@@ -143,6 +144,14 @@ def _row_to_media(row: dict, cat_lookup: dict | None = None) -> dict:
 def get_all_media() -> list[dict]:
     rows = _get_all_media_rows()
     return [{"매체ID": r["매체ID"], "카테고리ID": r["카테고리ID"], "name": r["매체명"]} for r in rows]
+
+
+@st.cache_data(ttl=300)
+def get_all_media_with_categories() -> list[dict]:
+    """마일스톤/그리드용: 전체 매체를 categories 정보와 함께 반환."""
+    rows = _get_all_media_rows()
+    cat_lookup = _build_cat_lookup()
+    return [_row_to_media(r, cat_lookup) for r in rows]
 
 
 @st.cache_data(ttl=300)
@@ -210,6 +219,7 @@ def update_media_info(
     email: str | None,
     team_email: str | None,
     last_contact: str | None,
+    memo: str | None = None,
 ) -> None:
     ws = _get_sheet("media_info")
     if media_id.startswith("_row_"):
@@ -236,8 +246,9 @@ def update_media_info(
         email or "",
         team_email or "",
         last_contact or "",
+        memo or "",
     ]
-    ws.update(values=[row_data], range_name=f"A{row_num}:K{row_num}", value_input_option="USER_ENTERED")
+    ws.update(values=[row_data], range_name=f"A{row_num}:L{row_num}", value_input_option="USER_ENTERED")
     _clear_media_caches()
 
 
@@ -252,6 +263,7 @@ def create_media_info(
     email: str | None,
     team_email: str | None,
     last_contact: str | None,
+    memo: str | None = None,
 ) -> str:
     rows = _get_all_media_rows()
     max_num = 0
@@ -280,6 +292,7 @@ def create_media_info(
         email or "",
         team_email or "",
         last_contact or "",
+        memo or "",
     ]
     ws = _get_sheet("media_info")
     ws.append_row(row_data, value_input_option="USER_ENTERED")
@@ -316,6 +329,28 @@ def parse_sheet_url(url: str) -> tuple[str, int | None]:
     spreadsheet_id = sid_match.group(1) if sid_match else ""
     gid = int(gid_match.group(1)) if gid_match else None
     return spreadsheet_id, gid
+
+
+def to_download_url(url: str) -> str:
+    """Google Drive/Docs URL을 다운로드 URL로 변환. 외부 URL은 그대로 반환."""
+    if not url:
+        return url
+    m = re.search(r"docs\.google\.com/document/d/([a-zA-Z0-9_-]+)", url)
+    if m:
+        return f"https://docs.google.com/document/d/{m.group(1)}/export?format=pdf"
+    m = re.search(r"docs\.google\.com/spreadsheets/d/([a-zA-Z0-9_-]+)", url)
+    if m:
+        return f"https://docs.google.com/spreadsheets/d/{m.group(1)}/export?format=xlsx"
+    m = re.search(r"docs\.google\.com/presentation/d/([a-zA-Z0-9_-]+)", url)
+    if m:
+        return f"https://docs.google.com/presentation/d/{m.group(1)}/export?format=pdf"
+    m = re.search(r"drive\.google\.com/file/d/([a-zA-Z0-9_-]+)", url)
+    if m:
+        return f"https://drive.google.com/uc?export=download&id={m.group(1)}"
+    m = re.search(r"drive\.google\.com/open\?id=([a-zA-Z0-9_-]+)", url)
+    if m:
+        return f"https://drive.google.com/uc?export=download&id={m.group(1)}"
+    return url
 
 
 @st.cache_data(ttl=300, show_spinner=False)
