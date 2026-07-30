@@ -6,3 +6,6 @@ __pycache__/
 *.pyc
 .venv/
 CLAUDE.md
+deploy/
+fill_media_ids.py
+.DS_Store
