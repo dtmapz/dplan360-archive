@@ -361,6 +361,36 @@ def get_org_by_email(email: str) -> dict | None:
     return res.data[0] if res.data else None
 
 
+# ---------- media hub 이미지 업로드 (Supabase Storage) ----------
+
+MEDIA_HUB_IMAGE_BUCKET = "media-hub-images"
+ALLOWED_IMAGE_EXTS = {"png", "jpg", "jpeg", "gif", "webp"}
+MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
+
+
+def upload_notice_image(file_bytes: bytes, filename: str) -> str:
+    """미디어허브 공지용 이미지 업로드 → 공개 URL 반환.
+    파일명은 UUID 기반 (한글 경로/이름 방지, CLAUDE.md §2 규칙).
+    """
+    import uuid
+    if not filename or "." not in filename:
+        raise ValueError("파일명 확장자를 확인할 수 없습니다.")
+    ext = filename.rsplit(".", 1)[-1].lower()
+    if ext not in ALLOWED_IMAGE_EXTS:
+        raise ValueError(f"지원하지 않는 형식: {ext} (허용: {', '.join(sorted(ALLOWED_IMAGE_EXTS))})")
+    if len(file_bytes) > MAX_IMAGE_SIZE:
+        raise ValueError(f"파일 크기 초과: {len(file_bytes)//1024}KB (제한 5MB)")
+
+    key = f"{uuid.uuid4()}.{'jpg' if ext == 'jpeg' else ext}"
+    sb = get_client()
+    sb.storage.from_(MEDIA_HUB_IMAGE_BUCKET).upload(
+        path=key,
+        file=file_bytes,
+        file_options={"content-type": f"image/{'jpeg' if ext == 'jpg' else ext}"},
+    )
+    return sb.storage.from_(MEDIA_HUB_IMAGE_BUCKET).get_public_url(key)
+
+
 @st.cache_data(ttl=1800)
 def get_all_org_members() -> list[dict]:
     """organization 전체 조회 (admin impersonate용)."""

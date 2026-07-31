@@ -369,3 +369,226 @@ def export_sheet_as_xlsx(sheet_url: str) -> bytes:
     resp = requests.get(url, params=params, headers={"Authorization": f"Bearer {token}"})
     resp.raise_for_status()
     return resp.content
+
+
+# ======================================================================
+# 미디어허브 (media_hub · media_notice 탭)
+# ======================================================================
+
+def _clear_hub_caches():
+    _get_hub_rows.clear()
+    _get_notice_rows.clear()
+
+
+@st.cache_data(ttl=300)
+def _get_hub_rows() -> list[dict]:
+    """media_hub 탭 전체 조회. _row 첨부."""
+    ws = _get_sheet("media_hub")
+    rows = ws.get_all_records()
+    result = []
+    for i, r in enumerate(rows):
+        if not r.get("매체ID"):
+            continue
+        r["_row"] = i + 2
+        result.append(r)
+    return result
+
+
+@st.cache_data(ttl=300)
+def _get_notice_rows() -> list[dict]:
+    """media_notice 탭 전체 조회. _row 첨부."""
+    ws = _get_sheet("media_notice")
+    rows = ws.get_all_records()
+    result = []
+    for i, r in enumerate(rows):
+        if not r.get("매체ID"):
+            continue
+        r["_row"] = i + 2
+        result.append(r)
+    return result
+
+
+def _to_num(v, default=0) -> int:
+    if v is None or v == "":
+        return default
+    try:
+        return int(float(str(v).strip()))
+    except (ValueError, TypeError):
+        return default
+
+
+def get_hub_by_media(media_id: str, include_intro_doc: bool = True) -> list[dict]:
+    """매체 미디어허브 자료를 섹션별로 그룹화 반환.
+    - Q8: media_info 소개서 URL을 '소개서' 섹션에 자동 편입
+    - 섹션 정렬: 섹션순서 min → 이름 오름차순
+    - 자료 정렬: 자료순서 asc → 등록 순
+    """
+    rows = [r for r in _get_hub_rows() if r.get("매체ID") == media_id]
+
+    # 섹션별 그룹핑
+    sections_map = {}
+    for r in rows:
+        name = str(r.get("섹션명", "")).strip()
+        if not name:
+            continue
+        s = sections_map.setdefault(name, {"name": name, "order": None, "items": []})
+        sec_order = _to_num(r.get("섹션순서"), default=None) if r.get("섹션순서") not in (None, "") else None
+        if sec_order is not None and (s["order"] is None or sec_order < s["order"]):
+            s["order"] = sec_order
+        s["items"].append({
+            "row": r["_row"],
+            "title": str(r.get("제목", "")).strip(),
+            "url": str(r.get("URL", "")).strip(),
+            "desc": str(r.get("설명", "")).strip(),
+            "order": _to_num(r.get("자료순서"), default=999),
+        })
+
+    # Q8: 소개서 자동 편입 (해당 매체의 intro_doc_url 존재 시 '소개서' 섹션 상단에 추가)
+    if include_intro_doc:
+        media = get_media_detail(media_id)
+        intro_url = (media or {}).get("intro_doc_url")
+        if intro_url:
+            s = sections_map.setdefault("소개서", {"name": "소개서", "order": None, "items": []})
+            # 자동 편입 아이템 (row=None → 편집/삭제 불가 표시)
+            s["items"].insert(0, {
+                "row": None,
+                "title": f"{(media or {}).get('name', '')} 매체 소개서",
+                "url": intro_url,
+                "desc": "media_info에서 자동 편입",
+                "order": -1,
+                "auto": True,
+            })
+
+    # 각 섹션 items 정렬
+    for s in sections_map.values():
+        s["items"].sort(key=lambda x: (x["order"], x.get("title", "")))
+        if s["order"] is None:
+            s["order"] = 999
+
+    # 섹션 정렬 (order → 이름)
+    sections = sorted(sections_map.values(), key=lambda s: (s["order"], s["name"]))
+    return sections
+
+
+def get_media_notice(media_id: str) -> dict | None:
+    """활성 공지 반환. 없으면 None."""
+    for r in _get_notice_rows():
+        if str(r.get("매체ID", "")).strip() != media_id:
+            continue
+        active_val = str(r.get("활성여부", "")).strip().upper()
+        if active_val not in ("Y", "TRUE", "1", "예", "YES", "T"):
+            continue
+        content = str(r.get("공지내용", "")).strip()
+        if not content:
+            continue
+        return {
+            "row": r["_row"],
+            "content": content,
+            "updated": str(r.get("업데이트일자", "")).strip(),
+            "active": True,
+        }
+    return None
+
+
+def get_media_notice_any(media_id: str) -> dict | None:
+    """비활성 포함 매체의 공지 조회 (편집용)."""
+    for r in _get_notice_rows():
+        if str(r.get("매체ID", "")).strip() != media_id:
+            continue
+        active_val = str(r.get("활성여부", "")).strip().upper()
+        return {
+            "row": r["_row"],
+            "content": str(r.get("공지내용", "")).strip(),
+            "updated": str(r.get("업데이트일자", "")).strip(),
+            "active": active_val in ("Y", "TRUE", "1", "예", "YES", "T"),
+        }
+    return None
+
+
+def has_media_hub(media_id: str) -> bool:
+    """매체가 미디어허브를 가지고 있나?
+
+    관리자 지정 매체만 hub 뷰로 진입 → 조건:
+    - media_hub 탭에 자료 1개 이상 등록, 또는
+    - media_notice 탭에 활성 공지 있음
+
+    소개서 URL만으로는 활성화되지 않음. (활성 후 Q8 자동 편입은 hub 렌더링 시 동작)
+    """
+    if any(r.get("매체ID") == media_id for r in _get_hub_rows()):
+        return True
+    if get_media_notice(media_id):
+        return True
+    return False
+
+
+# ---------- Hub 자료 CRUD ----------
+
+def add_hub_item(media_id: str, section_name: str, section_order: int,
+                 title: str, url: str, desc: str, item_order: int) -> None:
+    ws = _get_sheet("media_hub")
+    row_data = [
+        media_id, section_name, section_order or "",
+        title or "", url or "", desc or "", item_order or "",
+    ]
+    ws.append_row(row_data, value_input_option="USER_ENTERED")
+    _clear_hub_caches()
+
+
+def update_hub_item(row_num: int, media_id: str, section_name: str, section_order,
+                    title: str, url: str, desc: str, item_order) -> None:
+    ws = _get_sheet("media_hub")
+    row_data = [
+        media_id, section_name,
+        section_order if section_order not in (None, "") else "",
+        title or "", url or "", desc or "",
+        item_order if item_order not in (None, "") else "",
+    ]
+    ws.update(values=[row_data], range_name=f"A{row_num}:G{row_num}", value_input_option="USER_ENTERED")
+    _clear_hub_caches()
+
+
+def delete_hub_item(row_num: int) -> None:
+    ws = _get_sheet("media_hub")
+    ws.delete_rows(row_num)
+    _clear_hub_caches()
+
+
+def delete_section(media_id: str, section_name: str) -> None:
+    """매체 내 특정 섹션의 모든 자료 삭제. 아래에서 위로 삭제해서 행 시프트 방지."""
+    ws = _get_sheet("media_hub")
+    targets = [r["_row"] for r in _get_hub_rows()
+               if r.get("매체ID") == media_id and str(r.get("섹션명", "")).strip() == section_name]
+    for row_num in sorted(targets, reverse=True):
+        ws.delete_rows(row_num)
+    _clear_hub_caches()
+
+
+# ---------- Notice CRUD ----------
+
+def upsert_notice(media_id: str, content: str, active: bool = True) -> None:
+    """공지 upsert. 매체당 한 행 원칙."""
+    ws = _get_sheet("media_notice")
+    today = date.today().isoformat()
+    active_str = "Y" if active else "N"
+    existing = None
+    for r in _get_notice_rows():
+        if str(r.get("매체ID", "")).strip() == media_id:
+            existing = r
+            break
+    row_data = [media_id, active_str, content or "", today]
+    if existing:
+        row_num = existing["_row"]
+        ws.update(values=[row_data], range_name=f"A{row_num}:D{row_num}", value_input_option="USER_ENTERED")
+    else:
+        ws.append_row(row_data, value_input_option="USER_ENTERED")
+    _clear_hub_caches()
+
+
+def delete_notice(media_id: str) -> None:
+    """공지 행 완전 삭제."""
+    ws = _get_sheet("media_notice")
+    for r in _get_notice_rows():
+        if str(r.get("매체ID", "")).strip() == media_id:
+            ws.delete_rows(r["_row"])
+            break
+    _clear_hub_caches()
