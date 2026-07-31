@@ -5,7 +5,10 @@ from utils.sheets import (
     get_sub_categories,
     get_media_by_category,
 )
-from utils.ui import request_register, render_pending_dialog, render_result_table, render_contact_table, set_current_page
+from utils.ui import (
+    request_register, render_pending_dialog, render_result_table,
+    render_contact_table, set_current_page,
+)
 
 set_current_page("home")
 

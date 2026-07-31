@@ -11,3 +11,4 @@ gspread
 db-dtypes
 google-genai
 beautifulsoup4
+markdown

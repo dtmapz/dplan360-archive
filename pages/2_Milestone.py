@@ -4,10 +4,13 @@ from utils.sheets import (
     get_major_categories,
     get_sub_categories,
 )
-from utils.ui import render_media_grid, render_pending_dialog, set_current_page
+from utils.ui import (
+    render_media_grid, render_pending_dialog, set_current_page,
+)
+
+set_current_page("milestone")
 
 all_media = get_all_media_with_categories()
-set_current_page("milestone")
 
 majors = get_major_categories()
 m01_04 = [m for m in majors if not m.startswith("05")]
