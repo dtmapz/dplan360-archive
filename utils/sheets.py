@@ -803,3 +803,76 @@ def delete_home_promotion(row_num: int) -> None:
     _clear_promotion_caches()
 
 
+# ======================================================================
+# MEDIA GUIDE 다운로드 매핑 (media_guide_download 탭) — 6_MediaGuide.py 용
+# ======================================================================
+
+@st.cache_data(ttl=300)
+def _get_guide_download_rows() -> list[dict]:
+    ws = _get_sheet("media_guide_download")
+    rows = ws.get_all_records()
+    result = []
+    for i, r in enumerate(rows):
+        if not r.get("Notion페이지ID"):
+            continue
+        r["_row"] = i + 2
+        result.append(r)
+    return result
+
+
+def get_guide_download(notion_page_id: str) -> dict | None:
+    """페이지 ID로 매핑 조회. 없으면 None."""
+    pid = (notion_page_id or "").strip()
+    if not pid:
+        return None
+    for r in _get_guide_download_rows():
+        if str(r.get("Notion페이지ID", "")).strip() == pid:
+            return {
+                "row": r["_row"],
+                "notion_page_id": pid,
+                "media_name": str(r.get("매체명", "")).strip(),
+                "guide_title": str(r.get("가이드제목", "")).strip(),
+                "storage_path": str(r.get("storage_path", "")).strip(),
+                "original_filename": str(r.get("원본파일명", "")).strip(),
+                "uploaded_at": str(r.get("업로드일", "")).strip(),
+            }
+    return None
+
+
+def upsert_guide_download(
+    notion_page_id: str,
+    media_name: str,
+    guide_title: str,
+    storage_path: str,
+    original_filename: str,
+) -> None:
+    """페이지 ID 기준 upsert. 기존 매핑 있으면 storage_path 갱신."""
+    ws = _get_sheet("media_guide_download")
+    existing = get_guide_download(notion_page_id)
+    today = date.today().isoformat()
+    row_data = [
+        notion_page_id,
+        media_name or "",
+        guide_title or "",
+        storage_path or "",
+        original_filename or "",
+        today,
+    ]
+    if existing:
+        ws.update(
+            values=[row_data],
+            range_name=f"A{existing['row']}:F{existing['row']}",
+            value_input_option="USER_ENTERED",
+        )
+    else:
+        ws.append_row(row_data, value_input_option="USER_ENTERED")
+    _get_guide_download_rows.clear()
+
+
+def delete_guide_download(notion_page_id: str) -> None:
+    existing = get_guide_download(notion_page_id)
+    if not existing:
+        return
+    ws = _get_sheet("media_guide_download")
+    ws.delete_rows(existing["row"])
+    _get_guide_download_rows.clear()
