@@ -2,7 +2,7 @@ import streamlit as st
 import gspread
 import requests
 import re
-from datetime import date
+from datetime import date, timedelta, datetime as _dt
 from google.oauth2 import service_account
 
 SHEET_ID = st.secrets["BIGQUERY_MAPPING_SHEET_ID"]
@@ -592,3 +592,214 @@ def delete_notice(media_id: str) -> None:
             ws.delete_rows(r["_row"])
             break
     _clear_hub_caches()
+
+
+# ======================================================================
+# 매체 프로모션 (home_promotion 탭) — 9_MediaPromo.py 용
+# 시트 ID는 PROMOTION_SHEET_ID (PROMOTION LIVE 시트) 사용
+# ======================================================================
+
+DEFAULT_CATEGORY_PRESET = "line"
+PROMOTION_SHEET_ID = st.secrets["PROMOTION_SHEET_ID"]
+
+
+def _get_promo_sheet(tab_name: str):
+    gc, _ = _init()
+    return gc.open_by_key(PROMOTION_SHEET_ID).worksheet(tab_name)
+
+
+@st.cache_data(ttl=300)
+def _get_promotion_rows() -> list[dict]:
+    ws = _get_promo_sheet("home_promotion")
+    rows = ws.get_all_records()
+    result = []
+    for i, r in enumerate(rows):
+        if not r.get("프로모션명"):
+            continue
+        r["_row"] = i + 2
+        result.append(r)
+    return result
+
+
+def _parse_promo_date(val) -> date | None:
+    s = str(val or "").strip()
+    if not s:
+        return None
+    if isinstance(val, date):
+        return val
+    try:
+        return _dt.strptime(s, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _promo_status(end_date: date | None, today: date) -> str:
+    this_month_start = today.replace(day=1)
+    prev_month_start = (this_month_start - timedelta(days=1)).replace(day=1)
+    if end_date is None or end_date >= this_month_start:
+        return "active"
+    if end_date >= prev_month_start:
+        return "inactive"
+    return "hidden"
+
+
+def _parse_categories(raw: str) -> list[tuple[str, str]]:
+    result = []
+    for part in str(raw or "").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if ":" in part:
+            name, key = part.split(":", 1)
+        else:
+            name, key = part, DEFAULT_CATEGORY_PRESET
+        result.append((name.strip(), key.strip() or DEFAULT_CATEGORY_PRESET))
+    return result
+
+
+def _format_categories(pairs: list[tuple[str, str]]) -> str:
+    return ",".join(f"{name}:{key}" for name, key in pairs if name and name.strip())
+
+
+@st.cache_data(ttl=300)
+def get_home_promotions() -> list[dict]:
+    """매체 프로모션 목록. status='hidden'인 항목은 결과에서 제외."""
+    today = date.today()
+    result = []
+    for r in _get_promotion_rows():
+        end_date = _parse_promo_date(r.get("종료일"))
+        start_date = _parse_promo_date(r.get("시작일"))
+        status = _promo_status(end_date, today)
+        if status == "hidden":
+            continue
+        result.append({
+            "id": r.get("프로모션ID") or f"_row_{r['_row']}",
+            "row": r["_row"],
+            "media_name": str(r.get("매체명", "")).strip(),
+            "name": str(r.get("프로모션명", "")).strip(),
+            "subtitle": str(r.get("부제목", "")).strip(),
+            "image_url": str(r.get("이미지URL", "")).strip(),
+            "preview_image_url": str(r.get("미리보기이미지URL", "")).strip(),
+            "categories": _parse_categories(r.get("카테고리", "")),
+            "start_date": start_date,
+            "end_date": end_date,
+            "memo": str(r.get("메모", "")).strip(),
+            "status": status,
+        })
+
+    def _sort_key(p):
+        is_ongoing = p["status"] == "active" and (p["start_date"] is None or p["start_date"] <= today)
+        group = 0 if is_ongoing else (1 if p["status"] == "active" else 2)
+        return (group, p["start_date"] or date.max)
+
+    return sorted(result, key=_sort_key)
+
+
+def _clear_promotion_caches():
+    _get_promotion_rows.clear()
+    get_home_promotions.clear()
+
+
+def normalize_image_url(url: str) -> str:
+    m = re.search(r"drive\.google\.com/file/d/([a-zA-Z0-9_-]+)", url or "")
+    if m:
+        return f"https://drive.google.com/uc?export=view&id={m.group(1)}"
+    return url
+
+
+def validate_image_url(url: str) -> tuple[bool, str]:
+    if not url:
+        return False, "이미지 URL이 비어 있습니다."
+    check_url = normalize_image_url(url)
+    try:
+        resp = requests.head(check_url, timeout=4, allow_redirects=True)
+        if resp.status_code != 200:
+            resp = requests.get(check_url, timeout=4, stream=True)
+        content_type = resp.headers.get("Content-Type", "")
+        if resp.status_code == 200 and content_type.startswith("image/"):
+            return True, "정상 확인됨"
+        return False, f"이미지 응답이 아닙니다 (status={resp.status_code}, type={content_type or '-'})"
+    except requests.RequestException as e:
+        return False, f"URL 접근 실패: {e}"
+
+
+def create_home_promotion(
+    media_name: str,
+    name: str,
+    subtitle: str,
+    image_url: str,
+    categories: list[tuple[str, str]],
+    start_date: str,
+    end_date: str,
+    memo: str = "",
+    preview_image_url: str = "",
+) -> str:
+    rows = _get_promotion_rows()
+    max_num = 0
+    for r in rows:
+        pid = r.get("프로모션ID", "")
+        parts = pid.split("-")
+        if len(parts) == 2:
+            try:
+                max_num = max(max_num, int(parts[1]))
+            except ValueError:
+                pass
+    new_id = f"PROMO-{max_num + 1:03d}"
+
+    row_data = [
+        new_id,
+        media_name or "",
+        name or "",
+        subtitle or "",
+        normalize_image_url(image_url or ""),
+        _format_categories(categories),
+        start_date or "",
+        end_date or "",
+        memo or "",
+        date.today().isoformat(),
+        normalize_image_url(preview_image_url or ""),
+    ]
+    ws = _get_promo_sheet("home_promotion")
+    ws.append_row(row_data, value_input_option="USER_ENTERED")
+    _clear_promotion_caches()
+    return new_id
+
+
+def update_home_promotion(
+    row_num: int,
+    media_name: str,
+    name: str,
+    subtitle: str,
+    image_url: str,
+    categories: list[tuple[str, str]],
+    start_date: str,
+    end_date: str,
+    memo: str = "",
+    preview_image_url: str = "",
+) -> None:
+    ws = _get_promo_sheet("home_promotion")
+    existing_id = ws.cell(row_num, 1).value or ""
+    existing_created = ws.cell(row_num, 10).value or date.today().isoformat()
+    row_data = [
+        existing_id,
+        media_name or "",
+        name or "",
+        subtitle or "",
+        normalize_image_url(image_url or ""),
+        _format_categories(categories),
+        start_date or "",
+        end_date or "",
+        memo or "",
+        existing_created,
+        normalize_image_url(preview_image_url or ""),
+    ]
+    ws.update(values=[row_data], range_name=f"A{row_num}:K{row_num}", value_input_option="USER_ENTERED")
+    _clear_promotion_caches()
+
+
+def delete_home_promotion(row_num: int) -> None:
+    ws = _get_promo_sheet("home_promotion")
+    ws.delete_rows(row_num)
+    _clear_promotion_caches()
+
+

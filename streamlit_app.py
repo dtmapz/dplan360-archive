@@ -46,8 +46,9 @@ creative_page   = st.Page("pages/5_CreativeGuide.py",   title="CREATIVE GUIDE", 
 media_guide_page = st.Page("pages/6_MediaGuide.py", title="MEDIA GUIDE", icon="❓")
 report_page = st.Page("pages/7_ReportDownload.py", title="REPORT DOWNLOAD", icon="🔢")
 promotion_page = st.Page("pages/8_Promotion.py", title="PROMOTION LIVE", icon="🏆")
+mediapromo_page = st.Page("pages/9_MediaPromo.py", title="MEDIA PROMOS", icon="🎁")
 
-pages = [home_page, milestone_page, calendar_page, creative_page, media_guide_page, report_page, promotion_page]
+pages = [home_page, milestone_page, calendar_page, creative_page, media_guide_page, report_page, promotion_page, mediapromo_page]
 
 pg = st.navigation(pages)
 pg.run()
