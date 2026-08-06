@@ -1,10 +1,124 @@
 import streamlit as st
 from notion_client import Client
 from st_click_detector import click_detector
-from utils.auth import get_current_user
+from utils.auth import get_current_user, is_admin
 from utils.ui import set_current_page
+from utils.db import upload_guide_file, download_guide_file, delete_guide_file
+from utils.sheets import get_guide_download, upsert_guide_download, delete_guide_download
 
 set_current_page("media_guide")
+
+
+def _render_guide_download(page_id: str, media_name: str, guide_title: str):
+    """개별 가이드 페이지 상단에 노출되는 PDF 다운로드/업로드 영역."""
+    mapping = get_guide_download(page_id)
+    admin = is_admin()
+
+    has_file = bool(mapping and mapping["storage_path"])
+    if not has_file and not admin:
+        return  # 파일 없고 관리자도 아니면 아무것도 노출 안 함
+
+    with st.container(border=True):
+        if has_file:
+            cols = st.columns([5, 1.2, 1, 1] if admin else [6, 1.5])
+            cols[0].markdown(
+                f"<div style='color:#333;padding-top:4px;'>"
+                f"📄 <b style='font-size:14px;'>{mapping['original_filename']}</b>"
+                f"<span style='color:#888;font-weight:400;margin-left:10px;font-size:12px;'>"
+                f"업로드 {mapping['uploaded_at']}</span></div>",
+                unsafe_allow_html=True,
+            )
+            try:
+                file_bytes = download_guide_file(mapping["storage_path"])
+                cols[1].download_button(
+                    label="다운로드",
+                    data=file_bytes,
+                    file_name=mapping["original_filename"],
+                    mime="application/pdf",
+                    key=f"dl_{page_id}",
+                    use_container_width=True,
+                )
+            except Exception as e:
+                cols[1].error(f"다운로드 실패: {e}")
+
+            if admin:
+                if cols[2].button("교체", key=f"repl_{page_id}",
+                                  use_container_width=True):
+                    st.session_state[f"_gdl_upload_{page_id}"] = True
+                    st.rerun()
+                if cols[3].button("삭제", key=f"del_{page_id}",
+                                  use_container_width=True):
+                    st.session_state[f"_gdl_del_confirm_{page_id}"] = True
+                    st.rerun()
+        elif admin:
+            st.markdown(
+                "<div style='font-size:12px;color:#8a6210;padding:4px 0;'>"
+                "📎 매핑된 PDF 없음</div>",
+                unsafe_allow_html=True,
+            )
+            if st.button("📤 PDF 업로드", key=f"up_{page_id}"):
+                st.session_state[f"_gdl_upload_{page_id}"] = True
+                st.rerun()
+
+    # 업로드 UI
+    if admin and st.session_state.get(f"_gdl_upload_{page_id}"):
+        with st.container(border=True):
+            st.markdown("**PDF 업로드** (최대 20MB)")
+            up_file = st.file_uploader(
+                "PDF 선택", type=["pdf"],
+                key=f"_gdl_uploader_{page_id}",
+                label_visibility="collapsed",
+            )
+            uc1, uc2 = st.columns([1, 1])
+            if uc1.button("업로드", key=f"_gdl_upload_btn_{page_id}",
+                          type="primary", use_container_width=True):
+                if up_file is None:
+                    st.error("파일을 선택해 주세요.")
+                else:
+                    try:
+                        if mapping and mapping["storage_path"]:
+                            try:
+                                delete_guide_file(mapping["storage_path"])
+                            except Exception:
+                                pass
+                        new_path = upload_guide_file(up_file.read(), up_file.name)
+                        upsert_guide_download(
+                            page_id, media_name, guide_title,
+                            new_path, up_file.name,
+                        )
+                        st.session_state.pop(f"_gdl_upload_{page_id}", None)
+                        st.success("업로드 완료")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"업로드 실패: {e}")
+            if uc2.button("취소", key=f"_gdl_upload_cancel_{page_id}",
+                          use_container_width=True):
+                st.session_state.pop(f"_gdl_upload_{page_id}", None)
+                st.rerun()
+
+    # 삭제 확정 UI
+    if admin and st.session_state.get(f"_gdl_del_confirm_{page_id}"):
+        with st.container(border=True):
+            st.error("정말 삭제하시겠습니까? (Storage 파일 + 시트 매핑 모두 삭제)")
+            dc1, dc2 = st.columns(2)
+            if dc1.button("삭제 확정", key=f"_gdl_del_ok_{page_id}",
+                          type="primary", use_container_width=True):
+                try:
+                    if mapping and mapping["storage_path"]:
+                        try:
+                            delete_guide_file(mapping["storage_path"])
+                        except Exception:
+                            pass
+                    delete_guide_download(page_id)
+                    st.session_state.pop(f"_gdl_del_confirm_{page_id}", None)
+                    st.success("삭제 완료")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"삭제 실패: {e}")
+            if dc2.button("취소", key=f"_gdl_del_cancel_{page_id}",
+                          use_container_width=True):
+                st.session_state.pop(f"_gdl_del_confirm_{page_id}", None)
+                st.rerun()
 
 user = get_current_user()
 
@@ -557,171 +671,12 @@ def answer_with_fallback(question, all_guides):
 # ============================
 # 메인 UI
 # ============================
-if "mg_mode" not in st.session_state:
-    st.session_state["mg_mode"] = "search"
-
-col_input, col_toggle = st.columns([5, 1.2])
-with col_input:
-    if st.session_state["mg_mode"] == "search":
-        search_kw = st.text_input("", placeholder="🔍 전체 가이드 검색", label_visibility="collapsed", key="mg_search")
-        ai_question = None
-    else:
-        search_kw = None
-        ai_question = st.text_input("", placeholder="💬 질문을 입력해주세요", label_visibility="collapsed", key="mg_ai_input")
-
-with col_toggle:
-    if st.session_state["mg_mode"] == "search":
-        if st.button("🤖 AI 모드 전환", key="mg_mode_toggle", use_container_width=True):
-            st.session_state["mg_mode"] = "ai"
-            st.rerun()
-    else:
-        if st.button("🔍 검색 모드 전환", key="mg_mode_toggle", use_container_width=True):
-            st.session_state["mg_mode"] = "search"
-            st.rerun()
+search_kw = st.text_input("", placeholder="🔍 전체 가이드 검색", label_visibility="collapsed", key="mg_search")
 
 media_pages = get_hub_children()
 
 if not media_pages:
     st.warning("허브 페이지에 하위 매체 페이지가 없습니다. Notion 구조를 확인해주세요.")
-    st.stop()
-
-# ============================
-# AI 모드
-# ============================
-if st.session_state["mg_mode"] == "ai":
-    st.markdown(
-        "<div style='font-size:12px;color:var(--text-muted);margin-bottom:12px;'>"
-        "Notion에 등록된 매체 가이드 기반으로 답변합니다. 정확한 절차는 원본 가이드도 확인해주세요."
-        "</div>",
-        unsafe_allow_html=True,
-    )
-
-    if "mg_chat" not in st.session_state:
-        st.session_state["mg_chat"] = [
-            {"role": "ai", "text": "안녕하세요! 매체 가이드 관련 궁금한 점을 편하게 물어보세요.<br>예) \"네이버 GFA 계정 이관은 어떻게 하나요?\"", "sources": []}
-        ]
-
-    if ai_question and ai_question != st.session_state.get("_mg_last_q"):
-        st.session_state["_mg_last_q"] = ai_question
-        st.session_state["mg_chat"].append({"role": "user", "text": ai_question})
-
-        with st.spinner("답변 생성 중..."):
-            all_guides = search_all_guides(tuple(frozenset(m.items()) for m in media_pages))
-            answer, notion_refs, link_refs = answer_with_fallback(ai_question, all_guides)
-            st.session_state["mg_chat"].append({
-                "role": "ai",
-                "text": answer.replace("\n", "<br>"),
-                "sources": notion_refs,
-                "link_sources": link_refs,
-            })
-        st.rerun()
-
-    chat_html = "<div style='border:0.5px solid #ddd;border-radius:8px;background:#fafafa;padding:12px 4px;max-height:600px;overflow-y:auto;'>"
-    for msg in st.session_state["mg_chat"]:
-        if msg["role"] == "user":
-            chat_html += (
-                f"<div style='display:flex;justify-content:flex-end;margin-bottom:12px;padding:0 12px;'>"
-                f"<div style='background:#111;color:#fff;padding:10px 14px;border-radius:14px 14px 4px 14px;max-width:70%;font-size:13px;line-height:1.5;'>{msg['text']}</div>"
-                f"</div>"
-            )
-        else:
-            sources_html = ""
-            if msg.get("sources"):
-                src_links = "".join(
-                    f"<a href='#' id='ref__{s['media_id']}__{s['guide_id']}' "
-                    f"style='text-decoration:none;color:#1A73E8;padding:2px 0;display:block;cursor:pointer;'>"
-                    f"→ {s['media']} &gt; {s['guide']}</a>"
-                    for s in msg["sources"]
-                )
-                sources_html = (
-                    f"<div style='margin-top:6px;padding:8px 12px;background:#FFF8E1;"
-                    f"border-left:3px solid #F2A93B;border-radius:4px;font-size:11px;'>"
-                    f"<div style='color:#8A6D1F;font-weight:600;margin-bottom:4px;'>📚 참고 가이드</div>"
-                    f"{src_links}</div>"
-                )
-            link_sources_html = ""
-            if msg.get("link_sources"):
-                link_html = "".join(
-                    f"<a href='{l['url']}' target='_blank' rel='noopener' "
-                    f"style='text-decoration:none;color:#1A73E8;padding:2px 0;display:block;'>"
-                    f"→ {l.get('title') or l['url']}</a>"
-                    for l in msg["link_sources"]
-                )
-                link_sources_html = (
-                    f"<div style='margin-top:6px;padding:8px 12px;background:#FFF8E1;"
-                    f"border-left:3px solid #F2A93B;border-radius:4px;font-size:11px;'>"
-                    f"<div style='color:#8A6D1F;font-weight:600;margin-bottom:4px;'>🌐 참고 링크</div>"
-                    f"{link_html}</div>"
-                )
-            chat_html += (
-                f"<div style='display:flex;align-items:flex-start;gap:8px;margin-bottom:16px;padding:0 12px;'>"
-                f"<div style='width:28px;height:28px;border-radius:50%;background:#F2A93B;color:#fff;"
-                f"font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;'>AI</div>"
-                f"<div style='flex:1;'>"
-                f"<div style='background:#fff;border:0.5px solid #ddd;padding:10px 14px;"
-                f"border-radius:4px 14px 14px 14px;font-size:13px;line-height:1.6;color:#111;'>{msg['text']}</div>"
-                f"{sources_html}"
-                f"{link_sources_html}"
-                f"</div></div>"
-            )
-    chat_html += "</div>"
-
-    ref_clicked = click_detector(chat_html, key="mg_chat_det")
-    if ref_clicked and ref_clicked.startswith("ref__"):
-        parts = ref_clicked.replace("ref__", "").split("__")
-        if len(parts) == 2:
-            media_id, guide_id = parts
-            if st.session_state.get("_mg_dialog_guide") != guide_id:
-                st.session_state["_mg_dialog_guide"] = guide_id
-                st.session_state["_mg_dialog_media"] = media_id
-                st.rerun()
-
-    if "_mg_dialog_guide" in st.session_state:
-        dialog_guide_id = st.session_state["_mg_dialog_guide"]
-        dialog_media_id = st.session_state.get("_mg_dialog_media")
-
-        dialog_title = ""
-        dialog_media_title = ""
-        for m in media_pages:
-            if m["id"] == dialog_media_id:
-                dialog_media_title = m["title"]
-                break
-        sub_pages_dialog = get_sub_pages(dialog_media_id) if dialog_media_id else []
-        for sp in sub_pages_dialog:
-            if sp["id"] == dialog_guide_id:
-                dialog_title = sp["title"]
-                break
-
-        @st.dialog(f"{dialog_media_title} · {dialog_title}", width="large")
-        def show_guide_dialog():
-            st.session_state.pop("_mg_dialog_guide", None)
-            st.session_state.pop("_mg_dialog_media", None)
-
-            page_meta = get_page_meta(dialog_guide_id)
-            st.markdown(
-                f"<div style='font-size:11px;color:var(--text-muted);margin-bottom:12px;'>"
-                f"Notion 자동 연동 · 최종 수정 {page_meta}</div>",
-                unsafe_allow_html=True,
-            )
-            blocks = get_page_blocks(dialog_guide_id)
-
-            toc = build_toc(blocks)
-            if toc:
-                toc_html = ("<div style='background:#FFF8E1;border:0.5px solid #F2A93B44;"
-                            "border-radius:8px;padding:12px 16px;margin-bottom:18px;'>"
-                            "<div style='font-size:11px;font-weight:700;color:#8A6D1F;margin-bottom:6px;'>📑 목차</div>")
-                for item in toc:
-                    indent = (item["level"] - 1) * 14
-                    toc_html += f"<div style='font-size:12px;padding:2px 0 2px {indent}px;color:var(--text-primary);'>{item['text']}</div>"
-                toc_html += "</div>"
-                st.markdown(toc_html, unsafe_allow_html=True)
-
-            st.markdown("<div style='font-size:90%;'>", unsafe_allow_html=True)
-            render_blocks(blocks)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        show_guide_dialog()
-
     st.stop()
 
 # ============================
@@ -774,6 +729,8 @@ if search_kw:
                             f"padding-bottom:10px;border-bottom:0.5px solid var(--border);'>"
                             f"{selected_guide['media']} · Notion 자동 연동 · 최종 수정 {page_meta}</div>",
                             unsafe_allow_html=True)
+
+                _render_guide_download(selected_search_id, selected_guide['media'], selected_guide['guide'])
 
                 blocks = get_page_blocks(selected_search_id)
 
@@ -879,6 +836,14 @@ else:
                     f"padding-bottom:10px;border-bottom:0.5px solid var(--border);'>"
                     f"Notion 자동 연동 · 최종 수정 {page_meta}</div>",
                     unsafe_allow_html=True)
+
+        _media_name_for_dl = ""
+        if "mg_media" in st.session_state:
+            for _m in media_pages:
+                if _m["id"] == st.session_state["mg_media"]:
+                    _media_name_for_dl = _m["title"]
+                    break
+        _render_guide_download(guide_id, _media_name_for_dl, guide_title)
 
         blocks = get_page_blocks(guide_id)
 

@@ -391,6 +391,42 @@ def upload_notice_image(file_bytes: bytes, filename: str) -> str:
     return sb.storage.from_(MEDIA_HUB_IMAGE_BUCKET).get_public_url(key)
 
 
+# ======================================================================
+# MEDIA GUIDE PDF (media-guide-files 버킷)
+# ======================================================================
+
+MEDIA_GUIDE_BUCKET = "media-guide-files"
+MAX_GUIDE_FILE_SIZE = 20 * 1024 * 1024  # 20MB
+
+
+def upload_guide_file(file_bytes: bytes, filename: str) -> str:
+    """가이드 PDF 업로드 → storage_path 반환 (UUID 파일명, PDF only)."""
+    import uuid
+    if not filename or not filename.lower().endswith(".pdf"):
+        raise ValueError("PDF 파일만 업로드 가능합니다.")
+    if len(file_bytes) > MAX_GUIDE_FILE_SIZE:
+        raise ValueError(f"파일 크기 초과: {len(file_bytes)//1024//1024}MB (제한 20MB)")
+
+    key = f"{uuid.uuid4()}.pdf"
+    sb = get_client()
+    sb.storage.from_(MEDIA_GUIDE_BUCKET).upload(
+        path=key,
+        file=file_bytes,
+        file_options={"content-type": "application/pdf"},
+    )
+    return key
+
+
+def download_guide_file(storage_path: str) -> bytes:
+    sb = get_client()
+    return sb.storage.from_(MEDIA_GUIDE_BUCKET).download(storage_path)
+
+
+def delete_guide_file(storage_path: str) -> None:
+    sb = get_client()
+    sb.storage.from_(MEDIA_GUIDE_BUCKET).remove([storage_path])
+
+
 @st.cache_data(ttl=1800)
 def get_all_org_members() -> list[dict]:
     """organization 전체 조회 (admin impersonate용)."""
