@@ -9,56 +9,45 @@ from utils.sheets import get_guide_download, upsert_guide_download, delete_guide
 set_current_page("media_guide")
 
 
-def _render_guide_download(page_id: str, media_name: str, guide_title: str):
-    """개별 가이드 페이지 상단에 노출되는 PDF 다운로드/업로드 영역."""
-    mapping = get_guide_download(page_id)
-    admin = is_admin()
-
+def _render_guide_action_buttons(page_id: str, mapping, admin: bool):
+    """제목 행 우측에 배치되는 다운로드/관리 버튼. 컬럼 안에서 호출."""
     has_file = bool(mapping and mapping["storage_path"])
     if not has_file and not admin:
-        return  # 파일 없고 관리자도 아니면 아무것도 노출 안 함
-
-    with st.container(border=True):
-        if has_file:
-            cols = st.columns([5, 1.2, 1, 1] if admin else [6, 1.5])
-            cols[0].markdown(
-                f"<div style='color:#333;padding-top:4px;'>"
-                f"📄 <b style='font-size:14px;'>{mapping['original_filename']}</b>"
-                f"<span style='color:#888;font-weight:400;margin-left:10px;font-size:12px;'>"
-                f"업로드 {mapping['uploaded_at']}</span></div>",
-                unsafe_allow_html=True,
+        return
+    if has_file:
+        try:
+            file_bytes = download_guide_file(mapping["storage_path"])
+            st.download_button(
+                label="📥 다운로드",
+                data=file_bytes,
+                file_name=mapping["original_filename"],
+                mime="application/pdf",
+                key=f"dl_{page_id}",
+                use_container_width=True,
             )
-            try:
-                file_bytes = download_guide_file(mapping["storage_path"])
-                cols[1].download_button(
-                    label="다운로드",
-                    data=file_bytes,
-                    file_name=mapping["original_filename"],
-                    mime="application/pdf",
-                    key=f"dl_{page_id}",
-                    use_container_width=True,
-                )
-            except Exception as e:
-                cols[1].error(f"다운로드 실패: {e}")
-
-            if admin:
-                if cols[2].button("교체", key=f"repl_{page_id}",
-                                  use_container_width=True):
-                    st.session_state[f"_gdl_upload_{page_id}"] = True
-                    st.rerun()
-                if cols[3].button("삭제", key=f"del_{page_id}",
-                                  use_container_width=True):
-                    st.session_state[f"_gdl_del_confirm_{page_id}"] = True
-                    st.rerun()
-        elif admin:
-            st.markdown(
-                "<div style='font-size:12px;color:#8a6210;padding:4px 0;'>"
-                "📎 매핑된 PDF 없음</div>",
-                unsafe_allow_html=True,
-            )
-            if st.button("📤 PDF 업로드", key=f"up_{page_id}"):
+        except Exception as e:
+            st.error(f"다운로드 실패: {e}")
+        if admin:
+            ac1, ac2 = st.columns(2)
+            if ac1.button("교체", key=f"repl_{page_id}",
+                          use_container_width=True):
                 st.session_state[f"_gdl_upload_{page_id}"] = True
                 st.rerun()
+            if ac2.button("삭제", key=f"del_{page_id}",
+                          use_container_width=True):
+                st.session_state[f"_gdl_del_confirm_{page_id}"] = True
+                st.rerun()
+    elif admin:
+        if st.button("📤 PDF 업로드", key=f"up_{page_id}",
+                     use_container_width=True):
+            st.session_state[f"_gdl_upload_{page_id}"] = True
+            st.rerun()
+
+
+def _render_guide_download(page_id: str, media_name: str, guide_title: str):
+    """업로드/삭제 관리 영역 (관리자 액션 후 세션 플래그가 세팅됐을 때만 노출)."""
+    mapping = get_guide_download(page_id)
+    admin = is_admin()
 
     # 업로드 UI
     if admin and st.session_state.get(f"_gdl_upload_{page_id}"):
@@ -723,12 +712,16 @@ if search_kw:
             selected_guide = next((r for r in results if r["guide_id"] == selected_search_id), None)
             if selected_guide:
                 page_meta = get_page_meta(selected_search_id)
-                st.markdown(f"<div style='font-size:20px;font-weight:700;margin-bottom:4px;'>{selected_guide['guide']}</div>",
-                            unsafe_allow_html=True)
-                st.markdown(f"<div style='font-size:11px;color:var(--text-muted);margin-bottom:14px;"
-                            f"padding-bottom:10px;border-bottom:0.5px solid var(--border);'>"
-                            f"{selected_guide['media']} · Notion 자동 연동 · 최종 수정 {page_meta}</div>",
-                            unsafe_allow_html=True)
+                _title_col, _btn_col = st.columns([4, 1])
+                with _title_col:
+                    st.markdown(f"<div style='font-size:20px;font-weight:700;margin-bottom:4px;'>{selected_guide['guide']}</div>",
+                                unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size:11px;color:var(--text-muted);margin-bottom:14px;"
+                                f"padding-bottom:10px;border-bottom:0.5px solid var(--border);'>"
+                                f"{selected_guide['media']} · Notion 자동 연동 · 최종 수정 {page_meta}</div>",
+                                unsafe_allow_html=True)
+                with _btn_col:
+                    _render_guide_action_buttons(selected_search_id, get_guide_download(selected_search_id), is_admin())
 
                 _render_guide_download(selected_search_id, selected_guide['media'], selected_guide['guide'])
 
@@ -830,19 +823,24 @@ else:
                     guide_title = m["title"]
                     break
 
-        st.markdown(f"<div style='font-size:20px;font-weight:700;margin-bottom:8px;'>{guide_title}</div>",
-                    unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size:11px;color:var(--text-muted);margin-bottom:14px;"
-                    f"padding-bottom:10px;border-bottom:0.5px solid var(--border);'>"
-                    f"Notion 자동 연동 · 최종 수정 {page_meta}</div>",
-                    unsafe_allow_html=True)
-
         _media_name_for_dl = ""
         if "mg_media" in st.session_state:
             for _m in media_pages:
                 if _m["id"] == st.session_state["mg_media"]:
                     _media_name_for_dl = _m["title"]
                     break
+
+        _title_col, _btn_col = st.columns([4, 1])
+        with _title_col:
+            st.markdown(f"<div style='font-size:20px;font-weight:700;margin-bottom:8px;'>{guide_title}</div>",
+                        unsafe_allow_html=True)
+            st.markdown(f"<div style='font-size:11px;color:var(--text-muted);margin-bottom:14px;"
+                        f"padding-bottom:10px;border-bottom:0.5px solid var(--border);'>"
+                        f"Notion 자동 연동 · 최종 수정 {page_meta}</div>",
+                        unsafe_allow_html=True)
+        with _btn_col:
+            _render_guide_action_buttons(guide_id, get_guide_download(guide_id), is_admin())
+
         _render_guide_download(guide_id, _media_name_for_dl, guide_title)
 
         blocks = get_page_blocks(guide_id)
