@@ -103,25 +103,53 @@ def _switch_to_edit_mode(promo):
 # 필터 UI
 # ----------------------------------------------------------------------
 
+SUB_COLS_PER_ROW = 5
+
+
+def _render_sub_buttons(subs: list[str], major: str) -> list[str]:
+    """중분류 5버튼 그리드. 세션 세트로 다중 선택 상태 관리."""
+    st.markdown(
+        "<div style='font-size:14px;margin-bottom:6px;'>중분류 <span style='color:#999;font-size:11px;'>(선택 시 필터링)</span></div>",
+        unsafe_allow_html=True,
+    )
+    selected: set = st.session_state.setdefault("_pmo_sub_selected", set())
+    for i in range(0, len(subs), SUB_COLS_PER_ROW):
+        row = subs[i:i + SUB_COLS_PER_ROW]
+        cols = st.columns(SUB_COLS_PER_ROW)
+        for col, s in zip(cols, row):
+            is_on = s in selected
+            if col.button(
+                s,
+                key=f"_pmo_sub_btn_{major}_{s}",
+                type=("primary" if is_on else "secondary"),
+                use_container_width=True,
+            ):
+                if is_on:
+                    selected.discard(s)
+                else:
+                    selected.add(s)
+                st.rerun()
+    return list(selected & set(subs))
+
+
 def _render_filters():
     with st.container(border=True):
-        c1, c2, c3 = st.columns([1.2, 2, 2])
+        c1, c2 = st.columns([1.2, 4])
         majors = ["(전체)"] + get_major_categories()
         selected_major = c1.selectbox("대분류", majors, key="_pmo_major")
 
         selected_subs: list[str] = []
-        if selected_major != "(전체)":
-            subs = get_sub_categories(selected_major)
-            if subs:
-                selected_subs = c2.multiselect(
-                    "중분류", subs, key="_pmo_subs",
-                    placeholder="전체 (선택 시 필터링)",
-                )
+        with c2:
+            if selected_major != "(전체)":
+                subs = get_sub_categories(selected_major)
+                if subs:
+                    selected_subs = _render_sub_buttons(subs, selected_major)
+                else:
+                    st.selectbox("중분류", ["(해당 없음)"], disabled=True)
             else:
-                c2.selectbox("중분류", ["(해당 없음)"], disabled=True)
-        else:
-            c2.selectbox("중분류", ["(해당 없음)"], disabled=True)
+                st.selectbox("중분류", ["(해당 없음)"], disabled=True)
 
+        c3, c4 = st.columns([2, 3])
         promo_cats: list[str] = []
         all_cats = _collect_all_promo_categories()
         if all_cats:
@@ -132,7 +160,16 @@ def _render_filters():
         else:
             c3.selectbox("프로모션 카테고리", ["(등록된 카테고리 없음)"], disabled=True)
 
-    return selected_major, selected_subs, promo_cats
+        d1, d2 = c4.columns(2)
+        target_start = d1.date_input(
+            "캠페인 시작일", key="_pmo_target_start", value=None,
+            help="프로모션 기간과 겹치는 항목만 필터링",
+        )
+        target_end = d2.date_input(
+            "캠페인 종료일", key="_pmo_target_end", value=None,
+        )
+
+    return selected_major, selected_subs, promo_cats, target_start, target_end
 
 
 def _collect_all_promo_categories() -> list[str]:
@@ -159,8 +196,10 @@ def _get_all_media_lite() -> list[dict]:
     ]
 
 
-def _apply_filters(promos, major, subs, promo_cats):
-    if major == "(전체)" and not subs and not promo_cats:
+def _apply_filters(promos, major, subs, promo_cats, target_start, target_end):
+    no_filter = (major == "(전체)" and not subs and not promo_cats
+                 and not target_start and not target_end)
+    if no_filter:
         return promos
     media_cat_map = build_media_cat_map()
     media_sub_map = {m["name"]: m.get("sub", "") for m in _get_all_media_lite()}
@@ -175,6 +214,14 @@ def _apply_filters(promos, major, subs, promo_cats):
         if promo_cats:
             names = [n for n, _ in p["categories"]]
             if not any(pc in names for pc in promo_cats):
+                continue
+        if target_start or target_end:
+            p_start = p["start_date"] or date.min
+            p_end = p["end_date"] or date.max
+            t_start = target_start or date.min
+            t_end = target_end or date.max
+            # 겹침 조건: p_start <= t_end AND p_end >= t_start
+            if not (p_start <= t_end and p_end >= t_start):
                 continue
         filtered.append(p)
     return filtered
@@ -255,8 +302,15 @@ def _render_grid(promos: list[dict]):
 # 단일 팝업 (view + edit 모드 통합)
 # ----------------------------------------------------------------------
 
+def _keep_popup():
+    """내부 rerun 시 팝업이 다시 열리도록 플래그 재세팅."""
+    st.session_state["_promo_popup_open"] = True
+
+
 @st.dialog("프로모션")
 def render_promo_popup():
+    # 첫 렌더 시 플래그 pop → X 닫기 시 필터 변경으로 재오픈되지 않음
+    st.session_state.pop("_promo_popup_open", None)
     mode = st.session_state.get("_promo_popup_mode", "view")
     promo_id = st.session_state.get("_promo_popup_promo_id")
 
@@ -312,6 +366,7 @@ def _render_view_mode(promo):
         if st.button("✎ 수정하기", key=f"promo_edit_entry_{promo['id']}",
                      use_container_width=True):
             _switch_to_edit_mode(promo)
+            _keep_popup()
             st.rerun()
 
 
@@ -333,6 +388,7 @@ def _render_edit_mode(existing_promo):
         st.image(current_image, use_container_width=True)
         if st.button("상세 이미지 제거", key="_promo_img_clear_btn"):
             st.session_state["_promo_f_image"] = ""
+            _keep_popup()
             st.rerun()
     up_file = st.file_uploader(
         "상세 이미지 업로드 (최대 5MB, jpg/png/gif/webp)",
@@ -345,6 +401,7 @@ def _render_edit_mode(existing_promo):
                 url = upload_notice_image(up_file.read(), up_file.name)
                 st.session_state["_promo_f_image"] = url
                 st.success("업로드 완료")
+                _keep_popup()
                 st.rerun()
             except Exception as e:
                 st.error(f"업로드 실패: {e}")
@@ -355,6 +412,7 @@ def _render_edit_mode(existing_promo):
         st.image(current_preview, use_container_width=True)
         if st.button("미리보기 제거", key="_promo_preview_clear_btn"):
             st.session_state["_promo_f_preview"] = ""
+            _keep_popup()
             st.rerun()
     up_preview = st.file_uploader(
         "미리보기 이미지 업로드 (선택)",
@@ -367,6 +425,7 @@ def _render_edit_mode(existing_promo):
                 url = upload_notice_image(up_preview.read(), up_preview.name)
                 st.session_state["_promo_f_preview"] = url
                 st.success("업로드 완료")
+                _keep_popup()
                 st.rerun()
             except Exception as e:
                 st.error(f"업로드 실패: {e}")
@@ -385,6 +444,7 @@ def _render_edit_mode(existing_promo):
         c2.caption(CHIP_PRESETS[ckey]["label"])
         if c3.button("삭제", key=f"cat_del_{i}"):
             st.session_state["_promo_form_cats"].pop(i)
+            _keep_popup()
             st.rerun()
 
     new_c1, new_c2, new_c3 = st.columns([2, 2, 1])
@@ -406,6 +466,7 @@ def _render_edit_mode(existing_promo):
                 st.warning(f"'{nm}' 카테고리가 이미 있습니다.")
             else:
                 st.session_state["_promo_form_cats"].append((nm, preset))
+                _keep_popup()
                 st.rerun()
 
     st.text_area("메모 (상세 팝업에만 노출)", key="_promo_f_memo")
@@ -433,6 +494,7 @@ def _render_edit_mode(existing_promo):
             if del_col.button("삭제", key="promo_del_btn",
                              use_container_width=True):
                 st.session_state["_promo_del_confirm"] = True
+                _keep_popup()
                 st.rerun()
         else:
             st.error("정말 삭제하시겠습니까?")
@@ -445,6 +507,7 @@ def _render_edit_mode(existing_promo):
             if dc2.button("취소", key="promo_del_cancel_btn",
                          use_container_width=True):
                 st.session_state.pop("_promo_del_confirm", None)
+                _keep_popup()
                 st.rerun()
 
 
@@ -487,10 +550,10 @@ if admin:
         _open_edit_popup(None)
         st.rerun()
 
-major, subs, promo_cats = _render_filters()
+major, subs, promo_cats, target_start, target_end = _render_filters()
 
 all_promos = get_home_promotions()
-filtered = _apply_filters(all_promos, major, subs, promo_cats)
+filtered = _apply_filters(all_promos, major, subs, promo_cats, target_start, target_end)
 
 today = date.today()
 ongoing = [p for p in filtered if p["status"] == "active" and (p["start_date"] is None or p["start_date"] <= today)]
