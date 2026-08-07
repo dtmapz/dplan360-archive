@@ -1,0 +1,38 @@
+name: SP-bot Notion Sync
+
+on:
+  schedule:
+    # 매일 KST 03:00 (UTC 18:00 전날) — 광고 리포트 자동화(04:00) 앞시간
+    - cron: "0 18 * * *"
+  workflow_dispatch:  # 수동 실행 허용
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --no-cache-dir \
+            gspread \
+            google-auth \
+            google-genai \
+            notion-client \
+            toml
+
+      - name: Run Notion sync
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          SHEET_ID: ${{ secrets.BIGQUERY_MAPPING_SHEET_ID }}
+          PROMOTION_SHEET_ID: ${{ secrets.PROMOTION_SHEET_ID }}
+        run: python scripts/spbot_sync_notion.py
