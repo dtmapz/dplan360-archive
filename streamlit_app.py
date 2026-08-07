@@ -1,6 +1,7 @@
 import streamlit as st
 from utils.ui import inject_base_style
 from utils.auth import get_current_user, is_admin, logout, render_login_page
+from utils.spbot_ui import render_spbot_trigger
 
 st.set_page_config(page_title="D-PLAN360 ARCHIVE", layout="wide")
 inject_base_style()
@@ -51,4 +52,8 @@ mediapromo_page = st.Page("pages/9_MediaPromo.py", title="MEDIA PROMOS", icon="�
 pages = [home_page, milestone_page, calendar_page, creative_page, media_guide_page, report_page, promotion_page, mediapromo_page]
 
 pg = st.navigation(pages)
+
+# SP봇 트리거는 모든 페이지 공통 노출 (로그인 후, 페이지 실행 전)
+render_spbot_trigger()
+
 pg.run()

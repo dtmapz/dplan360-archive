@@ -1,0 +1,239 @@
+"""SP봇 Gemini 호출 래퍼 — 크롤러(구조화 출력)와 답변(자유 텍스트) 모두 지원."""
+import json
+import os
+from google import genai
+from google.genai import types
+
+
+MODEL = "gemini-flash-latest"
+
+
+def _get_client():
+    """Streamlit 환경과 GitHub Actions 환경 모두 지원."""
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        try:
+            import streamlit as st
+            api_key = st.secrets.get("GEMINI_API_KEY", "")
+        except Exception:
+            pass
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY not set (env or streamlit secrets)")
+    return genai.Client(api_key=api_key)
+
+
+def summarize_doc(
+    title_hint: str,
+    body_text: str,
+    approved_categories: list[str],
+    pending_categories: list[str],
+) -> dict:
+    """크롤링한 원본 문서를 SP봇 저장용 메타데이터로 정제.
+
+    반환: {"title","summary","category","new_category_proposal","keywords","status"}
+    - category: approved_categories 중 하나 (해당 없으면 빈 문자열)
+    - new_category_proposal: approved에 없고 새로 필요한 대분류명 (승인 대기용)
+    - status: 활성 or 만료
+    """
+    schema = types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "title": types.Schema(type=types.Type.STRING),
+            "summary": types.Schema(type=types.Type.STRING),
+            "category": types.Schema(type=types.Type.STRING),
+            "new_category_proposal": types.Schema(type=types.Type.STRING),
+            "keywords": types.Schema(type=types.Type.STRING),
+            "status": types.Schema(type=types.Type.STRING),
+        },
+        required=["title", "summary", "category", "keywords", "status"],
+    )
+
+    approved_str = ", ".join(approved_categories) if approved_categories else "(아직 없음)"
+    pending_str = ", ".join(pending_categories) if pending_categories else "(없음)"
+
+    prompt = f"""너는 D-PLAN360 내부 지식 문서를 분류하는 정확한 어시스턴트다.
+
+# 원본 문서 정보
+- 참고 제목: {title_hint}
+- 본문:
+{body_text[:8000]}
+
+# 분류 기준
+- 승인된 대분류(반드시 이 중에서 선택하려 시도): {approved_str}
+- 대기 중인 대분류 (참고만, 사용 금지): {pending_str}
+
+# 지시
+1. title: 실제 문서 주제를 반영한 짧은 제목 (30자 이내)
+2. summary: 핵심 내용 1~2문장 (100자 이내)
+3. category: 위 승인 대분류 중 가장 적합한 것 하나. 어느 것도 맞지 않으면 빈 문자열
+4. new_category_proposal: category를 비웠다면, 이 문서에 어울리는 신규 대분류명 하나 제안 (10자 이내). 아니면 빈 문자열
+5. keywords: 검색용 키워드 5~10개, 콤마 구분 (구체 명사·매체명·용어)
+6. status: 문서가 최신·유효하면 "활성", 명확히 만료·지난 이벤트면 "만료"
+"""
+
+    client = _get_client()
+    resp = client.models.generate_content(
+        model=MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=schema,
+        ),
+    )
+    try:
+        data = json.loads(resp.text)
+    except Exception:
+        return {
+            "title": title_hint[:30],
+            "summary": "",
+            "category": "",
+            "new_category_proposal": "",
+            "keywords": "",
+            "status": "활성",
+        }
+    return {
+        "title": data.get("title", "")[:30] or title_hint[:30],
+        "summary": data.get("summary", "")[:100],
+        "category": data.get("category", "").strip(),
+        "new_category_proposal": data.get("new_category_proposal", "").strip(),
+        "keywords": data.get("keywords", "").strip(),
+        "status": data.get("status", "활성").strip() or "활성",
+    }
+
+
+def answer_from_internal(question: str, candidates: list[dict]) -> str:
+    """1차: 내부 자료 기반 답변. 프롬프트는 '자료 기반' 전용."""
+    ref = "\n\n".join(
+        f"[{i+1}] 제목: {c['title']}\n요약: {c['summary']}\n본문 발췌: {c['body_excerpt']}\n"
+        f"출처: {c['source_channel']} ({c['source_link']})"
+        for i, c in enumerate(candidates)
+    )
+    prompt = f"""너는 D-PLAN360 사내 지식 어시스턴트 SP봇이다.
+
+# 참고 자료
+{ref}
+
+# 규칙
+- 위 자료 안의 정보만 사용해 답하라
+- 자료에 정확히 없는 사실은 만들어내지 말라
+- **자료가 질문과 다른 주제라면 (예: 질문은 '광고 계정 생성'인데 자료는 '관리 계정 생성') 절대 유사 자료로 답하지 말고 "제공된 자료로는 확인이 어렵습니다"로 답하라**
+- 자료에 없으면 "제공된 자료로는 확인이 어렵습니다"로 답하라
+- 답변 끝에 사용한 자료 번호를 [1], [2] 형식으로 명시
+
+# 질문
+{question}
+"""
+    client = _get_client()
+    resp = client.models.generate_content(model=MODEL, contents=prompt)
+    return (resp.text or "").strip()
+
+
+def judge_answer_sufficient(question: str, answer: str) -> bool:
+    """2차 판정: 별도 짧은 LLM 호출로 '답변이 실질적 정보를 담고 있는가' Yes/No.
+    구조화 출력 강제. 애매하면 False (웹 검색으로 넘김).
+    """
+    schema = types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "sufficient": types.Schema(type=types.Type.BOOLEAN),
+            "reason": types.Schema(type=types.Type.STRING),
+        },
+        required=["sufficient", "reason"],
+    )
+    prompt = f"""아래 답변이 사용자 질문에 대해 실질적이고 정확히 대응하는 정보를 담고 있는지 판단해라.
+
+# 판정 기준
+- **질문 의도와 답변 주제가 일치해야 True** (예: 질문 '광고 계정 생성'에 답변이 '관리 계정 생성' 절차면 False)
+- 질문과 다른 하위 주제·유사 자료로 답변하면 False
+- "확인이 어렵다", "자료에 없다", "제공된 자료로는" 표현이 포함되면 False
+- 구체적인 절차·수치·규정을 질문 주제 그대로 답변하면 True
+- 애매하거나 부분적이면 False (안전을 위해 False)
+
+# 질문
+{question}
+
+# 답변
+{answer}
+"""
+    client = _get_client()
+    try:
+        resp = client.models.generate_content(
+            model=MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=schema,
+            ),
+        )
+        data = json.loads(resp.text or "{}")
+        return bool(data.get("sufficient", False))
+    except Exception:
+        return False
+
+
+def answer_with_web(question: str) -> tuple[str, list[dict]]:
+    """3차: 웹 검색 활용 답변. 반환: (답변 텍스트, 웹 출처 리스트)
+    웹 출처: [{"title": ..., "uri": ...}] — Gemini grounding metadata에서 추출.
+    """
+    prompt = f"""너는 D-PLAN360 사내 지식 어시스턴트 SP봇이다.
+사용자 질문에 대해 웹 검색 결과를 적극 활용해 도움이 되는 답변을 작성해라.
+
+# 규칙
+- 검색된 최신 정보를 근거로 구체적으로 답하라
+- 확신이 없는 부분은 그렇다고 명시해라
+- 답변 끝에 별도의 면책·주의 문구를 붙이지 마라 (시스템이 자동으로 추가한다)
+
+# 질문
+{question}
+"""
+    client = _get_client()
+    resp = client.models.generate_content(
+        model=MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            tools=[types.Tool(google_search=types.GoogleSearch())],
+        ),
+    )
+    text = (resp.text or "").strip()
+
+    # Grounding metadata에서 웹 출처 추출 (여러 접근 경로 시도)
+    web_sources = _extract_web_sources(resp)
+    return text, web_sources
+
+
+def _extract_web_sources(resp) -> list[dict]:
+    """Gemini 응답에서 웹 출처 추출. SDK 버전별 접근 경로 방어적으로 처리."""
+    import sys
+    web_sources = []
+    seen_uris = set()
+
+    def _add(uri: str, title: str):
+        uri = (uri or "").strip()
+        if not uri or uri in seen_uris:
+            return
+        seen_uris.add(uri)
+        web_sources.append({"title": (title or uri).strip(), "uri": uri})
+
+    try:
+        candidates = getattr(resp, "candidates", None) or []
+        for cand in candidates:
+            # 경로 1: candidate.grounding_metadata.grounding_chunks[].web
+            gm = getattr(cand, "grounding_metadata", None)
+            if gm:
+                chunks = getattr(gm, "grounding_chunks", None) or []
+                for c in chunks:
+                    web = getattr(c, "web", None)
+                    if web:
+                        _add(getattr(web, "uri", ""), getattr(web, "title", ""))
+                # 경로 2: grounding_metadata.web_search_queries + search_entry_point (URL만)
+                # → 표시엔 부적합, 스킵
+            # 경로 3: candidate.citation_metadata.citation_sources (구버전)
+            cm = getattr(cand, "citation_metadata", None)
+            if cm:
+                sources = getattr(cm, "citation_sources", None) or []
+                for s in sources:
+                    _add(getattr(s, "uri", ""), getattr(s, "title", ""))
+    except Exception as e:
+        print(f"[SPBOT] grounding 추출 실패: {e}", file=sys.stderr)
+
+    return web_sources
