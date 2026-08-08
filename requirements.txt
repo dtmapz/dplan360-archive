@@ -12,3 +12,5 @@ db-dtypes
 google-genai
 beautifulsoup4
 markdown
+pypdf>=4.0
+google-api-python-client

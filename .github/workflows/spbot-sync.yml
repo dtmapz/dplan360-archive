@@ -1,4 +1,4 @@
-name: SP-bot Notion Sync
+name: SP-bot Sync
 
 on:
   schedule:
@@ -9,7 +9,7 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,7 +25,9 @@ jobs:
             gspread \
             google-auth \
             google-genai \
+            google-api-python-client \
             notion-client \
+            pypdf \
             toml
 
       - name: Run Notion sync
@@ -36,3 +38,13 @@ jobs:
           SHEET_ID: ${{ secrets.BIGQUERY_MAPPING_SHEET_ID }}
           PROMOTION_SHEET_ID: ${{ secrets.PROMOTION_SHEET_ID }}
         run: python scripts/spbot_sync_notion.py
+
+      - name: Run Drive PDF sync
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          SHEET_ID: ${{ secrets.BIGQUERY_MAPPING_SHEET_ID }}
+          PROMOTION_SHEET_ID: ${{ secrets.PROMOTION_SHEET_ID }}
+          DRIVE_PDF_FOLDER_ID: ${{ secrets.DRIVE_PDF_FOLDER_ID }}
+        run: python scripts/spbot_sync_drive.py
