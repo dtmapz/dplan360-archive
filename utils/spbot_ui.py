@@ -16,8 +16,24 @@ def _inject_style():
             font-size: 11px; color: #8a6210;
             background: #FFF8E1; border-radius: 4px;
             padding: 4px 8px; margin: 4px 0;
+            overflow-wrap: anywhere; word-break: break-word;
         }
-        .spbot-src a { color: #8a6210; text-decoration: none; }
+        .spbot-src a {
+            color: #8a6210; text-decoration: none;
+            overflow-wrap: anywhere; word-break: break-word;
+        }
+        /* SP봇 다이얼로그 안 채팅 메시지 텍스트 줄바꿈 강제 */
+        [data-testid="stDialog"] [data-testid="stChatMessage"] {
+            overflow-wrap: anywhere; word-break: break-word;
+        }
+        [data-testid="stDialog"] [data-testid="stChatMessage"] a {
+            overflow-wrap: anywhere; word-break: break-all;
+        }
+        [data-testid="stDialog"] [data-testid="stChatMessage"] p,
+        [data-testid="stDialog"] [data-testid="stChatMessage"] li {
+            overflow-wrap: anywhere; word-break: break-word;
+            max-width: 100%;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -49,6 +65,15 @@ def _spbot_dialog():
     for msg in st.session_state["_spbot_chat"]:
         with st.chat_message(msg["role"]):
             st.markdown(msg["text"])
+            stage = msg.get("stage")
+            if stage:
+                stage_label = {
+                    "internal": "🟢 내부 자료 기반",
+                    "web": "🌐 웹 검색 기반 (내부 자료 불충분)",
+                    "no_candidates_web": "🌐 웹 검색 기반 (매칭 문서 없음)",
+                }.get(stage, "")
+                if stage_label:
+                    st.caption(stage_label)
             if msg.get("sources"):
                 st.markdown("**참고한 내부 문서**")
                 for s in msg["sources"][:3]:
