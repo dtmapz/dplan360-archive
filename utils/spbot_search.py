@@ -110,10 +110,13 @@ def get_candidates(question: str, top_k: int = TOP_K,
 # ======================================================================
 
 def score_qna_docs(question: str, qna_docs: list[dict]) -> list[dict]:
-    """게시판 문의글에 점수 부여. 제목×3 + 내용×2 + 댓글×1.
+    """게시판 문의글에 점수 부여. 제목×3 + 내용×2 + 댓글×1 + 최신성 보너스.
+    최신성: 6개월 이내 +3, 6~12개월 +2, 1년 초과 0
     점수 내림차순 정렬 결과 반환."""
     q_tokens = _tokenize(question)
+    today = date.today()
     scored = []
+
     for d in qna_docs:
         title = str(d.get("제목", ""))
         content = str(d.get("내용", ""))
@@ -127,26 +130,59 @@ def score_qna_docs(question: str, qna_docs: list[dict]) -> list[dict]:
         if base == 0:
             continue
 
-        score = base
-        scored.append({**d, "_score": score})
+        # 최신성 보너스 (등록일시 파싱)
+        created_str = str(d.get("등록일시", "")).strip()
+        bonus = 0
+        try:
+            # "2026.08.07 17:51" → date로 변환
+            created_date = datetime.strptime(created_str.split()[0], "%Y.%m.%d").date()
+            diff_days = (today - created_date).days
+            if diff_days <= 180:  # 6개월
+                bonus = 3
+            elif diff_days <= 365:  # 1년
+                bonus = 2
+        except (ValueError, IndexError):
+            pass
+
+        score = base + bonus
+        scored.append({**d, "_score": score, "_created_date": created_str})
+
     scored.sort(key=lambda x: x["_score"], reverse=True)
     return scored
 
 
 def get_qna_candidates(question: str, top_k: int = TOP_K,
                        min_score: int = MIN_SCORE) -> list[dict]:
-    """게시판에서 질문과 유사한 상위 top_k 게시글. 최소 점수 미만은 제외."""
+    """게시판에서 질문과 유사한 상위 top_k 게시글. 최소 점수 미만은 제외.
+    is_outdated: 6개월 이상 경과 or 연도 다른 경우 True"""
     qna_docs = get_all_qna_docs()
     scored = [d for d in score_qna_docs(question, qna_docs) if d["_score"] >= min_score][:top_k]
-    return [
-        {
+    today = date.today()
+
+    result = []
+    for d in scored:
+        created_str = str(d.get("등록일시", "")).strip()
+        is_outdated = False
+
+        try:
+            # "2026.08.07 17:51" → date로 변환
+            created_date = datetime.strptime(created_str.split()[0], "%Y.%m.%d").date()
+            diff_days = (today - created_date).days
+            # 6개월 이상 경과 or 연도 다른 경우
+            if diff_days >= 180 or created_date.year != today.year:
+                is_outdated = True
+        except (ValueError, IndexError):
+            pass
+
+        result.append({
             "qna_id": d.get("qna_id", d.get("문의글ID", "")),
             "title": d.get("제목", ""),
             "content": str(d.get("내용", ""))[:800],
             "comments_json": d.get("댓글_JSON", ""),
             "author": d.get("등록자", ""),
-            "created_date": d.get("등록일시", ""),
+            "created_date": created_str,
             "score": d.get("_score", 0),
-        }
-        for d in scored
-    ]
+            "is_outdated": is_outdated,
+        })
+
+    return result

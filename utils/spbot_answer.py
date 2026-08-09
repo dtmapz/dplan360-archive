@@ -15,6 +15,7 @@ from utils.spbot_llm import (
 
 
 NOTICE = "\n\n※ 부정확한 답변이 있을 수 있으니 관련 문서를 함께 확인해주세요."
+OUTDATED_QNA_NOTICE = "\n\n⚠️ 참고한 게시판 글이 6개월 이상 경과했습니다. SP팀을 통해 최신 가이드를 함께 확인해주세요."
 
 
 def answer(question: str) -> dict:
@@ -48,8 +49,15 @@ def answer(question: str) -> dict:
     if judge_answer_sufficient(question, internal_answer):
         # 사용된 게시판 게시글만 필터링
         used_qna_sources = [q for q in qna_candidates if q['qna_id'] in used_qna_ids]
+
+        # 오래된 게시판 글 포함 여부 확인
+        has_outdated_qna = any(q.get('is_outdated', False) for q in used_qna_sources)
+        final_notice = NOTICE
+        if has_outdated_qna:
+            final_notice += OUTDATED_QNA_NOTICE
+
         return {
-            "text": internal_answer + NOTICE,
+            "text": internal_answer + final_notice,
             "sources": candidates,
             "qna_sources": used_qna_sources,
             "web_sources": [],
