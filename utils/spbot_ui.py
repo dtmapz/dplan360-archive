@@ -59,6 +59,7 @@ def _spbot_dialog():
             "role": "assistant",
             "text": "안녕하세요! 매체 가이드·업무 관련 질문에 답변합니다.\n\n예) *네이버 GFA 계정 이관 절차*",
             "sources": [],
+            "qna_sources": [],
         }]
 
     # 채팅 히스토리 렌더 (st.chat_message로 markdown 자동 처리)
@@ -83,6 +84,18 @@ def _spbot_dialog():
                         f"[{s['doc_id']}] {s['title']}</a> · {s['source_channel']}</div>",
                         unsafe_allow_html=True,
                     )
+            if msg.get("qna_sources"):
+                st.markdown("**참고한 게시판 글**")
+                for q in msg["qna_sources"][:3]:
+                    qna_id = q.get("qna_id", "")
+                    title = q.get("title", "")
+                    qna_link = f"http://works.dplan360.emato.net/page/qnaDetail.php?id={qna_id}"
+                    st.markdown(
+                        f"<div class='spbot-src'>📋 "
+                        f"<a href='{qna_link}' target='_blank'>"
+                        f"[Q{qna_id}] {title}</a></div>",
+                        unsafe_allow_html=True,
+                    )
             if msg.get("web_sources"):
                 st.markdown("**참고한 웹 출처**")
                 for s in msg["web_sources"][:5]:
@@ -96,7 +109,7 @@ def _spbot_dialog():
     question = st.chat_input("질문을 입력하세요")
     if question:
         st.session_state["_spbot_chat"].append(
-            {"role": "user", "text": question, "sources": []}
+            {"role": "user", "text": question, "sources": [], "qna_sources": []}
         )
         with st.spinner("답변 생성 중..."):
             try:
@@ -104,7 +117,8 @@ def _spbot_dialog():
                 st.session_state["_spbot_chat"].append({
                     "role": "assistant",
                     "text": result["text"],
-                    "sources": result["sources"],
+                    "sources": result.get("sources", []),
+                    "qna_sources": result.get("qna_sources", []),
                     "stage": result["stage"],
                 })
             except Exception as e:
@@ -112,6 +126,7 @@ def _spbot_dialog():
                     "role": "assistant",
                     "text": f"❌ 오류: {e}",
                     "sources": [],
+                    "qna_sources": [],
                 })
         _keep_dialog()
         st.rerun()

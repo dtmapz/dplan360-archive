@@ -208,3 +208,29 @@ def delete_doc(row_num: int) -> None:
     ws = _get_sheet("spbot_docs")
     ws.delete_rows(row_num)
     get_all_docs.clear()
+
+
+# ======================================================================
+# QNA 게시판 시트 (크롤링된 문의글 + 댓글)
+# ======================================================================
+
+@st.cache_data(ttl=300)
+def get_all_qna_docs() -> list[dict]:
+    """게시판 시트에서 모든 QNA 조회. (gid=1776222090)"""
+    try:
+        from utils.sheets import _get_sheet
+        ws = _get_sheet("qna", gid=1776222090)  # 게시판 시트
+        rows = ws.get_all_records()
+        result = []
+        for i, r in enumerate(rows):
+            qna_id = r.get("문의글ID", "")
+            if not qna_id or str(qna_id).strip() == "":
+                continue
+            r["_row"] = i + 2
+            r["qna_id"] = str(qna_id).strip()
+            result.append(r)
+        return result
+    except Exception as e:
+        import logging
+        logging.warning(f"게시판 시트 조회 실패: {e}")
+        return []

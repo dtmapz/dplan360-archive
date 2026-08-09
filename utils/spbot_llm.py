@@ -101,17 +101,39 @@ def summarize_doc(
     }
 
 
-def answer_from_internal(question: str, candidates: list[dict]) -> str:
-    """1차: 내부 자료 기반 답변. 프롬프트는 '자료 기반' 전용."""
+def answer_from_internal(question: str, candidates: list[dict], qna_candidates: list[dict] = None) -> tuple[str, list[dict]]:
+    """1차: 내부 자료 기반 답변. 프롬프트는 '자료 기반' 전용.
+
+    반환: (답변 텍스트, 사용된 게시판 ID 리스트)
+    """
+    qna_candidates = qna_candidates or []
+
+    # 기존 문서 참고 자료
     ref = "\n\n".join(
         f"[{i+1}] 제목: {c['title']}\n요약: {c['summary']}\n본문 발췌: {c['body_excerpt']}\n"
         f"출처: {c['source_channel']} ({c['source_link']})"
         for i, c in enumerate(candidates)
     )
+
+    # 게시판 QNA 참고 자료
+    qna_ref = ""
+    if qna_candidates:
+        qna_ref_lines = []
+        doc_count = len(candidates)
+        for i, q in enumerate(qna_candidates):
+            qna_ref_lines.append(
+                f"[{doc_count + i + 1}] 제목: {q['title']}\n"
+                f"질문 내용: {q['content']}\n"
+                f"팀 내 답변: {q['comments_json']}"
+            )
+        qna_ref = "\n\n" + "\n\n".join(qna_ref_lines) if qna_ref_lines else ""
+
+    full_ref = ref + qna_ref
+
     prompt = f"""너는 D-PLAN360 사내 지식 어시스턴트 SP봇이다.
 
 # 참고 자료
-{ref}
+{full_ref}
 
 # 규칙
 - 위 자료 안의 정보만 사용해 답하라
@@ -125,7 +147,24 @@ def answer_from_internal(question: str, candidates: list[dict]) -> str:
 """
     client = _get_client()
     resp = client.models.generate_content(model=MODEL, contents=prompt)
-    return (resp.text or "").strip()
+    answer_text = (resp.text or "").strip()
+
+    # 답변에서 사용된 게시판 ID 추출
+    used_qna_ids = []
+    if qna_candidates:
+        import re
+        # [N] 형식의 참조 추출
+        references = re.findall(r'\[(\d+)\]', answer_text)
+        doc_count = len(candidates)
+        for ref_num in references:
+            try:
+                idx = int(ref_num) - doc_count - 1
+                if 0 <= idx < len(qna_candidates):
+                    used_qna_ids.append(qna_candidates[idx]['qna_id'])
+            except (ValueError, IndexError):
+                pass
+
+    return answer_text, used_qna_ids
 
 
 def judge_answer_sufficient(question: str, answer: str) -> bool:
