@@ -189,9 +189,13 @@ class QNACrawler:
             ]
 
             first_row = self.worksheet.row_values(1)
-            if not first_row or first_row != headers:
+            # 첫 행이 헤더인지 확인 (첫 번째 셀이 "문의글ID"인지 확인)
+            if not first_row or first_row[0] != "문의글ID":
+                # 기존 헤더 행이 있으면 삭제
+                if first_row:
+                    self.worksheet.delete_rows(1)
                 self.worksheet.insert_row(headers, index=1)
-                logger.info("헤더 행 추가됨")
+                logger.info("헤더 행 설정 완료")
 
         except Exception as e:
             logger.error(f"워크시트 초기화 중 오류: {e}")
