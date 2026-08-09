@@ -159,6 +159,13 @@ def render_media_grid(media_list: list[dict], key_prefix: str, n_cols: int = 5) 
         st.caption("등록된 매체가 없습니다.")
         return
 
+    # 1열이면 st.columns(1)은 순수 낭비 — 매체 1개당 컬럼 컨테이너가 하나씩 생긴다
+    if n_cols <= 1:
+        for m in media_list:
+            if st.button(m["name"], key=f"{key_prefix}_{m['id']}", use_container_width=True):
+                request_detail(m["id"])
+        return
+
     rows = (len(media_list) + n_cols - 1) // n_cols
     idx = 0
     for _ in range(rows):
