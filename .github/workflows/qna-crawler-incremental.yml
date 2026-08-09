@@ -1,0 +1,49 @@
+name: QNA 크롤러 - 증분 (매일 새벽 5시)
+
+on:
+  schedule:
+    # 매일 새벽 5시 KST = 전날 20:00 UTC
+    - cron: '0 20 * * *'
+  workflow_dispatch:  # 수동 트리거도 지원
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout 코드
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: 의존성 설치
+        working-directory: ./crawlers/qna
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: QNA 크롤러 실행 (증분)
+        working-directory: ./crawlers/qna
+        env:
+          QNA_LOGIN_ID: ${{ secrets.QNA_LOGIN_ID }}
+          QNA_LOGIN_PW: ${{ secrets.QNA_LOGIN_PW }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.QNA_GCP_SERVICE_ACCOUNT_JSON }}
+          QNA_SHEET_ID: 1VSS1zHcoOiumySmzxyj-34zy3Qs7ln8Azp_TEZeKaDQ
+          QNA_SHEET_GID: 1776222090
+          QNA_CRAWL_MODE: incremental
+        run: |
+          python qna_crawler.py
+
+      - name: 완료 알림
+        if: success()
+        run: echo "✅ QNA 증분 크롤링 완료 ($(date '+%Y-%m-%d %H:%M:%S KST'))"
+
+      - name: 실패 알림
+        if: failure()
+        run: |
+          echo "❌ QNA 증분 크롤링 실패 ($(date '+%Y-%m-%d %H:%M:%S KST'))"
+          exit 1
