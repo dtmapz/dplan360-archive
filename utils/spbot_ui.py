@@ -78,12 +78,21 @@ def _spbot_dialog():
             if msg.get("sources"):
                 st.markdown("**참고한 내부 문서**")
                 for s in msg["sources"][:3]:
-                    st.markdown(
-                        f"<div class='spbot-src'>📎 "
-                        f"<a href='{s['source_link']}' target='_blank'>"
-                        f"[{s['doc_id']}] {s['title']}</a> · {s['source_channel']}</div>",
-                        unsafe_allow_html=True,
-                    )
+                    # Notion 문서: 링크 제거 (사용자 접근 불가)
+                    if s.get("is_notion"):
+                        st.markdown(
+                            f"<div class='spbot-src'>📎 "
+                            f"[{s['doc_id']}] {s['title']} · {s['source_channel']}</div>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        # 다른 출처: 링크 유지
+                        st.markdown(
+                            f"<div class='spbot-src'>📎 "
+                            f"<a href='{s['source_link']}' target='_blank'>"
+                            f"[{s['doc_id']}] {s['title']}</a> · {s['source_channel']}</div>",
+                            unsafe_allow_html=True,
+                        )
             if msg.get("qna_sources"):
                 st.markdown("**참고한 게시판 글**")
                 for q in msg["qna_sources"][:3]:

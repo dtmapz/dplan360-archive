@@ -100,6 +100,8 @@ def get_candidates(question: str, top_k: int = TOP_K,
             "source_channel": d.get("출처채널", ""),
             "source_link": d.get("원본링크", ""),
             "score": d.get("_score", 0),
+            # Notion 가이드 메타 (mediaguide 연결용)
+            "is_notion": d.get("출처채널", "").strip() == "Notion",
         }
         for d in scored
     ]
@@ -130,17 +132,19 @@ def score_qna_docs(question: str, qna_docs: list[dict]) -> list[dict]:
         if base == 0:
             continue
 
-        # 최신성 보너스 (등록일시 파싱)
+        # 최신성 보너스 (등록일시 파싱) — 게시판 우선 가중치
         created_str = str(d.get("등록일시", "")).strip()
         bonus = 0
         try:
             # "2026.08.07 17:51" → date로 변환
             created_date = datetime.strptime(created_str.split()[0], "%Y.%m.%d").date()
             diff_days = (today - created_date).days
-            if diff_days <= 180:  # 6개월
-                bonus = 3
-            elif diff_days <= 365:  # 1년
-                bonus = 2
+            if diff_days <= 180:  # 6개월 이내
+                bonus = 5  # 3 → 5 (내부 문서보다 확실히 우선)
+            elif diff_days <= 365:  # 6~12개월
+                bonus = 3  # 2 → 3
+            else:  # 1년 초과
+                bonus = 1  # 최소 1점 (아예 제외하지 않음)
         except (ValueError, IndexError):
             pass
 

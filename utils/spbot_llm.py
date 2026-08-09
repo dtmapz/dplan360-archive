@@ -101,28 +101,33 @@ def summarize_doc(
     }
 
 
-def answer_from_internal(question: str, candidates: list[dict], qna_candidates: list[dict] = None) -> tuple[str, list[dict]]:
+def answer_from_internal(question: str, candidates: list[dict], qna_candidates: list[dict] = None) -> tuple[str, list[str]]:
     """1차: 내부 자료 기반 답변. 프롬프트는 '자료 기반' 전용.
 
     반환: (답변 텍스트, 사용된 게시판 ID 리스트)
     """
     qna_candidates = qna_candidates or []
 
-    # 기존 문서 참고 자료
-    ref = "\n\n".join(
-        f"[{i+1}] 제목: {c['title']}\n요약: {c['summary']}\n본문 발췌: {c['body_excerpt']}\n"
-        f"출처: {c['source_channel']} ({c['source_link']})"
-        for i, c in enumerate(candidates)
-    )
+    # 기존 문서 참고 자료 (Notion은 링크 제외, 다른 출처는 링크 포함)
+    ref_items = []
+    for c in candidates:
+        source_info = c['source_channel']
+        # Notion이 아닌 경우만 링크 추가 (사용자가 직접 접근 가능)
+        if not c.get('is_notion'):
+            source_info += f" ({c['source_link']})"
+        ref_items.append(
+            f"- 제목: {c['title']}\n요약: {c['summary']}\n본문 발췌: {c['body_excerpt']}\n"
+            f"출처: {source_info}"
+        )
+    ref = "\n\n".join(ref_items)
 
     # 게시판 QNA 참고 자료
     qna_ref = ""
     if qna_candidates:
         qna_ref_lines = []
-        doc_count = len(candidates)
-        for i, q in enumerate(qna_candidates):
+        for q in qna_candidates:
             qna_ref_lines.append(
-                f"[{doc_count + i + 1}] 제목: {q['title']}\n"
+                f"- 제목: {q['title']}\n"
                 f"질문 내용: {q['content']}\n"
                 f"팀 내 답변: {q['comments_json']}"
             )
@@ -136,11 +141,11 @@ def answer_from_internal(question: str, candidates: list[dict], qna_candidates: 
 {full_ref}
 
 # 규칙
-- 위 자료 안의 정보만 사용해 답하라
+- 위 자료 안의 정보만 사용해 답하라. 모든 자료를 충분히 활용하라 (내부 문서, 게시판 등)
 - 자료에 정확히 없는 사실은 만들어내지 말라
 - 자료가 질문과 관련은 있지만 정확히 다른 하위 주제라면, 정확한 부분만 답하고 애매한 부분은 명시하라
 - 자료에 질문 답이 전혀 없을 때만 "관련 자료 없음"이라고 짧게 밝혀라 (긴 사족 없이)
-- 답변 끝에 실제로 사용한 자료 번호를 [1], [2] 형식으로 명시 (사용 안 했으면 생략)
+- **절대 금지:** 답변 본문에 하이퍼링크, URL, "바로가기" 등을 포함하지 말 것. 출처 표시는 시스템이 자동으로 처리함
 
 # 질문
 {question}
@@ -149,20 +154,9 @@ def answer_from_internal(question: str, candidates: list[dict], qna_candidates: 
     resp = client.models.generate_content(model=MODEL, contents=prompt)
     answer_text = (resp.text or "").strip()
 
-    # 답변에서 사용된 게시판 ID 추출
-    used_qna_ids = []
-    if qna_candidates:
-        import re
-        # [N] 형식의 참조 추출
-        references = re.findall(r'\[(\d+)\]', answer_text)
-        doc_count = len(candidates)
-        for ref_num in references:
-            try:
-                idx = int(ref_num) - doc_count - 1
-                if 0 <= idx < len(qna_candidates):
-                    used_qna_ids.append(qna_candidates[idx]['qna_id'])
-            except (ValueError, IndexError):
-                pass
+    # 게시판 글이 제공되었으면, 모두 사용된 것으로 간주
+    # (LLM이 자동으로 가장 관련된 자료만 참고하므로, 선택된 게시판 글은 모두 관련 있음)
+    used_qna_ids = [q['qna_id'] for q in qna_candidates] if qna_candidates else []
 
     return answer_text, used_qna_ids
 
