@@ -30,8 +30,8 @@ st.markdown(
     [data-testid="stSidebarNav"] a span { font-size: 16px !important; }
     [data-testid="stLogo"] img { height: 48px !important; max-width: none !important; }
     [data-testid="stSidebar"] [data-testid="stButton"] button {
-        background-color: #F2A93B !important;
-        color: #0B0B0B !important;
+        background-color: #0B0B0B !important;
+        color: #FFFFFF !important;
         border: 1px solid #F2A93B !important;
         font-size: 13px !important;
     }
