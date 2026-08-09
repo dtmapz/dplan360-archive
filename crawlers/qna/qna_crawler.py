@@ -81,8 +81,8 @@ class QNACrawler:
 
             soup = BeautifulSoup(resp.text, 'html.parser')
 
-            # 메인 컨테이너 확인
-            base_container = soup.select_one("div.baseViewContainer")
+            # 메인 컨테이너 확인 (section 또는 div)
+            base_container = soup.select_one(".baseViewContainer")
             if not base_container:
                 return None
 
