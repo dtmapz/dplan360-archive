@@ -4,6 +4,7 @@ import sys
 import json
 import time
 import logging
+import base64
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 
@@ -35,7 +36,13 @@ class QNACrawler:
         self.session.timeout = 30
 
         # Google Sheets 인증
-        creds_dict = json.loads(gsheet_creds_json)
+        # Base64 디코딩 (GitHub Secrets에 Base64로 저장된 경우)
+        try:
+            creds_dict = json.loads(gsheet_creds_json)
+        except json.JSONDecodeError:
+            # Base64 인코딩된 경우 디코딩
+            decoded = base64.b64decode(gsheet_creds_json).decode('utf-8')
+            creds_dict = json.loads(decoded)
         scopes = ["https://www.googleapis.com/auth/spreadsheets"]
         creds = service_account.Credentials.from_service_account_info(creds_dict, scopes=scopes)
         self.gc = gspread.authorize(creds)
