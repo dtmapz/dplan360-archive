@@ -89,13 +89,20 @@ def _spbot_dialog():
                 for q in msg["qna_sources"][:3]:
                     qna_id = q.get("qna_id", "")
                     title = q.get("title", "")
+                    created_date = q.get("created_date", "")
+                    is_outdated = q.get("is_outdated", False)
                     qna_link = f"http://works.dplan360.emato.net/page/qnaDetail.php?id={qna_id}"
-                    st.markdown(
-                        f"<div class='spbot-src'>📋 "
+
+                    # 오래된 글이면 ⚠️ 아이콘 표시
+                    icon = "⚠️" if is_outdated else "📋"
+                    date_hint = f" ({created_date})" if created_date else ""
+                    html_content = (
+                        f"<div class='spbot-src'>{icon} "
                         f"<a href='{qna_link}' target='_blank'>"
-                        f"[Q{qna_id}] {title}</a></div>",
-                        unsafe_allow_html=True,
+                        f"[Q{qna_id}] {title}</a>{date_hint}</div>"
                     )
+
+                    st.markdown(html_content, unsafe_allow_html=True)
             if msg.get("web_sources"):
                 st.markdown("**참고한 웹 출처**")
                 for s in msg["web_sources"][:5]:
