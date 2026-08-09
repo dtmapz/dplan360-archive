@@ -45,14 +45,12 @@ def _keep_dialog():
     st.session_state["_spbot_open"] = True
 
 
-@st.dialog("AI 챗봇에게 질문하기")
+@st.dialog("SP봇 · 사내 지식 검색")
 def _spbot_dialog():
     # 첫 렌더 시 플래그 pop → X 닫기 시 페이지 이동/rerun에도 재오픈되지 않음
     st.session_state.pop("_spbot_open", None)
     st.markdown(
-        "<div style='font-size: 12px; color: #666; background: #f0f8ff; border-left: 3px solid #0066cc; border-radius: 4px; padding: 8px 12px; margin-bottom: 12px;'>"
-        "매체 가이드, 디플랜WORKS 데이터와 웹 검색을 기반으로 답변합니다. 부정확한 답변이 있을 수 있으니 관련 문서를 함께 확인해주세요."
-        "</div>",
+        "<div class='spbot-notice'>💡 부정확한 답변이 있을 수 있으니 관련 문서를 함께 확인해주세요.</div>",
         unsafe_allow_html=True,
     )
 
@@ -166,7 +164,7 @@ def render_spbot_trigger():
     _inject_style()
 
     with st.sidebar:
-        if st.button("💬 AI 챗봇 질문하기", key="_spbot_open_btn",
+        if st.button("💬 SP봇에게 질문", key="_spbot_open_btn",
                      use_container_width=True):
             st.session_state["_spbot_open"] = True
             st.rerun()
