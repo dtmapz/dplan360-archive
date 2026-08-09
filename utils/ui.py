@@ -7,6 +7,7 @@ from utils.sheets import (
     create_media_info,
     to_download_url,
     has_media_hub,
+    get_hub_media_ids,
     get_hub_by_media,
     get_media_notice,
     get_media_notice_any,
@@ -183,6 +184,9 @@ def render_result_table(media_list: list[dict], key_prefix: str) -> None:
 
     col_ratio = [2.0, 1.3, 0.9, 1.4, 2.0, 2.0, 0.9]
 
+    # 허브 활성 매체ID를 표 단위로 1회만 조회 (행마다 has_media_hub 호출 금지)
+    hub_ids = get_hub_media_ids()
+
     header = st.columns(col_ratio)
     labels = ["매체명", "담당자", "직급", "연락처", "이메일", "팀메일"]
     for i, c in enumerate(header):
@@ -201,7 +205,7 @@ def render_result_table(media_list: list[dict], key_prefix: str) -> None:
         email = contact.get("email") or ""
         team_email = contact.get("team_email") or ""
         intro_url = m.get("intro_doc_url") or ""
-        is_hub = has_media_hub(m["id"])
+        is_hub = m["id"] in hub_ids
 
         # 미디어허브 배지 (hub 활성 매체만)
         hub_badge = (

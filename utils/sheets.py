@@ -109,6 +109,7 @@ def _get_all_media_rows() -> list[dict]:
     return result
 
 
+@st.cache_data(ttl=300)
 def _build_cat_lookup() -> dict:
     cats = get_all_categories()
     return {
@@ -162,6 +163,7 @@ def build_media_cat_map() -> dict:
     return {m["name"]: cat_id_to_major.get(m["카테고리ID"], "") for m in all_media}
 
 
+@st.cache_data(ttl=300)
 def search_media(keyword: str) -> list[dict]:
     rows = _get_all_media_rows()
     cat_lookup = _build_cat_lookup()
@@ -187,6 +189,7 @@ def get_media_detail(media_id: str) -> dict:
     return {"id": media_id, "name": "", "contacts": [{}], "categories": {}}
 
 
+@st.cache_data(ttl=300)
 def get_media_by_category(major: str) -> list[dict]:
     rows = _get_all_media_rows()
     cat_lookup = _build_cat_lookup()
@@ -205,6 +208,10 @@ def _clear_media_caches():
     _get_all_media_rows.clear()
     get_all_media.clear()
     build_media_cat_map.clear()
+    # 매체 행을 파생해 캐시하는 함수들 — 누락 시 최대 5분간 옛 데이터가 노출됨
+    get_all_media_with_categories.clear()
+    search_media.clear()
+    get_media_by_category.clear()
 
 
 def update_media_info(
@@ -378,6 +385,7 @@ def export_sheet_as_xlsx(sheet_url: str) -> bytes:
 def _clear_hub_caches():
     _get_hub_rows.clear()
     _get_notice_rows.clear()
+    get_hub_media_ids.clear()
 
 
 @st.cache_data(ttl=300)
@@ -514,11 +522,30 @@ def has_media_hub(media_id: str) -> bool:
 
     소개서 URL만으로는 활성화되지 않음. (활성 후 Q8 자동 편입은 hub 렌더링 시 동작)
     """
-    if any(r.get("매체ID") == media_id for r in _get_hub_rows()):
-        return True
-    if get_media_notice(media_id):
-        return True
-    return False
+    return media_id in get_hub_media_ids()
+
+
+@st.cache_data(ttl=300)
+def get_hub_media_ids() -> set[str]:
+    """허브 활성 매체ID 집합을 1회 계산해 캐시.
+
+    표 렌더링에서 행마다 has_media_hub()를 호출하면 행당 _get_hub_rows() +
+    _get_notice_rows() 전체 복사가 발생 → 목록 단위로 이 집합을 한 번만 조회한다.
+    """
+    ids = {str(r.get("매체ID", "")).strip() for r in _get_hub_rows()}
+    ids.discard("")
+
+    for r in _get_notice_rows():
+        active_val = str(r.get("활성여부", "")).strip().upper()
+        if active_val not in ("Y", "TRUE", "1", "예", "YES", "T"):
+            continue
+        if not str(r.get("공지내용", "")).strip():
+            continue
+        mid = str(r.get("매체ID", "")).strip()
+        if mid:
+            ids.add(mid)
+
+    return ids
 
 
 # ---------- Hub 자료 CRUD ----------
