@@ -165,7 +165,15 @@ class QNACrawler:
         """워크시트 초기화 및 헤더 설정"""
         try:
             spreadsheet = self.gc.open_by_key(self.sheet_id)
-            self.worksheet = spreadsheet.worksheet("gid", self.gid)
+
+            # gid로 워크시트 찾기
+            for ws in spreadsheet.worksheets():
+                if ws.id == self.gid:
+                    self.worksheet = ws
+                    break
+
+            if not self.worksheet:
+                raise ValueError(f"GID {self.gid}인 워크시트를 찾을 수 없음")
 
             # 헤더 확인 및 설정
             headers = [
