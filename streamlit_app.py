@@ -35,21 +35,34 @@ st.markdown(
         border: 1px solid #F2A93B !important;
         font-size: 13px !important;
     }
+
+    /* 사이드바 네비게이션 폰트 크기 조정 */
+    [data-testid="stSidebarNav"] details summary {
+        font-size: 14px !important;
+        font-weight: 600 !important;
+    }
+
+    [data-testid="stSidebarNav"] details ul li a span {
+        font-size: 11px !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-home_page       = st.Page("pages/1_Home.py",           title="HOME",          icon="🔍", default=True)
-milestone_page  = st.Page("pages/2_Milestone.py",       title="MILESTONE",     icon="🗺️")
-calendar_page   = st.Page("pages/3_EventCalendar.py",   title="EVENT CALENDAR",icon="📅")
-creative_page   = st.Page("pages/5_CreativeGuide.py",   title="CREATIVE GUIDE", icon="🎨")
-media_guide_page = st.Page("pages/6_MediaGuide.py", title="MEDIA GUIDE", icon="❓")
-report_page = st.Page("pages/7_ReportDownload.py", title="REPORT DOWNLOAD", icon="🔢")
-promotion_page = st.Page("pages/8_Promotion.py", title="PROMOTION LIVE", icon="🏆")
-mediapromo_page = st.Page("pages/9_MediaPromo.py", title="MEDIA PROMOS", icon="🎁")
+home_page = st.Page("pages/1_Home.py", title="매체 검색", icon="🔍", default=True)
+media_guide_page = st.Page("pages/6_MediaGuide.py", title="미디어 가이드", icon="❓")
+creative_page = st.Page("pages/5_CreativeGuide.py", title="소재 제작 가이드", icon="🎨")
+promotion_page = st.Page("pages/8_Promotion.py", title="SMR&넷플릭스 프로모션 LIVE", icon="🏆")
+mediapromo_page = st.Page("pages/9_MediaPromo.py", title="미디어 프로모션", icon="🎁")
+calendar_page = st.Page("pages/3_EventCalendar.py", title="디플랜360 캘린더", icon="📅")
+report_page = st.Page("pages/7_ReportDownload.py", title="통합 리포트 다운로더", icon="🔢")
 
-pages = [home_page, milestone_page, calendar_page, creative_page, media_guide_page, report_page, promotion_page, mediapromo_page]
+pages = {
+    "[MEDIA]": [home_page, media_guide_page, creative_page],
+    "[PROMOTION]": [promotion_page, mediapromo_page],
+    "[SUPPORT]": [calendar_page, report_page],
+}
 
 pg = st.navigation(pages)
 
