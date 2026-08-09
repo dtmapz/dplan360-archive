@@ -255,12 +255,133 @@ class QNACrawler:
 
         logger.info("백필 크롤링 완료")
 
-    def crawl_incremental(self):
-        """증분: 마지막 이후 신규 문의글 크롤링"""
-        last_id = self.get_last_crawled_id()
-        logger.info(f"증분 모드: 마지막 크롤링 ID = {last_id}, {last_id + 1}부터 시작")
+    def get_recent_qna_list(self) -> List[Dict]:
+        """최근 180일 이내 문의글 조회"""
+        try:
+            all_values = self.worksheet.get_all_values()
+            if len(all_values) <= 1:  # 헤더만 있는 경우
+                return []
 
-        # 최대 200개까지만 시도 (일일 신규 상한 추정)
+            cutoff_date = datetime.now(KST) - timedelta(days=180)
+
+            result = []
+            for idx, row in enumerate(all_values[1:], 2):  # 헤더 제외, 행번호 2부터
+                if not row or not row[0]:
+                    continue
+
+                try:
+                    qna_id = int(row[0])
+                    created_date_str = row[4]  # E열: 등록일시
+                    created_date = datetime.strptime(created_date_str.split()[0], "%Y.%m.%d").replace(tzinfo=KST)
+
+                    if created_date >= cutoff_date:
+                        result.append({
+                            "row_num": idx,
+                            "qna_id": qna_id,
+                            "comment_count": int(row[6]) if len(row) > 6 and row[6].isdigit() else 0,
+                            "comments_json": row[7] if len(row) > 7 else "",
+                            "status": row[5] if len(row) > 5 else ""  # F열: 상태
+                        })
+                except (ValueError, IndexError):
+                    continue
+
+            return result
+        except Exception as e:
+            logger.error(f"최근 180일 문의글 조회 중 오류: {e}")
+            return []
+
+    def update_recent_comments(self):
+        """1단계: 최근 180일 문의글 댓글 업데이트 (댓글수 변경시만)"""
+        logger.info("1단계: 최근 180일 문의글 댓글 업데이트 시작")
+
+        recent_qnas = self.get_recent_qna_list()
+        if not recent_qnas:
+            logger.info("업데이트할 문의글 없음")
+            return
+
+        updated_count = 0
+        for qna_info in recent_qnas:
+            qna_id = qna_info["qna_id"]
+            existing_count = qna_info["comment_count"]
+
+            # 최신 데이터 fetch
+            qna_data = self.fetch_qna(qna_id)
+            if not qna_data:
+                continue
+
+            # 댓글수 비교 (변경 있을 때만 업데이트)
+            new_count = qna_data["comment_count"]
+            if new_count != existing_count:
+                try:
+                    row_num = qna_info["row_num"]
+                    # G열(댓글수), H열(댓글_JSON) 업데이트
+                    self.worksheet.update(
+                        values=[[str(new_count), qna_data["comments_json"]]],
+                        range_name=f"G{row_num}:H{row_num}",
+                        value_input_option="USER_ENTERED"
+                    )
+                    updated_count += 1
+                    logger.debug(f"ID {qna_id}: 댓글 {existing_count}→{new_count}개 업데이트")
+                except Exception as e:
+                    logger.error(f"ID {qna_id} 댓글 업데이트 중 오류: {e}")
+
+            time.sleep(0.5)
+
+        logger.info(f"1단계 완료: {updated_count}개 문의글 댓글 업데이트됨")
+
+    def update_recent_status(self):
+        """2단계: 최근 180일 문의글 상태값 업데이트 (상태 변경시만)"""
+        logger.info("2단계: 최근 180일 문의글 상태값 업데이트 시작")
+
+        recent_qnas = self.get_recent_qna_list()
+        if not recent_qnas:
+            logger.info("업데이트할 문의글 없음")
+            return
+
+        updated_count = 0
+        for qna_info in recent_qnas:
+            qna_id = qna_info["qna_id"]
+            existing_status = qna_info["status"]
+
+            # 최신 데이터 fetch
+            qna_data = self.fetch_qna(qna_id)
+            if not qna_data:
+                continue
+
+            # 상태 비교 (변경 있을 때만 업데이트)
+            new_status = qna_data["status"]
+            if new_status != existing_status:
+                try:
+                    row_num = qna_info["row_num"]
+                    # F열(상태) 업데이트
+                    self.worksheet.update(
+                        values=[[new_status]],
+                        range_name=f"F{row_num}",
+                        value_input_option="USER_ENTERED"
+                    )
+                    updated_count += 1
+                    logger.debug(f"ID {qna_id}: 상태 '{existing_status}'→'{new_status}' 변경")
+                except Exception as e:
+                    logger.error(f"ID {qna_id} 상태 업데이트 중 오류: {e}")
+
+            time.sleep(0.5)
+
+        logger.info(f"2단계 완료: {updated_count}개 문의글 상태 업데이트됨")
+
+    def crawl_incremental(self):
+        """증분: 1단계(댓글 업데이트) → 2단계(상태 업데이트) → 3단계(신규 크롤링)"""
+
+        # 1단계: 최근 180일 댓글 업데이트
+        self.update_recent_comments()
+
+        # 2단계: 최근 180일 상태값 업데이트
+        self.update_recent_status()
+
+        # 3단계: 신규 문의글 크롤링
+        logger.info("3단계: 신규 문의글 크롤링 시작")
+        last_id = self.get_last_crawled_id()
+        logger.info(f"마지막 크롤링 ID = {last_id}, {last_id + 1}부터 시작")
+
         max_attempts = 200
         consecutive_empty = 0
 
@@ -273,14 +394,13 @@ class QNACrawler:
                 consecutive_empty = 0
             else:
                 consecutive_empty += 1
-                # 연속 10개 스킵하면 종료
                 if consecutive_empty >= 10:
-                    logger.info(f"연속 {consecutive_empty}개 스킵 → 크롤링 종료")
+                    logger.info(f"연속 {consecutive_empty}개 스킵 → 3단계 종료")
                     break
 
             time.sleep(1)
 
-        logger.info("증분 크롤링 완료")
+        logger.info("3단계 완료: 신규 문의글 크롤링 완료")
 
 
 def main():

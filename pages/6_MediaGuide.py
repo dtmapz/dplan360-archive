@@ -384,6 +384,8 @@ def search_all_guides(_media_pages):
 # ============================
 # 메인 UI
 # ============================
+# SP봇에서 자동 검색 요청이 있으면, 세션 상태의 mg_search가 이미 설정됨
+# text_input이 그 값을 초기값으로 로드함
 search_kw = st.text_input("", placeholder="🔍 전체 가이드 검색", label_visibility="collapsed", key="mg_search")
 
 media_pages = get_hub_children()

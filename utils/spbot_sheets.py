@@ -216,10 +216,32 @@ def delete_doc(row_num: int) -> None:
 
 @st.cache_data(ttl=300)
 def get_all_qna_docs() -> list[dict]:
-    """게시판 시트에서 모든 QNA 조회. (gid=1776222090)"""
+    """게시판 시트에서 모든 QNA 조회."""
     try:
-        from utils.sheets import _get_sheet
-        ws = _get_sheet("qna", gid=1776222090)  # 게시판 시트
+        from google.oauth2 import service_account
+        import gspread
+
+        # 서비스 계정으로 게시판 시트 접근 (다른 시트 ID)
+        QNA_SHEET_ID = "1VSS1zHcoOiumySmzxyj-34zy3Qs7ln8Azp_TEZeKaDQ"
+        creds = service_account.Credentials.from_service_account_info(
+            dict(st.secrets["gcp_service_account"]),
+            scopes=["https://www.googleapis.com/auth/spreadsheets"],
+        )
+        gc = gspread.authorize(creds)
+        spreadsheet = gc.open_by_key(QNA_SHEET_ID)
+
+        # gid로 워크시트 찾기
+        ws = None
+        for sheet in spreadsheet.worksheets():
+            if sheet.id == 1776222090:
+                ws = sheet
+                break
+
+        if not ws:
+            import logging
+            logging.warning("게시판 시트(gid=1776222090)를 찾을 수 없음")
+            return []
+
         rows = ws.get_all_records()
         result = []
         for i, r in enumerate(rows):
