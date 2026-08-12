@@ -68,7 +68,7 @@ from utils.spbot_sheets import (  # noqa: E402
     get_pending_category_names,
     add_category_if_new,
 )
-from utils.spbot_llm import summarize_doc  # noqa: E402
+from utils.spbot_llm import summarize_doc, get_usage_report  # noqa: E402
 
 
 MAX_PDF_MB = 50  # 50MB 초과 파일은 스킵 (안전장치)
@@ -281,6 +281,9 @@ def run():
     )
     if new_category_proposals:
         print(f"신규 카테고리 후보 (승인 대기): {sorted(new_category_proposals)}", flush=True)
+    u = get_usage_report()
+    print(f"Gemini 사용량 — 호출 {u['calls']}회 · prompt {u['prompt']:,} · "
+          f"output {u['output']:,} · total {u['total']:,} tokens", flush=True)
 
 
 if __name__ == "__main__":

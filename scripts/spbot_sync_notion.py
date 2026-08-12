@@ -72,7 +72,7 @@ from utils.spbot_sheets import (  # noqa: E402
     get_pending_category_names,
     add_category_if_new,
 )
-from utils.spbot_llm import summarize_doc  # noqa: E402
+from utils.spbot_llm import summarize_doc, get_usage_report  # noqa: E402
 
 
 # ---------------------------------------------------------------------
@@ -327,6 +327,9 @@ def run():
     print(f"신규: {total_created} · 갱신: {total_updated} · 스킵: {total_skipped}", flush=True)
     if new_category_proposals:
         print(f"신규 카테고리 후보 (승인 대기): {sorted(new_category_proposals)}", flush=True)
+    u = get_usage_report()
+    print(f"Gemini 사용량 — 호출 {u['calls']}회 · prompt {u['prompt']:,} · "
+          f"output {u['output']:,} · total {u['total']:,} tokens", flush=True)
 
 
 def _get_notion_token_from_secrets() -> str:

@@ -8,6 +8,32 @@ from google.genai import types
 MODEL = "gemini-flash-latest"
 
 
+# ---------------------------------------------------------------------
+# 토큰 사용량 누적 (프로세스 단위)
+# ---------------------------------------------------------------------
+_usage_totals = {"calls": 0, "prompt": 0, "output": 0, "total": 0}
+
+
+def reset_usage() -> None:
+    for k in _usage_totals:
+        _usage_totals[k] = 0
+
+
+def _record_usage(resp) -> None:
+    """generate_content 응답의 usage_metadata를 누적."""
+    um = getattr(resp, "usage_metadata", None)
+    if um is None:
+        return
+    _usage_totals["calls"] += 1
+    _usage_totals["prompt"] += int(getattr(um, "prompt_token_count", 0) or 0)
+    _usage_totals["output"] += int(getattr(um, "candidates_token_count", 0) or 0)
+    _usage_totals["total"] += int(getattr(um, "total_token_count", 0) or 0)
+
+
+def get_usage_report() -> dict:
+    return dict(_usage_totals)
+
+
 def _get_client():
     """Streamlit 환경과 GitHub Actions 환경 모두 지원."""
     api_key = os.environ.get("GEMINI_API_KEY")
@@ -80,6 +106,7 @@ def summarize_doc(
             response_schema=schema,
         ),
     )
+    _record_usage(resp)
     try:
         data = json.loads(resp.text)
     except Exception:
