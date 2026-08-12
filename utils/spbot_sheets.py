@@ -120,9 +120,15 @@ def create_doc(
     source_channel: str,
     source_link: str,
     status: str = "활성",
+    doc_id: str | None = None,
 ) -> str:
-    """신규 문서 등록. 문서ID 반환."""
-    doc_id = _next_doc_id()
+    """신규 문서 등록. 문서ID 반환.
+
+    doc_id: 사전 계산된 ID를 넘기면 `_next_doc_id()` 호출을 생략한다.
+    배치 처리(크롤러) 시 매 iteration마다 전체 시트를 다시 읽는 것을 피하기 위함.
+    """
+    if doc_id is None:
+        doc_id = _next_doc_id()
     today = date.today().isoformat()
     row_data = [
         doc_id,
@@ -151,13 +157,24 @@ def update_doc(
     keywords: str,
     body: str,
     status: str = "활성",
+    existing_meta: dict | None = None,
 ) -> None:
-    """기존 문서 갱신 (원본이 바뀐 경우). 최종수정일 자동 갱신."""
+    """기존 문서 갱신 (원본이 바뀐 경우). 최종수정일 자동 갱신.
+
+    existing_meta: {"문서ID","출처채널","원본링크","등록일"} 를 미리 넘기면
+    ws.cell() 4회 호출을 생략한다. 없으면 시트에서 직접 조회.
+    """
     ws = _get_sheet("spbot_docs")
-    existing_id = ws.cell(row_num, 1).value or ""
-    existing_source_ch = ws.cell(row_num, 7).value or ""
-    existing_source_lnk = ws.cell(row_num, 8).value or ""
-    existing_created = ws.cell(row_num, 10).value or date.today().isoformat()
+    if existing_meta is not None:
+        existing_id = str(existing_meta.get("문서ID") or "")
+        existing_source_ch = str(existing_meta.get("출처채널") or "")
+        existing_source_lnk = str(existing_meta.get("원본링크") or "")
+        existing_created = str(existing_meta.get("등록일") or "") or date.today().isoformat()
+    else:
+        existing_id = ws.cell(row_num, 1).value or ""
+        existing_source_ch = ws.cell(row_num, 7).value or ""
+        existing_source_lnk = ws.cell(row_num, 8).value or ""
+        existing_created = ws.cell(row_num, 10).value or date.today().isoformat()
     today = date.today().isoformat()
     row_data = [
         existing_id,
@@ -189,19 +206,28 @@ def upsert_doc(
     keywords: str,
     body: str,
     status: str = "활성",
+    existing_doc: dict | None = None,
+    doc_id: str | None = None,
 ) -> tuple[str, str]:
-    """source_link 기준 upsert. (문서ID, 'created' or 'updated') 반환."""
-    existing = get_doc_by_source_link(source_link)
+    """source_link 기준 upsert. (문서ID, 'created' or 'updated') 반환.
+
+    existing_doc: 호출자가 이미 확보한 문서 dict(_row 포함)를 넘기면
+    `get_doc_by_source_link` 조회를 생략한다.
+    doc_id: create 케이스에서 사전 계산된 ID를 넘길 때 사용.
+    """
+    existing = existing_doc if existing_doc is not None else get_doc_by_source_link(source_link)
     if existing:
         update_doc(
             existing["_row"], title, summary, category, keywords, body, status,
+            existing_meta=existing,
         )
         return existing["문서ID"], "updated"
-    doc_id = create_doc(
+    new_id = create_doc(
         title, summary, category, keywords, body,
         source_channel, source_link, status,
+        doc_id=doc_id,
     )
-    return doc_id, "created"
+    return new_id, "created"
 
 
 def delete_doc(row_num: int) -> None:

@@ -40,6 +40,9 @@ jobs:
           PROMOTION_SHEET_ID: ${{ secrets.PROMOTION_SHEET_ID }}
         run: python scripts/spbot_sync_notion.py
 
+      - name: Sleep 60s (Sheets API quota reset)
+        run: sleep 60
+
       - name: Run Drive PDF sync
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
