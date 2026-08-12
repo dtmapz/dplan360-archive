@@ -170,12 +170,25 @@ def run():
     pdfs = _list_pdfs_in_folder(drive, folder_id)
     print(f"Drive 폴더에서 PDF {len(pdfs)}개 발견", flush=True)
 
-    # 기존 시트 상태 로드 (원본링크 기준 modifiedTime 비교)
-    existing = {}
-    for d in get_all_docs():
+    # 기존 시트 상태 로드 (원본링크 → 문서 dict 전체)
+    # dict 전체를 보관해 upsert 시 재조회(cell reads)를 없앤다.
+    all_existing_docs = get_all_docs()
+    existing_by_link: dict[str, dict] = {}
+    for d in all_existing_docs:
         link = str(d.get("원본링크", "")).strip()
         if link:
-            existing[link] = str(d.get("최종수정일", "")).strip()
+            existing_by_link[link] = d
+    # 신규 doc_id 사전 계산 (매 create마다 시트 재조회 방지)
+    max_num = 0
+    for d in all_existing_docs:
+        did = str(d.get("문서ID", ""))
+        parts = did.split("-")
+        if len(parts) == 2 and parts[0] == "DOC":
+            try:
+                max_num = max(max_num, int(parts[1]))
+            except ValueError:
+                pass
+    next_doc_num = max_num + 1
 
     approved_cats = get_approved_category_names()
     pending_cats = get_pending_category_names()
@@ -201,7 +214,8 @@ def run():
             continue
 
         # 변경 없음 스킵
-        if source_link in existing and existing[source_link] == modified_short:
+        existing_doc = existing_by_link.get(source_link)
+        if existing_doc and str(existing_doc.get("최종수정일", "")).strip() == modified_short:
             total_skipped += 1
             continue
 
@@ -235,6 +249,7 @@ def run():
         if meta.get("new_category_proposal"):
             new_category_proposals.add(meta["new_category_proposal"])
 
+        precomputed_id = None if existing_doc else f"DOC-{next_doc_num:04d}"
         _, action = upsert_doc(
             source_channel="Drive PDF",
             source_link=source_link,
@@ -244,9 +259,12 @@ def run():
             keywords=meta["keywords"],
             body=body,
             status=meta["status"],
+            existing_doc=existing_doc,
+            doc_id=precomputed_id,
         )
         if action == "created":
             total_created += 1
+            next_doc_num += 1
             print(f"  ✓ 신규 [{name}]", flush=True)
         else:
             total_updated += 1
