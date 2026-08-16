@@ -13,3 +13,11 @@ docs/
 deploy/
 fill_media_ids.py
 .DS_Store
+.claude/
+
+# 크롤러 출력물 (민감 비즈니스 데이터 포함)
+crawlers/*/matches.csv
+crawlers/*/conflicts.log
+crawlers/*/no_match.log
+crawlers/*/*.log
+/tmp/

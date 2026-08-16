@@ -57,11 +57,12 @@ promotion_page = st.Page("pages/8_Promotion.py", title="SMR&넷플릭스 프로�
 mediapromo_page = st.Page("pages/9_MediaPromo.py", title="미디어 프로모션", icon="🎁")
 calendar_page = st.Page("pages/3_EventCalendar.py", title="디플랜360 캘린더", icon="📅")
 report_page = st.Page("pages/7_ReportDownload.py", title="통합 리포트 다운로더", icon="🔢")
+budget_page = st.Page("pages/10_BudgetReference.py", title="캠페인 이력 참고", icon="📊")
 
 pages = {
     "[MEDIA]": [home_page, media_guide_page, creative_page],
     "[PROMOTION]": [promotion_page, mediapromo_page],
-    "[SUPPORT]": [calendar_page, report_page],
+    "[SUPPORT]": [calendar_page, report_page, budget_page],
 }
 
 pg = st.navigation(pages)
