@@ -408,14 +408,17 @@ def main():
     login_id = os.getenv("QNA_LOGIN_ID")
     login_pw = os.getenv("QNA_LOGIN_PW")
     gsheet_creds_json = os.getenv("QNA_GCP_SERVICE_ACCOUNT_JSON")
-    sheet_id = os.getenv("QNA_SHEET_ID", "1VSS1zHcoOiumySmzxyj-34zy3Qs7ln8Azp_TEZeKaDQ")
+    sheet_id = os.getenv("QNA_SHEET_ID", "").strip()
     gid = int(os.getenv("QNA_SHEET_GID", "1776222090"))
     mode = os.getenv("QNA_CRAWL_MODE", "incremental").lower()  # backfill or incremental
     start_id = int(os.getenv("QNA_START_ID", "7"))  # GitHub Actions workflow_dispatch input
     end_id = int(os.getenv("QNA_END_ID", "2088"))  # GitHub Actions workflow_dispatch input
 
-    if not login_id or not login_pw or not gsheet_creds_json:
-        logger.error("필수 환경 변수 누락: QNA_LOGIN_ID, QNA_LOGIN_PW, GCP_SERVICE_ACCOUNT_JSON")
+    if not login_id or not login_pw or not gsheet_creds_json or not sheet_id:
+        logger.error(
+            "필수 환경 변수 누락: QNA_LOGIN_ID, QNA_LOGIN_PW, "
+            "QNA_GCP_SERVICE_ACCOUNT_JSON, QNA_SHEET_ID"
+        )
         sys.exit(1)
 
     try:
