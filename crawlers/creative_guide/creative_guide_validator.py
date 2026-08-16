@@ -199,7 +199,13 @@ def compare_with_gemini(spec_text, web_text, tab_name, ref_url):
 # 5. 시트 기록
 # ---------------------------------------------------------------------------
 
-LOG_SHEET_ID = os.environ.get("CG_LOG_SHEET_ID", "1VSS1zHcoOiumySmzxyj-34zy3Qs7ln8Azp_TEZeKaDQ")
+LOG_SHEET_ID = (
+    os.environ.get("CG_LOG_SHEET_ID", "").strip()
+    or os.environ.get("BIGQUERY_MAPPING_SHEET_ID", "").strip()
+    or os.environ.get("SHEET_ID", "").strip()
+)
+if not LOG_SHEET_ID:
+    raise RuntimeError("BIGQUERY_MAPPING_SHEET_ID (또는 CG_LOG_SHEET_ID) 환경변수 미설정")
 LOG_TAB = "creative_guide_log"
 TYPE_LABELS = {"number_change": "수치 변경", "info_added": "정보 추가", "info_removed": "정보 삭제"}
 

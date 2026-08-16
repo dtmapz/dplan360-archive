@@ -247,8 +247,13 @@ def get_all_qna_docs() -> list[dict]:
         from google.oauth2 import service_account
         import gspread
 
-        # 서비스 계정으로 게시판 시트 접근 (다른 시트 ID)
-        QNA_SHEET_ID = "1VSS1zHcoOiumySmzxyj-34zy3Qs7ln8Azp_TEZeKaDQ"
+        # QNA 탭은 BIGQUERY_MAPPING_SHEET_ID 스프레드시트 안의 하위 탭(gid=1776222090).
+        # 시트 ID는 secrets에서 로드 (하드코딩 금지 — Public repo)
+        QNA_SHEET_ID = str(st.secrets.get("BIGQUERY_MAPPING_SHEET_ID", "")).strip()
+        if not QNA_SHEET_ID:
+            import logging
+            logging.warning("BIGQUERY_MAPPING_SHEET_ID secret 미설정 — 게시판 조회 스킵")
+            return []
         creds = service_account.Credentials.from_service_account_info(
             dict(st.secrets["gcp_service_account"]),
             scopes=["https://www.googleapis.com/auth/spreadsheets"],

@@ -5,14 +5,18 @@
  * 1. BIGQUERY_MAPPING_SHEET_ID 스프레드시트 열기
  * 2. 확장 프로그램 > Apps Script
  * 3. 이 코드 붙여넣기 → 저장
- * 4. 트리거 추가: sendCreativeGuideAlert → 시간 기반 → 매일 05:00~06:00
+ * 4. 프로젝트 설정 > 스크립트 속성에 SHEET_ID, NOTIFY_EMAIL 등록
+ *    (하드코딩 금지 — 저장소가 Public이므로 코드에 시트 ID를 남기면 안 됨)
+ * 5. 트리거 추가: sendCreativeGuideAlert → 시간 기반 → 매일 05:00~06:00
  */
 
-var SHEET_ID = "1VSS1zHcoOiumySmzxyj-34zy3Qs7ln8Azp_TEZeKaDQ";
-var NOTIFY_EMAIL = "mj.park@d-plan360.com";
+var _PROPS = PropertiesService.getScriptProperties();
+var SHEET_ID = _PROPS.getProperty("SHEET_ID");
+var NOTIFY_EMAIL = _PROPS.getProperty("NOTIFY_EMAIL") || "mj.park@d-plan360.com";
 var LOG_TAB = "creative_guide_log";
 
 function sendCreativeGuideAlert() {
+  if (!SHEET_ID) throw new Error("스크립트 속성 SHEET_ID 미설정");
   var ss = SpreadsheetApp.openById(SHEET_ID);
   var ws = ss.getSheetByName(LOG_TAB);
   if (!ws) return;

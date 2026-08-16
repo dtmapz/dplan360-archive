@@ -5,7 +5,7 @@
 ## 개요
 
 - **대상:** `http://works.dplan360.emato.net/page/qnaDetail.php?id=...`
-- **저장:** Google Sheets (`1VSS1zHcoOiumySmzxyj-34zy3Qs7ln8Azp_TEZeKaDQ`, 탭 gid `1776222090`)
+- **저장:** Google Sheets (시트 ID는 `QNA_SHEET_ID` secret 참조, 탭 gid `1776222090`)
 - **로그인:** ID/PW 기반 세션 쿠키
 - **모드:**
   - **백필:** 초기 실행 (ID 1~2088 전체)
