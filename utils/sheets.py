@@ -903,3 +903,25 @@ def delete_guide_download(notion_page_id: str) -> None:
     ws = _get_sheet("media_guide_download")
     ws.delete_rows(existing["row"])
     _get_guide_download_rows.clear()
+
+
+# ======================================================================
+# 캠페인 이력 (budget_history) + 광고주 마스터 (budget_adv)
+# ======================================================================
+
+@st.cache_data(ttl=600)
+def get_budget_history() -> list[dict]:
+    """budget_history 탭. 컬럼: 캠페인명 | 광고주 | 브랜드 | 대행사 | 매체사 | 광고수주액 | 대행사 발행월 | 메모 | 상품(정리)
+
+    numericise_ignore=['all']: 2025.10 같은 값이 float로 캐스팅되며 뒤 0이 소실되는 문제 방지.
+    호출부에서 필요한 컬럼만 수동 변환한다.
+    """
+    ws = _get_sheet("budget_history")
+    return ws.get_all_records(numericise_ignore=["all"])
+
+
+@st.cache_data(ttl=600)
+def get_budget_adv() -> list[dict]:
+    """budget_adv 탭. 컬럼: 광고주명 | 브랜드명 | 대업종 | 소업종"""
+    ws = _get_sheet("budget_adv")
+    return ws.get_all_records()
