@@ -1,5 +1,9 @@
 import streamlit as st
 from utils.db import get_client
+from utils.sheets import (
+    get_org_by_email_sheet,
+    is_email_registered,
+)
 
 ALLOWED_DOMAIN = "@d-plan360.com"
 
@@ -10,12 +14,17 @@ def get_current_user():
 
 
 def is_admin():
-    """현재 사용자가 admin role인지 확인."""
+    """조직도 시트의 role='admin' 인 사용자만 관리자.
+    (기존 Supabase user_metadata.role 방식 → Sheets 원본으로 이관)
+    """
     user = get_current_user()
     if not user:
         return False
-    meta = user.get("user_metadata") or {}
-    return meta.get("role") == "admin"
+    email = (user.get("email") or "").strip().lower()
+    if not email:
+        return False
+    org = get_org_by_email_sheet(email)
+    return bool(org and org.get("role") == "admin")
 
 
 def logout():
@@ -56,13 +65,18 @@ def render_login_page():
             if not email or not password:
                 st.error("이메일과 비밀번호를 입력해주세요.")
             else:
-                try:
-                    sb = get_client()
-                    res = sb.auth.sign_in_with_password({"email": email, "password": password})
-                    st.session_state["user"] = res.user.__dict__
-                    st.rerun()
-                except Exception as e:
-                    st.error("이메일 또는 비밀번호가 올바르지 않습니다.")
+                email_norm = email.strip().lower()
+                # 조직도 게이트 — 미등록/비활성 사용자는 로그인 자체 차단
+                if not is_email_registered(email_norm):
+                    st.error("등록되지 않은 사용자입니다. 관리자에게 조직도 등록을 요청해주세요.")
+                else:
+                    try:
+                        sb = get_client()
+                        res = sb.auth.sign_in_with_password({"email": email_norm, "password": password})
+                        st.session_state["user"] = res.user.__dict__
+                        st.rerun()
+                    except Exception:
+                        st.error("이메일 또는 비밀번호가 올바르지 않습니다.")
 
     with tab_signup:
         email = st.text_input("이메일 (회사 메일로 가입)", key="signup_email", placeholder="example@d-plan360.com")
@@ -76,10 +90,16 @@ def render_login_page():
         password_confirm = st.text_input("비밀번호 확인", type="password", key="signup_pw_confirm")
 
         if st.button("가입하기", type="primary", use_container_width=True, key="signup_btn"):
-            if not email or not password or not password_confirm:
+            email_norm = (email or "").strip().lower()
+            if not email_norm or not password or not password_confirm:
                 st.error("모든 항목을 입력해주세요.")
-            elif not email.endswith(ALLOWED_DOMAIN):
+            elif not email_norm.endswith(ALLOWED_DOMAIN):
                 st.error(f"D-PLAN360 사내 이메일({ALLOWED_DOMAIN})만 가입 가능합니다.")
+            elif not is_email_registered(email_norm):
+                st.error(
+                    "조직도에 등록되지 않은 이메일입니다. "
+                    "관리자에게 조직도 시트 등록을 요청한 뒤 다시 가입해주세요."
+                )
             elif len(password) < 8:
                 st.error("비밀번호는 8자 이상이어야 합니다.")
             elif password != password_confirm:
@@ -87,7 +107,7 @@ def render_login_page():
             else:
                 try:
                     sb = get_client()
-                    sb.auth.sign_up({"email": email, "password": password})
+                    sb.auth.sign_up({"email": email_norm, "password": password})
                     st.success("가입 완료! Supabase Auth 이메일로 발송된 인증 링크 클릭 후 로그인해주세요.")
                 except Exception as e:
                     st.error(f"오류: {str(e)}")

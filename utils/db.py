@@ -344,21 +344,13 @@ def delete_creative_guide(guide_id):
 
 
 # ---------- organization (report download 담당자 필터용) ----------
+# 조직도 원본은 Google Sheets (ORG_SHEET_ID). 이 래퍼는 기존 호출부 호환용.
+# 신규 코드는 utils.sheets.get_org_by_email_sheet 를 직접 사용해도 무방.
 
-@st.cache_data(ttl=1800)
+
 def get_org_by_email(email: str) -> dict | None:
-    """이메일로 조직 정보 조회. 없으면 None."""
-    if not email:
-        return None
-    sb = get_client()
-    res = (
-        sb.table("organization")
-        .select("division, team, name, position")
-        .eq("email", email)
-        .limit(1)
-        .execute()
-    )
-    return res.data[0] if res.data else None
+    from utils.sheets import get_org_by_email_sheet
+    return get_org_by_email_sheet(email)
 
 
 # ---------- media hub 이미지 업로드 (Supabase Storage) ----------
@@ -427,16 +419,7 @@ def delete_guide_file(storage_path: str) -> None:
     sb.storage.from_(MEDIA_GUIDE_BUCKET).remove([storage_path])
 
 
-@st.cache_data(ttl=1800)
 def get_all_org_members() -> list[dict]:
-    """organization 전체 조회 (admin impersonate용)."""
-    sb = get_client()
-    res = (
-        sb.table("organization")
-        .select("division, team, name, position, email")
-        .order("division")
-        .order("team")
-        .order("name")
-        .execute()
-    )
-    return res.data
+    """organization 전체 조회 (admin impersonate용). 조직도는 Sheets가 원본."""
+    from utils.sheets import get_all_org_members_sheet
+    return get_all_org_members_sheet()

@@ -925,3 +925,96 @@ def get_budget_adv() -> list[dict]:
     """budget_adv 탭. 컬럼: 광고주명 | 브랜드명 | 대업종 | 소업종"""
     ws = _get_sheet("budget_adv")
     return ws.get_all_records()
+
+
+# ======================================================================
+# 조직도 (organization 탭) — 별도 시트 ORG_SHEET_ID
+# 컬럼: email | name | division | team | position | role | is_active
+# role: "admin" 이면 관리자. 그 외("user"/공란)는 일반.
+# is_active: "Y"만 활성. "N"/공란은 비활성(로그인 차단, 담당자 목록 제외).
+# 회원가입/로그인 게이트 원본이므로 절대 하드코딩 금지 — st.secrets 참조.
+# ======================================================================
+
+# 현재 조직도 시트는 PROMOTION_SHEET_ID 와 동일한 스프레드시트를 공유(organization 탭).
+# 향후 분리하려면 ORG_SHEET_ID secret 추가하면 자동으로 그쪽을 우선 사용.
+ORG_SHEET_ID = st.secrets.get("ORG_SHEET_ID", "") or PROMOTION_SHEET_ID
+ORG_TAB_NAME = st.secrets.get("ORG_TAB_NAME", "organization")
+
+
+def _get_org_sheet():
+    if not ORG_SHEET_ID:
+        raise RuntimeError("ORG_SHEET_ID / PROMOTION_SHEET_ID secret이 설정되지 않았습니다.")
+    gc, _ = _init()
+    return gc.open_by_key(ORG_SHEET_ID).worksheet(ORG_TAB_NAME)
+
+
+def _norm_email(v) -> str:
+    return str(v or "").strip().lower()
+
+
+def _is_active_row(row: dict) -> bool:
+    v = str(row.get("is_active", "")).strip().upper()
+    return v == "Y" or v == ""  # 공란은 활성 취급(초기 마이그레이션 편의)
+
+
+@st.cache_data(ttl=300)
+def _get_all_org_rows() -> list[dict]:
+    """조직도 원본 행. 활성/비활성 모두 포함."""
+    ws = _get_org_sheet()
+    return ws.get_all_records()
+
+
+@st.cache_data(ttl=300)
+def get_org_by_email_sheet(email: str) -> dict | None:
+    """이메일로 조직 정보 조회. 활성 사용자만. 없으면 None."""
+    target = _norm_email(email)
+    if not target:
+        return None
+    for r in _get_all_org_rows():
+        if _norm_email(r.get("email")) != target:
+            continue
+        if not _is_active_row(r):
+            return None
+        return {
+            "email": _norm_email(r.get("email")),
+            "name": str(r.get("name", "")).strip(),
+            "division": str(r.get("division", "")).strip(),
+            "team": str(r.get("team", "")).strip(),
+            "position": str(r.get("position", "")).strip(),
+            "role": str(r.get("role", "")).strip().lower(),
+            "is_active": True,
+        }
+    return None
+
+
+@st.cache_data(ttl=300)
+def get_all_org_members_sheet() -> list[dict]:
+    """조직도 전체 (활성만) — division/team/name 정렬."""
+    rows = []
+    for r in _get_all_org_rows():
+        if not _is_active_row(r):
+            continue
+        if not _norm_email(r.get("email")):
+            continue
+        rows.append({
+            "email": _norm_email(r.get("email")),
+            "name": str(r.get("name", "")).strip(),
+            "division": str(r.get("division", "")).strip(),
+            "team": str(r.get("team", "")).strip(),
+            "position": str(r.get("position", "")).strip(),
+            "role": str(r.get("role", "")).strip().lower(),
+        })
+    rows.sort(key=lambda x: (x["division"], x["team"], x["name"]))
+    return rows
+
+
+def is_email_registered(email: str) -> bool:
+    """조직도 활성 사용자 등록 여부. 회원가입 사전 게이트용."""
+    return get_org_by_email_sheet(email) is not None
+
+
+def clear_org_cache() -> None:
+    """조직도 시트 수정 후 캐시 무효화."""
+    _get_all_org_rows.clear()
+    get_org_by_email_sheet.clear()
+    get_all_org_members_sheet.clear()
