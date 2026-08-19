@@ -563,7 +563,7 @@ ended = [p for p in filtered if p["status"] == "inactive"]
 tab_labels = [
     f"진행중 ({len(ongoing)})",
     f"진행예정 ({len(upcoming)})",
-    f"지난달 종료 ({len(ended)})",
+    f"종료 ({len(ended)})",
 ]
 t1, t2, t3 = st.tabs(tab_labels)
 with t1:
