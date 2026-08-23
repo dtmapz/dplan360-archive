@@ -1018,3 +1018,150 @@ def clear_org_cache() -> None:
     _get_all_org_rows.clear()
     get_org_by_email_sheet.clear()
     get_all_org_members_sheet.clear()
+
+
+# ======================================================================
+# CASE STUDIES (case_studies 탭) — 11_CaseStudy.py 용
+# BIGQUERY_MAPPING_SHEET_ID 시트에 case_studies 탭을 사용.
+# 탭이 없으면 자동 생성.
+# 스키마: A~Q
+#   A id / B share_scope / C advertiser / D brand / E industry / F media
+#   G target_gender / H target_age / I period_start / J period_end
+#   K campaign_types(comma) / L objective / M strategy / N insight / O extra_note
+#   P results_json / Q ai_json / R creative_image_url / S created_at
+# ======================================================================
+import json as _json
+
+CASESTUDY_TAB = "case_studies"
+CASESTUDY_HEADERS = [
+    "id", "share_scope", "advertiser", "brand", "industry", "media",
+    "target_gender", "target_age", "period_start", "period_end",
+    "campaign_types", "objective", "strategy", "insight", "extra_note",
+    "results_json", "ai_json", "creative_image_url", "created_at",
+]
+
+
+def _get_casestudy_sheet():
+    gc, _ = _init()
+    sh = gc.open_by_key(SHEET_ID)
+    try:
+        ws = sh.worksheet(CASESTUDY_TAB)
+    except gspread.WorksheetNotFound:
+        ws = sh.add_worksheet(title=CASESTUDY_TAB, rows=200, cols=len(CASESTUDY_HEADERS))
+        ws.update(values=[CASESTUDY_HEADERS], range_name="A1")
+    return ws
+
+
+@st.cache_data(ttl=120)
+def _get_casestudy_rows() -> list[dict]:
+    ws = _get_casestudy_sheet()
+    rows = ws.get_all_records()
+    out = []
+    for i, r in enumerate(rows):
+        if not r.get("id"):
+            continue
+        r["_row"] = i + 2
+        out.append(r)
+    return out
+
+
+def _parse_json_field(raw, default):
+    if not raw:
+        return default
+    if isinstance(raw, (list, dict)):
+        return raw
+    try:
+        return _json.loads(str(raw))
+    except Exception:
+        return default
+
+
+def get_case_studies() -> list[dict]:
+    out = []
+    for r in _get_casestudy_rows():
+        out.append({
+            "id": str(r.get("id", "")).strip(),
+            "row": r["_row"],
+            "share_scope": str(r.get("share_scope", "Internal")).strip() or "Internal",
+            "advertiser": str(r.get("advertiser", "")).strip(),
+            "brand": str(r.get("brand", "")).strip(),
+            "industry": str(r.get("industry", "")).strip(),
+            "media": str(r.get("media", "")).strip(),
+            "target_gender": str(r.get("target_gender", "")).strip(),
+            "target_age": str(r.get("target_age", "")).strip(),
+            "period_start": str(r.get("period_start", "")).strip(),
+            "period_end": str(r.get("period_end", "")).strip(),
+            "campaign_types": [t for t in str(r.get("campaign_types", "")).split(",") if t.strip()],
+            "objective": str(r.get("objective", "")).strip(),
+            "strategy": str(r.get("strategy", "")).strip(),
+            "insight": str(r.get("insight", "")).strip(),
+            "extra_note": str(r.get("extra_note", "")).strip(),
+            "results": _parse_json_field(r.get("results_json"), []),
+            "ai": _parse_json_field(r.get("ai_json"), {}),
+            "creative_image_url": str(r.get("creative_image_url", "")).strip(),
+            "created_at": str(r.get("created_at", "")).strip(),
+        })
+    out.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return out
+
+
+def _clear_casestudy_cache():
+    _get_casestudy_rows.clear()
+
+
+def _cs_row(cs: dict) -> list:
+    return [
+        cs.get("id", ""),
+        cs.get("share_scope", "Internal"),
+        cs.get("advertiser", ""),
+        cs.get("brand", ""),
+        cs.get("industry", ""),
+        cs.get("media", ""),
+        cs.get("target_gender", ""),
+        cs.get("target_age", ""),
+        str(cs.get("period_start", "")),
+        str(cs.get("period_end", "")),
+        ",".join(cs.get("campaign_types", []) or []),
+        cs.get("objective", ""),
+        cs.get("strategy", ""),
+        cs.get("insight", ""),
+        cs.get("extra_note", ""),
+        _json.dumps(cs.get("results", []), ensure_ascii=False),
+        _json.dumps(cs.get("ai", {}), ensure_ascii=False),
+        cs.get("creative_image_url", ""),
+        cs.get("created_at", date.today().isoformat()),
+    ]
+
+
+def create_case_study(cs: dict) -> str:
+    rows = _get_casestudy_rows()
+    max_num = 0
+    for r in rows:
+        pid = str(r.get("id", ""))
+        if pid.startswith("CS-"):
+            try:
+                max_num = max(max_num, int(pid.split("-")[1]))
+            except (ValueError, IndexError):
+                pass
+    new_id = f"CS-{max_num + 1:04d}"
+    cs = dict(cs)
+    cs["id"] = new_id
+    cs.setdefault("created_at", date.today().isoformat())
+    ws = _get_casestudy_sheet()
+    ws.append_row(_cs_row(cs), value_input_option="USER_ENTERED")
+    _clear_casestudy_cache()
+    return new_id
+
+
+def update_case_study(row_num: int, cs: dict) -> None:
+    ws = _get_casestudy_sheet()
+    row = _cs_row(cs)
+    end_col = chr(ord("A") + len(CASESTUDY_HEADERS) - 1)
+    ws.update(values=[row], range_name=f"A{row_num}:{end_col}{row_num}", value_input_option="USER_ENTERED")
+    _clear_casestudy_cache()
+
+
+def delete_case_study(row_num: int) -> None:
+    ws = _get_casestudy_sheet()
+    ws.delete_rows(row_num)
+    _clear_casestudy_cache()
