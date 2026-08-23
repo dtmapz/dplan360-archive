@@ -58,12 +58,15 @@ mediapromo_page = st.Page("pages/9_MediaPromo.py", title="미디어 프로모션
 calendar_page = st.Page("pages/3_EventCalendar.py", title="디플랜360 캘린더", icon="📅")
 report_page = st.Page("pages/7_ReportDownload.py", title="통합 리포트 다운로더", icon="🔢")
 budget_page = st.Page("pages/10_BudgetReference.py", title="캠페인 이력 참고", icon="📊")
+admin_page = st.Page("pages/99_Admin.py", title="관리자", icon="⚙️")
 
 pages = {
     "[MEDIA]": [home_page, media_guide_page, creative_page],
     "[PROMOTION]": [promotion_page, mediapromo_page],
     "[SUPPORT]": [calendar_page, report_page, budget_page],
 }
+if is_admin():
+    pages["[ADMIN]"] = [admin_page]
 
 pg = st.navigation(pages)
 

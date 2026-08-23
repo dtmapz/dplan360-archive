@@ -9,6 +9,16 @@ def get_client() -> Client:
     return create_client(url, key)
 
 
+@st.cache_resource
+def get_service_client() -> Client:
+    """service_role 키 클라이언트. RLS 우회 필요한 관리 작업 전용.
+    (예: allowed_signup_emails 화이트리스트 upsert)
+    """
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_SERVICE_KEY"]
+    return create_client(url, key)
+
+
 # ---------- categories ----------
 
 def get_all_categories() -> list[dict]:
