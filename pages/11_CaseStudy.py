@@ -141,16 +141,20 @@ def _render_card(cs: dict):
     if cs.get("period_start") or cs.get("period_end"):
         period = f"{cs.get('period_start', '')} ~ {cs.get('period_end', '')}"
 
-    # KPI 요약 (첫 KPI만)
+    # KPI 요약 (최대 3개, 한 행)
     kpi_html = ""
-    results = cs.get("results", []) or []
+    results = [r for r in (cs.get("results", []) or []) if r.get("kpi_name") or r.get("value")][:3]
     if results:
-        r0 = results[0]
-        kpi_html = (
-            f"<div style='margin-top:8px;padding:8px 10px;background:#F5F7FB;border-left:3px solid #4C7DFF;'>"
-            f"<div style='font-size:10px;color:#6B7280;'>{(r0.get('kpi_name') or '').strip()}</div>"
-            f"<div style='font-size:18px;font-weight:800;color:#4C7DFF;'>{(r0.get('value') or '').strip()}</div>"
+        cells = "".join(
+            f"<div style='flex:1;min-width:0;'>"
+            f"<div style='font-size:10px;color:#6B7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{(r.get('kpi_name') or '').strip()}</div>"
+            f"<div style='font-size:16px;font-weight:800;color:#4C7DFF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{(r.get('value') or '').strip()}</div>"
             f"</div>"
+            for r in results
+        )
+        kpi_html = (
+            f"<div style='margin-top:8px;padding:8px 10px;background:#F5F7FB;border-left:3px solid #4C7DFF;"
+            f"display:flex;gap:10px;'>{cells}</div>"
         )
 
     card_html = (
@@ -570,7 +574,6 @@ def _validate(cs: dict, require_ai: bool = False) -> str | None:
 admin = is_admin()
 
 head_c, btn_c = st.columns([5, 1])
-head_c.markdown("### 📊 캠페인 성공사례")
 if admin:
     if btn_c.button("+ 신규 등록", use_container_width=True):
         _open_edit(None)
