@@ -544,7 +544,6 @@ def _save_promotion(is_edit, existing_promo):
 admin = is_admin()
 
 head_col, btn_col = st.columns([5, 1])
-head_col.markdown("### 매체 프로모션")
 if admin:
     if btn_col.button("+ 등록", key="promo_add_btn", use_container_width=True):
         _open_edit_popup(None)

@@ -14,14 +14,6 @@ from utils.sheets import get_budget_history, get_budget_adv
 set_current_page("budget_reference")
 user = get_current_user()
 
-st.markdown(
-    "<div style='font-size:20px; font-weight:700; margin-bottom:6px;'>캠페인 이력 참고</div>"
-    "<div style='font-size:12px; color:#666; margin-bottom:16px;'>"
-    "업종별 과거 캠페인 이력·수주액을 조회해 미디어믹스 버짓팅에 참고하세요."
-    "</div>",
-    unsafe_allow_html=True,
-)
-
 GROUP_COLS = ["대업종", "소업종", "광고주", "브랜드", "대행사", "캠페인명", "대행사 발행월"]
 DISPLAY_COLS = [
     "대업종", "소업종", "광고주", "브랜드", "대행사", "캠페인명",

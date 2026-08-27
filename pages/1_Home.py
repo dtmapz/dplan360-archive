@@ -17,11 +17,11 @@ if "search_term" not in st.session_state:
     st.session_state["search_term"] = ""
 
 mode = st.segmented_control(
-    "검색 모드", options=["매체", "카테고리", "마일스톤"], default="매체",
+    "검색 모드", options=["매체 검색", "카테고리", "매체지도"], default="매체 검색",
     label_visibility="collapsed",
 )
 
-if mode == "매체":
+if mode == "매체 검색":
     media_keyword = st.text_input(
         "매체명", placeholder="매체명을 입력하세요 (Enter로 검색)",
         label_visibility="collapsed",
@@ -54,7 +54,7 @@ elif mode == "카테고리":
     else:
         st.session_state["search_term"] = major_sel
 
-if mode != "마일스톤":
+if mode != "매체지도":
     if st.button("+ 신규 매체 등록"):
         request_register()
 
@@ -70,7 +70,7 @@ if mode != "마일스톤":
         default_list = get_media_by_category("01 매스미디어")
         render_contact_table(default_list)
 
-else:  # mode == "마일스톤"
+else:  # mode == "매체지도"
     all_media = get_all_media_with_categories()
     majors = get_major_categories()
     m01_04 = [m for m in majors if not m.startswith("05")]
