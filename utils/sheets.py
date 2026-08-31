@@ -1261,3 +1261,276 @@ def get_all_org_members_with_row() -> list[dict]:
     out.sort(key=lambda x: (not x["is_active"], x["division"], x["team"], x["name"]))
     return out
 
+
+# ======================================================================
+# EVENTS / ATTENDANCE (event_categories, events, attendance 탭)
+# — pages/3_EventCalendar.py 용. Supabase(events/attendance)에서 이관.
+# PROMOTION_SHEET_ID 시트 사용 (organization 탭과 같은 시트). 탭 없으면 자동 생성.
+# 과거 Supabase 데이터는 사용자가 직접 다운로드 후 시트에 반영 예정 — 별도 이관 스크립트 없음.
+# 스키마:
+#   event_categories: name | color | is_default
+#   events:           id | title | event_date | start_time | end_time |
+#                      category | venue | memo | requires_check | created_at
+#   attendance:       event_id | member_email | attended | updated_at
+#                      (유니크키 = event_id+member_email, update-or-insert)
+# ======================================================================
+
+EVENT_CATEGORIES_TAB = "event_categories"
+EVENT_CATEGORIES_HEADERS = ["name", "color", "is_default"]
+
+EVENTS_TAB = "events"
+EVENTS_HEADERS = [
+    "id", "title", "event_date", "start_time", "end_time",
+    "category", "venue", "memo", "requires_check", "created_at",
+]
+
+ATTENDANCE_TAB = "attendance"
+ATTENDANCE_HEADERS = ["event_id", "member_email", "attended", "updated_at"]
+
+DEFAULT_EVENT_CATEGORIES = [
+    ["세미나", "#4F8EF7", "TRUE"],
+    ["워크샵", "#F2A93B", "FALSE"],
+    ["회식", "#993556", "FALSE"],
+    ["기타", "#888780", "FALSE"],
+]
+
+
+def _get_or_create_tab(tab_name: str, headers: list[str], default_rows: list[list] | None = None,
+                        sheet_id: str | None = None):
+    gc, _ = _init()
+    sh = gc.open_by_key(sheet_id or PROMOTION_SHEET_ID)
+    try:
+        ws = sh.worksheet(tab_name)
+    except gspread.WorksheetNotFound:
+        ws = sh.add_worksheet(title=tab_name, rows=500, cols=len(headers))
+        ws.update(values=[headers], range_name="A1")
+        if default_rows:
+            ws.append_rows(default_rows, value_input_option="USER_ENTERED")
+    return ws
+
+
+def _get_event_categories_sheet():
+    return _get_or_create_tab(EVENT_CATEGORIES_TAB, EVENT_CATEGORIES_HEADERS, DEFAULT_EVENT_CATEGORIES)
+
+
+def _get_events_sheet():
+    return _get_or_create_tab(EVENTS_TAB, EVENTS_HEADERS)
+
+
+def _get_attendance_sheet():
+    return _get_or_create_tab(ATTENDANCE_TAB, ATTENDANCE_HEADERS)
+
+
+def _bool_from_cell(v) -> bool:
+    return str(v).strip().upper() in ("TRUE", "Y", "1")
+
+
+@st.cache_data(ttl=300)
+def get_event_categories() -> list[dict]:
+    ws = _get_event_categories_sheet()
+    rows = ws.get_all_records()
+    out = []
+    for r in rows:
+        name = str(r.get("name", "")).strip()
+        if not name:
+            continue
+        out.append({
+            "name": name,
+            "color": str(r.get("color", "")).strip() or "#888780",
+            "is_default": _bool_from_cell(r.get("is_default")),
+        })
+    out.sort(key=lambda c: (not c["is_default"], c["name"]))
+    return out
+
+
+def _clear_event_category_cache():
+    get_event_categories.clear()
+
+
+def create_event_category(name: str, color: str) -> None:
+    ws = _get_event_categories_sheet()
+    ws.append_row([name, color, "FALSE"], value_input_option="USER_ENTERED")
+    _clear_event_category_cache()
+
+
+@st.cache_data(ttl=120)
+def _get_event_rows() -> list[dict]:
+    ws = _get_events_sheet()
+    rows = ws.get_all_records()
+    out = []
+    for i, r in enumerate(rows):
+        if not r.get("id"):
+            continue
+        r["_row"] = i + 2
+        out.append(r)
+    return out
+
+
+def _clear_event_cache():
+    _get_event_rows.clear()
+
+
+def _event_row_to_dict(r: dict) -> dict:
+    return {
+        "id": str(r.get("id", "")).strip(),
+        "_row": r.get("_row"),
+        "title": str(r.get("title", "")).strip(),
+        "event_date": str(r.get("event_date", "")).strip(),
+        "start_time": str(r.get("start_time", "")).strip(),
+        "end_time": str(r.get("end_time", "")).strip(),
+        "category": str(r.get("category", "")).strip(),
+        "venue": str(r.get("venue", "")).strip(),
+        "memo": str(r.get("memo", "")).strip() or None,
+        "requires_check": _bool_from_cell(r.get("requires_check")),
+        "created_at": str(r.get("created_at", "")).strip(),
+    }
+
+
+def get_all_events() -> list[dict]:
+    out = [_event_row_to_dict(r) for r in _get_event_rows()]
+    out.sort(key=lambda e: (e["event_date"], e["start_time"]))
+    return out
+
+
+def get_events_by_month(year: int, month: int) -> list[dict]:
+    key = f"{year}-{month:02d}"
+    return [e for e in get_all_events() if e["event_date"][:7] == key]
+
+
+def _event_row_values(ev: dict) -> list:
+    return [
+        ev.get("id", ""),
+        ev.get("title", ""),
+        str(ev.get("event_date", "")),
+        ev.get("start_time", ""),
+        ev.get("end_time", ""),
+        ev.get("category", ""),
+        ev.get("venue", ""),
+        ev.get("memo") or "",
+        "TRUE" if ev.get("requires_check") else "FALSE",
+        ev.get("created_at", date.today().isoformat()),
+    ]
+
+
+def create_event(title: str, event_date: str, start_time: str, end_time: str,
+                  category: str, venue: str, memo: str | None, requires_check: bool) -> str:
+    rows = _get_event_rows()
+    max_num = 0
+    for r in rows:
+        eid = str(r.get("id", ""))
+        if eid.startswith("EVT-"):
+            try:
+                max_num = max(max_num, int(eid.split("-")[1]))
+            except (ValueError, IndexError):
+                pass
+    new_id = f"EVT-{max_num + 1:04d}"
+    ev = {
+        "id": new_id, "title": title, "event_date": event_date,
+        "start_time": start_time, "end_time": end_time,
+        "category": category, "venue": venue, "memo": memo,
+        "requires_check": requires_check, "created_at": date.today().isoformat(),
+    }
+    ws = _get_events_sheet()
+    ws.append_row(_event_row_values(ev), value_input_option="USER_ENTERED")
+    _clear_event_cache()
+    return new_id
+
+
+def _find_event_row(event_id: str) -> tuple[int, dict] | tuple[None, None]:
+    for r in _get_event_rows():
+        if str(r.get("id", "")).strip() == event_id:
+            return r["_row"], _event_row_to_dict(r)
+    return None, None
+
+
+def update_event(event_id: str, **kwargs) -> None:
+    row_num, ev = _find_event_row(event_id)
+    if row_num is None:
+        return
+    ev.update(kwargs)
+    ws = _get_events_sheet()
+    end_col = chr(ord("A") + len(EVENTS_HEADERS) - 1)
+    ws.update(values=[_event_row_values(ev)], range_name=f"A{row_num}:{end_col}{row_num}",
+              value_input_option="USER_ENTERED")
+    _clear_event_cache()
+
+
+def delete_event(event_id: str) -> None:
+    row_num, _ = _find_event_row(event_id)
+    if row_num is None:
+        return
+    ws = _get_events_sheet()
+    ws.delete_rows(row_num)
+    _clear_event_cache()
+    # 연결된 attendance 행도 함께 정리
+    att_ws = _get_attendance_sheet()
+    att_rows = att_ws.get_all_records()
+    for i in range(len(att_rows), 0, -1):
+        if str(att_rows[i - 1].get("event_id", "")).strip() == event_id:
+            att_ws.delete_rows(i + 1)
+    _clear_attendance_cache()
+
+
+@st.cache_data(ttl=60)
+def _get_attendance_rows() -> list[dict]:
+    ws = _get_attendance_sheet()
+    rows = ws.get_all_records()
+    out = []
+    for i, r in enumerate(rows):
+        if not r.get("event_id") or not r.get("member_email"):
+            continue
+        r["_row"] = i + 2
+        out.append(r)
+    return out
+
+
+def _clear_attendance_cache():
+    _get_attendance_rows.clear()
+
+
+def get_my_attendance(user_email: str) -> list[str]:
+    """현재 사용자가 참석 체크한 event_id 목록"""
+    return [
+        str(r.get("event_id", "")).strip()
+        for r in _get_attendance_rows()
+        if str(r.get("member_email", "")).strip().lower() == (user_email or "").strip().lower()
+        and _bool_from_cell(r.get("attended"))
+    ]
+
+
+def toggle_attendance(event_id: str, user_email: str, attended: bool) -> None:
+    ws = _get_attendance_sheet()
+    email_norm = (user_email or "").strip().lower()
+    existing_row = None
+    for r in _get_attendance_rows():
+        if str(r.get("event_id", "")).strip() == event_id \
+                and str(r.get("member_email", "")).strip().lower() == email_norm:
+            existing_row = r["_row"]
+            break
+    values = [event_id, user_email, "TRUE" if attended else "FALSE", _dt.now().isoformat()]
+    if existing_row:
+        ws.update(values=[values], range_name=f"A{existing_row}:D{existing_row}",
+                  value_input_option="USER_ENTERED")
+    else:
+        ws.append_row(values, value_input_option="USER_ENTERED")
+    _clear_attendance_cache()
+
+
+def get_attendance_summary() -> list[dict]:
+    """requires_check=True 행사별 참석자 목록 (행사 참여 현황용)"""
+    att_rows = _get_attendance_rows()
+    att_by_event = {}
+    for r in att_rows:
+        eid = str(r.get("event_id", "")).strip()
+        att_by_event.setdefault(eid, []).append({
+            "member_email": str(r.get("member_email", "")).strip(),
+            "attended": _bool_from_cell(r.get("attended")),
+        })
+    out = []
+    for ev in get_all_events():
+        if not ev["requires_check"]:
+            continue
+        out.append({**ev, "attendance": att_by_event.get(ev["id"], [])})
+    out.sort(key=lambda e: e["event_date"])
+    return out
+
