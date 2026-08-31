@@ -224,5 +224,8 @@ function _renderReminderHtml(type, data) {
 
 function _fmtHHmm(v) {
   if (v instanceof Date) return Utilities.formatDate(v, "Asia/Seoul", "HH:mm");
-  return String(v).trim().slice(0, 5);
+  // Sheets 시간 서식이 앞자리 0을 없애는 경우 보정 (예: "3:00" → "03:00")
+  var parts = String(v).trim().slice(0, 5).split(":");
+  if (parts.length < 2) return String(v).trim();
+  return (parts[0].length === 1 ? "0" + parts[0] : parts[0]) + ":" + parts[1];
 }
