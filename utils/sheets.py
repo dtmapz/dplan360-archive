@@ -1165,3 +1165,99 @@ def delete_case_study(row_num: int) -> None:
     ws = _get_casestudy_sheet()
     ws.delete_rows(row_num)
     _clear_casestudy_cache()
+
+
+# ======================================================================
+# 조직도 CRUD (관리자 페이지 99_Admin.py 용)
+# 실제 컬럼 순서: division | team | name | position | email | role | is_active
+# ======================================================================
+
+ORG_COLS = ["division", "team", "name", "position", "email", "role", "is_active"]
+
+
+def _org_row_values(member: dict) -> list:
+    is_active_raw = member.get("is_active", "Y")
+    if isinstance(is_active_raw, bool):
+        is_active = "Y" if is_active_raw else "N"
+    else:
+        is_active = str(is_active_raw).strip().upper() or "Y"
+        if is_active not in ("Y", "N"):
+            is_active = "Y"
+    return [
+        str(member.get("division", "")).strip(),
+        str(member.get("team", "")).strip(),
+        str(member.get("name", "")).strip(),
+        str(member.get("position", "")).strip(),
+        _norm_email(member.get("email")),
+        str(member.get("role", "")).strip().lower(),
+        is_active,
+    ]
+
+
+def _find_org_row_by_email(email: str) -> int | None:
+    """1-indexed row number (헤더=1). 없으면 None."""
+    target = _norm_email(email)
+    if not target:
+        return None
+    ws = _get_org_sheet()
+    for i, r in enumerate(ws.get_all_records(), start=2):
+        if _norm_email(r.get("email")) == target:
+            return i
+    return None
+
+
+def add_org_member(member: dict) -> None:
+    """신규 조직원 append. email 중복 시 예외."""
+    email = _norm_email(member.get("email"))
+    if not email:
+        raise ValueError("이메일은 필수입니다.")
+    if _find_org_row_by_email(email) is not None:
+        raise ValueError(f"이미 등록된 이메일입니다: {email}")
+    ws = _get_org_sheet()
+    ws.append_row(_org_row_values(member), value_input_option="USER_ENTERED")
+    clear_org_cache()
+
+
+def update_org_member(row_num: int, member: dict) -> None:
+    ws = _get_org_sheet()
+    end_col = chr(ord("A") + len(ORG_COLS) - 1)
+    ws.update(values=[_org_row_values(member)],
+              range_name=f"A{row_num}:{end_col}{row_num}",
+              value_input_option="USER_ENTERED")
+    clear_org_cache()
+
+
+def set_org_active(row_num: int, active: bool) -> None:
+    """is_active 컬럼(G)만 토글."""
+    ws = _get_org_sheet()
+    active_col_idx = ORG_COLS.index("is_active") + 1  # 1-based
+    ws.update_cell(row_num, active_col_idx, "Y" if active else "N")
+    clear_org_cache()
+
+
+def delete_org_member(row_num: int) -> None:
+    ws = _get_org_sheet()
+    ws.delete_rows(row_num)
+    clear_org_cache()
+
+
+def get_all_org_members_with_row() -> list[dict]:
+    """활성/비활성 모두 + 시트 row 번호 포함. 관리자 페이지 목록용."""
+    out = []
+    for i, r in enumerate(_get_all_org_rows(), start=2):
+        email = _norm_email(r.get("email"))
+        if not email and not str(r.get("name") or "").strip():
+            continue
+        out.append({
+            "row": i,
+            "email": email,
+            "name": str(r.get("name", "")).strip(),
+            "division": str(r.get("division", "")).strip(),
+            "team": str(r.get("team", "")).strip(),
+            "position": str(r.get("position", "")).strip(),
+            "role": str(r.get("role", "")).strip().lower(),
+            "is_active": _is_active_row(r),
+        })
+    out.sort(key=lambda x: (not x["is_active"], x["division"], x["team"], x["name"]))
+    return out
+
