@@ -3,7 +3,7 @@ from datetime import datetime, date
 import re
 from utils import sheets as db
 from utils.auth import get_current_user, is_admin
-from utils.ui import set_current_page
+from utils.ui import set_current_page, kst_today
 
 set_current_page("calendar")
 
@@ -11,7 +11,7 @@ user = get_current_user()
 user_email = user.get("email", "") if user else ""
 admin = is_admin()
 
-today = date.today()
+today = kst_today()
 current_month = today.strftime("%Y-%m")
 
 
@@ -590,7 +590,7 @@ if tab_reg is not None:
             category = cat_choice
 
         title = st.text_input("행사명*", key="reg_title")
-        event_date = st.date_input("날짜*", value=date.today(), key="reg_date")
+        event_date = st.date_input("날짜*", value=kst_today(), key="reg_date")
         col_s, col_e = st.columns(2)
         with col_s:
             start_time_str = st.text_input("시작 시간* (HH:MM)", placeholder="09:00", key="reg_start")

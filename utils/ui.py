@@ -282,6 +282,16 @@ def render_contact_table(media_list: list[dict]) -> None:
 # 보조 함수
 # ---------------------------------------------------------------------------
 
+def kst_today():
+    """서버 시간대(Streamlit Cloud=UTC)와 무관하게 KST 기준 오늘 날짜 반환.
+    date.today()는 UTC 자정~오전 9시 사이 하루 전 날짜를 반환하는 버그가 있어
+    KST 기준 날짜가 필요한 곳(행사 등록 기본값 등)에서는 이 함수를 사용할 것.
+    """
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    return datetime.now(ZoneInfo("Asia/Seoul")).date()
+
+
 def format_updated_at(value: str | None) -> str:
     if not value:
         return "-"
