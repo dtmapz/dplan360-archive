@@ -15,4 +15,5 @@ markdown
 pypdf>=4.0
 google-api-python-client
 python-pptx>=1.0
+tzdata
 
