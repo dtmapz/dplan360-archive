@@ -433,3 +433,49 @@ def get_all_org_members() -> list[dict]:
     """organization 전체 조회 (admin impersonate용). 조직도는 Sheets가 원본."""
     from utils.sheets import get_all_org_members_sheet
     return get_all_org_members_sheet()
+
+
+# ---------- Supabase auth 관리 (관리자 페이지 전용) ----------
+
+def list_auth_last_sign_in() -> dict[str, str]:
+    """Supabase auth.users 전체를 훑어 {email(소문자): last_sign_in_at(ISO)} 반환.
+    service_role 키 필요. 페이지네이션 1페이지=1000명까지 지원.
+    """
+    sb = get_service_client()
+    result: dict[str, str] = {}
+    page = 1
+    while True:
+        try:
+            resp = sb.auth.admin.list_users(page=page, per_page=1000)
+        except TypeError:
+            resp = sb.auth.admin.list_users()
+        users = getattr(resp, "users", None) or resp
+        if not users:
+            break
+        for u in users:
+            email = (getattr(u, "email", None) or "").strip().lower()
+            if not email:
+                continue
+            last = getattr(u, "last_sign_in_at", None) or ""
+            result[email] = str(last) if last else ""
+        if len(users) < 1000:
+            break
+        page += 1
+        if page > 20:
+            break
+    return result
+
+
+def delete_auth_user(email: str) -> bool:
+    """이메일로 auth.users 계정 삭제. 없으면 False."""
+    email_norm = (email or "").strip().lower()
+    if not email_norm:
+        return False
+    sb = get_service_client()
+    resp = sb.auth.admin.list_users(page=1, per_page=1000)
+    users = getattr(resp, "users", None) or resp
+    for u in users or []:
+        if (getattr(u, "email", "") or "").strip().lower() == email_norm:
+            sb.auth.admin.delete_user(u.id)
+            return True
+    return False
