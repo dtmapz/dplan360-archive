@@ -57,7 +57,7 @@ promotion_page = st.Page("pages/8_Promotion.py", title="SMR&넷플릭스 프로�
 mediapromo_page = st.Page("pages/9_MediaPromo.py", title="미디어 프로모션", icon="🎁")
 calendar_page = st.Page("pages/3_EventCalendar.py", title="디플랜360 캘린더", icon="📅")
 report_page = st.Page("pages/7_ReportDownload.py", title="통합 리포트 다운로더", icon="🔢")
-budget_page = st.Page("pages/10_BudgetReference.py", title="미디어믹스 레퍼런스", icon="📊")
+budget_page = st.Page("pages/10_BudgetReference.py", title="업종별 예산 가이드", icon="📊")
 casestudy_page = st.Page("pages/11_CaseStudy.py", title="캠페인 성공사례", icon="🏅")
 admin_page = st.Page("pages/99_Admin.py", title="관리자", icon="⚙️")
 
