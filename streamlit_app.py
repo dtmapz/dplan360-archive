@@ -72,6 +72,8 @@ if is_admin():
 pg = st.navigation(pages)
 
 # SP봇 트리거는 모든 페이지 공통 노출 (로그인 후, 페이지 실행 전)
-render_spbot_trigger()
+# 2026-09-02: AI 챗봇 기능 미사용 결정 — 기능/코드는 유지하되 UI 노출만 비활성화.
+# 재사용 시 아래 줄 주석만 해제하면 됨.
+# render_spbot_trigger()
 
 pg.run()
