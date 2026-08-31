@@ -139,36 +139,44 @@ function _sendReminder(type, row, colIdx, eventDt) {
   var weekdays = ["일", "월", "화", "수", "목", "금", "토"];
   var dateOnlyLabel = Utilities.formatDate(eventDt, "Asia/Seoul", "M월 d일");
   var linkHtml = '<a href="' + CALENDAR_URL + '">디플랜360 캘린더</a>';
-  var memoHtml = memo ? ('<p>' + memo + '</p>') : '';
 
-  var subject, html;
+  var subject, blocks;
+
+  // 각 블록을 <div>로 감싸고 margin-bottom으로 문단 간격을 명시.
+  // 빈 줄을 <br><br>로 표현하면 Gmail이 연속된 빈 줄바꿈을 축약해버리는 경우가 있어
+  // margin 기반으로 바꿈 (재발 방지 — CLAUDE.md §11-F 참고).
 
   if (type === "24h") {
     subject = "[SP] " + title + " 안내 - " + dateOnlyLabel + " " + startTime + " @ " + venue;
-    html = ''
-      + '<p>안녕하세요, SP팀입니다.<br>'
-      + '내일 예정된 행사 정보를 안내드리오니 많은 참여 부탁드립니다.</p>'
-      + '<p>📅 행사 안내</p>'
-      + '<p><b>' + title + '</b> [' + category + ']</p>'
-      + '<p>일시: ' + Utilities.formatDate(eventDt, "Asia/Seoul", "yyyy-MM-dd") + ' (' + weekdays[eventDt.getDay()] + ') '
-      + startTime + ' ~ ' + endTime + '<br>'
-      + '장소: ' + venue + '</p>'
-      + memoHtml
-      + '<p>참석 여부는 ' + linkHtml + ' 페이지에서 체크 부탁드립니다.</p>'
-      + '<p>감사합니다.</p>';
+    blocks = [
+      "안녕하세요, SP팀입니다.<br>내일 예정된 행사 정보를 안내드리오니 많은 참여 부탁드립니다.",
+      "[행사 안내]",
+      title + " [" + category + "]",
+      "일시: " + Utilities.formatDate(eventDt, "Asia/Seoul", "yyyy-MM-dd") + " (" + weekdays[eventDt.getDay()] + ") " + startTime + " ~ " + endTime + "<br>장소: " + venue,
+    ];
+    if (memo) blocks.push(memo);
+    blocks.push(
+      "참석 여부는 " + linkHtml + " 페이지에서 체크 부탁드립니다.",
+      "감사합니다."
+    );
   } else {
     subject = "[SP] " + title + " - " + startTime + " " + venue + " 참석 안내";
-    html = ''
-      + '<p>안녕하세요, SP팀입니다.<br>'
-      + title + '이(가) 30분 후 시작 예정에 있어, 많은 참여 부탁드립니다.</p>'
-      + '<p>📅 행사 안내</p>'
-      + '<p><b>' + title + '</b> [' + category + ']</p>'
-      + '<p>시간: ' + startTime + ' ~ ' + endTime + '<br>'
-      + '장소: ' + venue + '</p>'
-      + memoHtml
-      + '<p>교육 참석 후, ' + linkHtml + ' 페이지에서 참석 여부 체크 부탁드립니다.</p>'
-      + '<p>감사합니다.</p>';
+    blocks = [
+      "안녕하세요, SP팀입니다.<br>30분 후 " + title + " 시작 예정에 있어, 많은 참여 부탁드립니다.",
+      "[행사 안내]",
+      title + " [" + category + "]",
+      "시간: " + startTime + " ~ " + endTime + "<br>장소: " + venue,
+    ];
+    if (memo) blocks.push(memo);
+    blocks.push(
+      "교육 참석 후, " + linkHtml + " 페이지에서 참석 여부 체크 부탁드립니다.",
+      "감사합니다."
+    );
   }
+
+  var html = blocks.map(function(b) {
+    return '<div style="margin:0 0 16px 0;line-height:1.6;">' + b + '</div>';
+  }).join('');
 
   GmailApp.sendEmail(NOTIFY_EMAIL, subject, "", {htmlBody: html});
   Logger.log("[" + type + "] 발송: " + title + " → " + NOTIFY_EMAIL);
