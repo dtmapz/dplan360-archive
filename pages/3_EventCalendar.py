@@ -1,7 +1,7 @@
 import streamlit as st
 from datetime import datetime, date
 import re
-from utils import db
+from utils import sheets as db
 from utils.auth import get_current_user, is_admin
 from utils.ui import set_current_page
 
@@ -367,7 +367,7 @@ with tab_att:
 
     # 데이터 로드
     att_all_events = db.get_attendance_summary()
-    raw_members = db.get_client().table("organization").select("*").order("team").order("name").execute().data
+    raw_members = db.get_all_org_members_sheet()
     att_members = [m for m in raw_members if m.get("team") and m.get("team") not in ("SP팀", "-", "")]
     division_order = ["미디어컨설팅본부", "그로스마케팅본부"]
 
@@ -446,7 +446,7 @@ with tab_att:
         n_teams = len(team_avg_sorted)
         bar_gap = max(28 - n_teams, 8)
         for team, avg in team_avg_sorted:
-            pct = min(avg / max_avg * 100, 100)
+            pct = min(avg / max_avg * 100, 100) if max_avg else 0
             left_html += (
                 f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:{bar_gap}px;'>"
                 f"<div style='font-size:11px;width:140px;text-align:right;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{team}</div>"
