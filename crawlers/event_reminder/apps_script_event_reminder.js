@@ -138,48 +138,88 @@ function _sendReminder(type, row, colIdx, eventDt) {
   var endTime = _fmtHHmm(row[colIdx.end_time]);
   var weekdays = ["일", "월", "화", "수", "목", "금", "토"];
   var dateOnlyLabel = Utilities.formatDate(eventDt, "Asia/Seoul", "M월 d일");
-  var linkHtml = '<a href="' + CALENDAR_URL + '">디플랜360 캘린더</a>';
 
-  var subject, blocks;
+  var subject = type === "24h"
+    ? "[SP] " + title + " 안내 - " + dateOnlyLabel + " " + startTime + " @ " + venue
+    : "[SP] " + title + " - " + startTime + " " + venue + " 참석 안내";
 
-  // 각 블록을 <div>로 감싸고 margin-bottom으로 문단 간격을 명시.
-  // 빈 줄을 <br><br>로 표현하면 Gmail이 연속된 빈 줄바꿈을 축약해버리는 경우가 있어
-  // margin 기반으로 바꿈 (재발 방지 — CLAUDE.md §11-F 참고).
+  var greeting = type === "24h"
+    ? "안녕하세요, SP팀입니다.<br>내일 예정된 행사 정보를 안내드리오니 많은 참여 부탁드립니다."
+    : "안녕하세요, SP팀입니다.<br>30분 후 " + title + " 시작 예정에 있어, 많은 참여 부탁드립니다.";
 
-  if (type === "24h") {
-    subject = "[SP] " + title + " 안내 - " + dateOnlyLabel + " " + startTime + " @ " + venue;
-    blocks = [
-      "안녕하세요, SP팀입니다.<br>내일 예정된 행사 정보를 안내드리오니 많은 참여 부탁드립니다.",
-      "[행사 안내]",
-      title + " [" + category + "]",
-      "일시: " + Utilities.formatDate(eventDt, "Asia/Seoul", "yyyy-MM-dd") + " (" + weekdays[eventDt.getDay()] + ") " + startTime + " ~ " + endTime + "<br>장소: " + venue,
-    ];
-    if (memo) blocks.push(memo);
-    blocks.push(
-      "참석 여부는 " + linkHtml + " 페이지에서 체크 부탁드립니다.",
-      "감사합니다."
-    );
-  } else {
-    subject = "[SP] " + title + " - " + startTime + " " + venue + " 참석 안내";
-    blocks = [
-      "안녕하세요, SP팀입니다.<br>30분 후 " + title + " 시작 예정에 있어, 많은 참여 부탁드립니다.",
-      "[행사 안내]",
-      title + " [" + category + "]",
-      "시간: " + startTime + " ~ " + endTime + "<br>장소: " + venue,
-    ];
-    if (memo) blocks.push(memo);
-    blocks.push(
-      "교육 참석 후, " + linkHtml + " 페이지에서 참석 여부 체크 부탁드립니다.",
-      "감사합니다."
-    );
-  }
+  var factRows = type === "24h"
+    ? [["일시", Utilities.formatDate(eventDt, "Asia/Seoul", "yyyy-MM-dd") + " (" + weekdays[eventDt.getDay()] + ") " + startTime + " ~ " + endTime], ["장소", venue]]
+    : [["시간", startTime + " ~ " + endTime], ["장소", venue]];
+  if (memo) factRows.push(["메모", memo]);
 
-  var html = blocks.map(function(b) {
-    return '<div style="margin:0 0 16px 0;line-height:1.6;">' + b + '</div>';
-  }).join('');
+  var ctaLabel = type === "24h" ? "디플랜360 캘린더에서 체크하기 →" : "참석 여부 체크하러 가기 →";
+  var footerText = type === "24h"
+    ? "이 메일은 참석 설정된 행사에 대해 자동 발송됩니다."
+    : "교육 참석 후 캘린더에서 참석 여부를 체크해 주세요.";
+
+  var html = _renderReminderHtml(type, {
+    greeting: greeting,
+    title: title,
+    category: category,
+    factRows: factRows,
+    ctaLabel: ctaLabel,
+    footerText: footerText,
+  });
 
   GmailApp.sendEmail(NOTIFY_EMAIL, subject, "", {htmlBody: html});
   Logger.log("[" + type + "] 발송: " + title + " → " + NOTIFY_EMAIL);
+}
+
+// 승인된 시안(24h=차분한 블랙 톤 / 30m=긴급 앰버 톤) 그대로 인라인 스타일로 반영.
+// 이메일 클라이언트는 <style> 블록을 신뢰할 수 없어 전부 인라인으로 작성.
+function _renderReminderHtml(type, data) {
+  var urgent = type === "30m";
+  var stripBg = urgent
+    ? "background:linear-gradient(90deg,#F2A93B,#E8971C);"
+    : "background:#0B0B0B;";
+  var badgeLabel = urgent ? "⏰ 곧 시작" : "행사 안내";
+  var badgeStyle = urgent
+    ? "background:#FFF1D6;color:#8A5A0A;"
+    : "background:#F1F0EC;color:#45433C;";
+  var ctaStyle = urgent
+    ? "background:#F2A93B;color:#1C1200;"
+    : "background:#0B0B0B;color:#ffffff;";
+
+  var factsHtml = data.factRows.map(function(r) {
+    return '<tr>'
+      + '<td style="color:#96928A;font-size:13.5px;padding:4px 10px 4px 0;width:44px;vertical-align:top;white-space:nowrap;">' + r[0] + '</td>'
+      + '<td style="color:#1C1B18;font-size:13.5px;padding:4px 0;">' + r[1] + '</td>'
+      + '</tr>';
+  }).join('');
+
+  return ''
+    + '<div style="max-width:560px;margin:0 auto;font-family:Pretendard,-apple-system,\'Apple SD Gothic Neo\',\'Malgun Gothic\',sans-serif;">'
+    + '<div style="height:5px;border-radius:10px 10px 0 0;' + stripBg + '"></div>'
+    + '<div style="border:1px solid #E7E4DC;border-top:none;border-radius:0 0 10px 10px;padding:28px 30px 30px;background:#ffffff;">'
+
+    + '<p style="margin:0 0 18px;font-size:14px;line-height:1.7;color:#1C1B18;">' + data.greeting + '</p>'
+
+    + '<div style="margin:0 0 18px;">'
+    + '<span style="display:inline-block;font-size:12px;font-weight:700;letter-spacing:0.02em;padding:5px 11px;border-radius:100px;' + badgeStyle + '">' + badgeLabel + '</span>'
+    + '</div>'
+
+    + '<div style="background:#FBFAF7;border:1px solid #ECE9E0;border-radius:12px;padding:18px 20px;margin:0 0 20px;">'
+    + '<div style="margin:0 0 14px;">'
+    + '<span style="font-size:16px;font-weight:700;color:#0B0B0B;">' + data.title + '</span>'
+    + '<span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:4px;background:#0B0B0B;color:#ffffff;margin-left:8px;">' + data.category + '</span>'
+    + '</div>'
+    + '<table style="width:100%;border-collapse:collapse;">' + factsHtml + '</table>'
+    + '</div>'
+
+    + '<div style="text-align:center;margin:24px 0 20px;">'
+    + '<a href="' + CALENDAR_URL + '" style="display:inline-block;padding:12px 26px;border-radius:8px;font-size:14px;font-weight:700;text-decoration:none;' + ctaStyle + '">' + data.ctaLabel + '</a>'
+    + '</div>'
+
+    + '<p style="margin:22px 0 0;color:#6B6862;font-size:13px;">감사합니다.</p>'
+
+    + '<div style="margin-top:18px;padding-top:14px;border-top:1px solid #EFEDE6;font-size:11px;color:#A7A398;">' + data.footerText + '</div>'
+    + '</div>'
+    + '</div>';
 }
 
 function _fmtHHmm(v) {
