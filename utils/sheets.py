@@ -1275,6 +1275,14 @@ def get_all_org_members_with_row() -> list[dict]:
 #                      (유니크키 = event_id+member_email, update-or-insert)
 # ======================================================================
 
+def _kst_today_iso() -> str:
+    """서버 시간대(Streamlit Cloud=UTC) 무관하게 KST 기준 오늘 날짜.
+    date.today()는 UTC 자정~오전 9시 사이 하루 전 날짜를 반환하는 버그가 있음.
+    """
+    from zoneinfo import ZoneInfo
+    return _dt.now(ZoneInfo("Asia/Seoul")).date().isoformat()
+
+
 EVENT_CATEGORIES_TAB = "event_categories"
 EVENT_CATEGORIES_HEADERS = ["name", "color", "is_default"]
 
@@ -1408,7 +1416,7 @@ def _event_row_values(ev: dict) -> list:
         ev.get("venue", ""),
         ev.get("memo") or "",
         "TRUE" if ev.get("requires_check") else "FALSE",
-        ev.get("created_at", date.today().isoformat()),
+        ev.get("created_at", _kst_today_iso()),
     ]
 
 
@@ -1428,7 +1436,7 @@ def create_event(title: str, event_date: str, start_time: str, end_time: str,
         "id": new_id, "title": title, "event_date": event_date,
         "start_time": start_time, "end_time": end_time,
         "category": category, "venue": venue, "memo": memo,
-        "requires_check": requires_check, "created_at": date.today().isoformat(),
+        "requires_check": requires_check, "created_at": _kst_today_iso(),
     }
     ws = _get_events_sheet()
     ws.append_row(_event_row_values(ev), value_input_option="USER_ENTERED")
