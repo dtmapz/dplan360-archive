@@ -1378,14 +1378,25 @@ def _clear_event_cache():
     _get_event_rows.clear()
 
 
+def _pad_hhmm(v: str) -> str:
+    """Google Sheets 시간 서식이 앞자리 0을 없애는 경우 보정 (예: '3:00' → '03:00').
+    FullCalendar ISO 파싱(event_date+'T'+start_time)이 'T3:00'처럼 깨지는 문제 방지."""
+    v = (v or "").strip()
+    if not v:
+        return v
+    parts = v.split(":")
+    parts[0] = parts[0].zfill(2)
+    return ":".join(parts)
+
+
 def _event_row_to_dict(r: dict) -> dict:
     return {
         "id": str(r.get("id", "")).strip(),
         "_row": r.get("_row"),
         "title": str(r.get("title", "")).strip(),
         "event_date": str(r.get("event_date", "")).strip(),
-        "start_time": str(r.get("start_time", "")).strip(),
-        "end_time": str(r.get("end_time", "")).strip(),
+        "start_time": _pad_hhmm(str(r.get("start_time", ""))),
+        "end_time": _pad_hhmm(str(r.get("end_time", ""))),
         "category": str(r.get("category", "")).strip(),
         "venue": str(r.get("venue", "")).strip(),
         "memo": str(r.get("memo", "")).strip() or None,
