@@ -28,13 +28,10 @@ with st.sidebar:
         f"<div style='font-size:14px; color:#aaa; padding-top:8px;'>{user.get('email', '')}</div>",
         unsafe_allow_html=True,
     )
-    col_pw, col_btn = st.columns(2)
-    with col_pw:
-        if st.button("🔑 비밀번호 변경", use_container_width=True):
-            render_password_change_dialog()
-    with col_btn:
-        if st.button("로그아웃", use_container_width=True):
-            logout()
+    if st.button("🔑 비밀번호 변경", use_container_width=True):
+        render_password_change_dialog()
+    if st.button("로그아웃", use_container_width=True):
+        logout()
 
 st.markdown(
     """
