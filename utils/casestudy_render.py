@@ -107,8 +107,12 @@ body { background: #E8EAED; font-family: 'Pretendard Variable', Pretendard, -app
 .type-pill { background:#EEF2FF; color:#4C7DFF; font-size:10.5px; font-weight:700; padding:3px 8px; border-radius:3px; letter-spacing:0.3px; margin-left:4px; }
 .cs-body { padding:20px 40px 18px; display:grid; grid-template-columns: 560px 1fr; grid-template-rows:auto 1fr; gap:18px 32px; min-height:0; }
 .creative-block { display:flex; flex-direction:column; gap:8px; }
-.creative { width:560px; height:315px; background: linear-gradient(135deg, #D4C5B0 0%, #A89578 100%); position:relative; overflow:hidden; border-radius:4px; }
-.creative img { width:100%; height:100%; object-fit:cover; display:block; }
+.creative { width:560px; height:315px; background: linear-gradient(135deg, #D4C5B0 0%, #A89578 100%); position:relative; overflow:hidden; border-radius:4px; display:grid; gap:2px; }
+.creative.n1 { grid-template-columns: 1fr; }
+.creative.n2 { grid-template-columns: 1fr 1fr; }
+.creative.n4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.creative .tile { position:relative; overflow:hidden; }
+.creative .tile img { width:100%; height:100%; object-fit:cover; display:block; }
 .creative-placeholder { color:rgba(255,255,255,0.6); font-size:13px; text-transform:uppercase; letter-spacing:1.5px; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); }
 .creative-caption { font-size:13px; color:#6B7280; line-height:1.5; padding-left:2px; }
 .right-top { display:flex; flex-direction:column; gap:14px; min-width:0; }
@@ -150,11 +154,19 @@ def build_slide_html(cs: dict, ai: dict, standalone: bool = True, scale: float =
         [x for x in [cs.get("advertiser"), cs.get("industry")] if x]
     )
 
-    creative_url = cs.get("creative_image_url") or ""
-    if creative_url:
-        creative_inner = f"<img src='{_esc(creative_url)}' alt='creative'/>"
-    else:
+    image_urls = [u for u in (cs.get("creative_image_urls") or (
+        [cs["creative_image_url"]] if cs.get("creative_image_url") else []
+    )) if u]
+    if not image_urls:
+        creative_cls = "creative n1"
         creative_inner = "<div class='creative-placeholder'>CAMPAIGN CREATIVE · 16:9</div>"
+    else:
+        layout_n = 1 if len(image_urls) == 1 else (2 if len(image_urls) == 2 else 4)
+        creative_cls = f"creative n{layout_n}"
+        creative_inner = "".join(
+            f"<div class='tile'><img src='{_esc(u)}' alt='creative'/></div>"
+            for u in image_urls[:layout_n]
+        )
 
     wrap_w = round(1280 * scale)
     wrap_h = round(720 * scale)
@@ -187,7 +199,7 @@ def build_slide_html(cs: dict, ai: dict, standalone: bool = True, scale: float =
 
   <div class='cs-body'>
     <div class='creative-block'>
-      <div class='creative'>{creative_inner}</div>
+      <div class='{creative_cls}'>{creative_inner}</div>
       <div class='creative-caption'>{_esc(ai.get('caption', ''))}</div>
     </div>
 

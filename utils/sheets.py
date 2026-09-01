@@ -1131,6 +1131,9 @@ def clear_org_cache() -> None:
 #   G target_gender / H target_age / I period_start / J period_end
 #   K campaign_types(comma) / L objective / M strategy / N insight / O extra_note
 #   P results_json / Q ai_json / R creative_image_url / S created_at
+#   R은 이미지 1/2/4개를 콤마로 이어붙여 저장 (2026-09, 다중 이미지 지원).
+#   get_case_studies()가 creative_image_urls(list)로 파싱, creative_image_url(단수,
+#   첫 이미지)은 하위호환용으로 유지.
 # ======================================================================
 import json as _json
 
@@ -1200,7 +1203,10 @@ def get_case_studies() -> list[dict]:
             "extra_note": str(r.get("extra_note", "")).strip(),
             "results": _parse_json_field(r.get("results_json"), []),
             "ai": _parse_json_field(r.get("ai_json"), {}),
-            "creative_image_url": str(r.get("creative_image_url", "")).strip(),
+            "creative_image_urls": [
+                u.strip() for u in str(r.get("creative_image_url", "")).split(",") if u.strip()
+            ],
+            "creative_image_url": str(r.get("creative_image_url", "")).split(",")[0].strip(),
             "created_at": str(r.get("created_at", "")).strip(),
         })
     out.sort(key=lambda x: x.get("created_at", ""), reverse=True)
@@ -1230,7 +1236,7 @@ def _cs_row(cs: dict) -> list:
         cs.get("extra_note", ""),
         _json.dumps(cs.get("results", []), ensure_ascii=False),
         _json.dumps(cs.get("ai", {}), ensure_ascii=False),
-        cs.get("creative_image_url", ""),
+        ",".join(u for u in (cs.get("creative_image_urls") or ([cs["creative_image_url"]] if cs.get("creative_image_url") else [])) if u),
         cs.get("created_at", date.today().isoformat()),
     ]
 
