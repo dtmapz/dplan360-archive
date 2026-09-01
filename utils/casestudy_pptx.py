@@ -281,21 +281,48 @@ def _render_meta_strip(shapes, cs: dict):
 
 
 def _render_creative(shapes, cs: dict):
-    # 560×315 crop area at x=40, y=132
+    # 560×315 영역 at x=40, y=132. 이미지 1/2/4개를 동일 영역 안에서 분할 배치.
     x, y, w, h = 40, 132, 560, 315
-    img_bytes = _fetch_image_bytes(cs.get("creative_image_url", ""))
-    if img_bytes:
-        try:
-            shapes.add_picture(io.BytesIO(img_bytes), _emu(x), _emu(y),
-                               width=_emu(w), height=_emu(h))
-            return
-        except Exception:
-            pass
-    # fallback rectangle
-    _rect(shapes, x, y, w, h, fill=CREATIVE_BG_1)
-    _textbox(shapes, x, y, w, h,
-             "CAMPAIGN CREATIVE · 16:9", size=13, color=WHITE,
-             align="center", anchor="middle", spacing=1.5)
+    gap = 2
+
+    urls = cs.get("creative_image_urls") or (
+        [cs["creative_image_url"]] if cs.get("creative_image_url") else []
+    )
+    urls = [u for u in urls if u]
+
+    if not urls:
+        _rect(shapes, x, y, w, h, fill=CREATIVE_BG_1)
+        _textbox(shapes, x, y, w, h,
+                 "CAMPAIGN CREATIVE · 16:9", size=13, color=WHITE,
+                 align="center", anchor="middle", spacing=1.5)
+        return
+
+    layout_n = 1 if len(urls) == 1 else (2 if len(urls) == 2 else 4)
+    urls = urls[:layout_n]
+
+    if layout_n == 1:
+        boxes = [(x, y, w, h)]
+    elif layout_n == 2:
+        tw = (w - gap) / 2
+        boxes = [(x, y, tw, h), (x + tw + gap, y, tw, h)]
+    else:
+        tw = (w - gap) / 2
+        th = (h - gap) / 2
+        boxes = [
+            (x, y, tw, th), (x + tw + gap, y, tw, th),
+            (x, y + th + gap, tw, th), (x + tw + gap, y + th + gap, tw, th),
+        ]
+
+    for (bx, by, bw, bh), url in zip(boxes, urls):
+        img_bytes = _fetch_image_bytes(url)
+        if img_bytes:
+            try:
+                shapes.add_picture(io.BytesIO(img_bytes), _emu(bx), _emu(by),
+                                   width=_emu(bw), height=_emu(bh))
+                continue
+            except Exception:
+                pass
+        _rect(shapes, bx, by, bw, bh, fill=CREATIVE_BG_1)
 
 
 def _render_caption(shapes, ai: dict):

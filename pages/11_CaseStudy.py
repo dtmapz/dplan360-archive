@@ -49,8 +49,8 @@ STATE_KEYS = (
     "_cs_f_media", "_cs_f_gender", "_cs_f_age",
     "_cs_f_ystart", "_cs_f_yend", "_cs_f_types",
     "_cs_f_objective", "_cs_f_strategy", "_cs_f_insight", "_cs_f_extra",
-    "_cs_f_results", "_cs_f_image", "_cs_f_ai",
-    "_cs_del_confirm", "_cs_img_uploader", "_cs_step", "_cs_loaded_id",
+    "_cs_f_results", "_cs_f_images", "_cs_f_image_count", "_cs_f_ai",
+    "_cs_del_confirm", "_cs_step", "_cs_loaded_id",
 )
 
 
@@ -75,7 +75,11 @@ def _load_into_state(cs: dict):
     st.session_state["_cs_f_insight"] = cs.get("insight", "")
     st.session_state["_cs_f_extra"] = cs.get("extra_note", "")
     st.session_state["_cs_f_results"] = cs.get("results", []) or []
-    st.session_state["_cs_f_image"] = cs.get("creative_image_url", "")
+    images = cs.get("creative_image_urls") or (
+        [cs["creative_image_url"]] if cs.get("creative_image_url") else []
+    )
+    st.session_state["_cs_f_images"] = list(images)
+    st.session_state["_cs_f_image_count"] = 1 if len(images) <= 1 else (2 if len(images) == 2 else 4)
     st.session_state["_cs_f_ai"] = cs.get("ai", {}) or {}
 
 
@@ -105,6 +109,8 @@ def _open_edit(cs: dict | None = None):
         ]
         st.session_state["_cs_f_types"] = []
         st.session_state["_cs_f_gender"] = []
+        st.session_state["_cs_f_images"] = []
+        st.session_state["_cs_f_image_count"] = 1
         st.session_state["_cs_loaded_id"] = "__new__"
 
 
@@ -138,11 +144,21 @@ def _render_card(cs: dict):
     title = ai.get("title") or cs.get("brand") or "(제목 없음)"
     title_plain = title.replace("[", "").replace("]", "")
 
-    img_url = cs.get("creative_image_url") or ""
-    if img_url:
+    img_urls = cs.get("creative_image_urls") or (
+        [cs["creative_image_url"]] if cs.get("creative_image_url") else []
+    )
+    if img_urls:
+        n = 1 if len(img_urls) == 1 else (2 if len(img_urls) == 2 else 4)
+        cols = 2 if n > 1 else 1
+        rows = 2 if n == 4 else 1
+        tiles = "".join(
+            f"<img src='{u}' style='width:100%;height:100%;object-fit:cover;display:block;'/>"
+            for u in img_urls[:n]
+        )
         img_tag = (
-            f"<img src='{img_url}' style='width:100%;aspect-ratio:16/9;"
-            f"object-fit:cover;display:block;background:#eee;'/>"
+            f"<div style='width:100%;aspect-ratio:16/9;display:grid;gap:2px;"
+            f"grid-template-columns:repeat({cols},1fr);grid-template-rows:repeat({rows},1fr);"
+            f"background:#eee;overflow:hidden;'>{tiles}</div>"
         )
     else:
         img_tag = (
@@ -441,29 +457,50 @@ def _edit(existing: dict | None):
             placeholder="선택 · AI가 title/caption/bullet 작성 시 보조 힌트로만 활용",
         )
 
-        st.markdown("**크리에이티브 이미지** (16:9 권장)")
-        current_img = st.session_state.get("_cs_f_image", "")
-        if current_img:
-            st.image(current_img, use_container_width=True)
-            if st.button("이미지 제거", key="_cs_img_clear"):
-                st.session_state["_cs_f_image"] = ""
-                _keep_open()
-                st.rerun()
-        up = st.file_uploader(
-            "이미지 업로드 (jpg/png/gif/webp)",
-            type=["png", "jpg", "jpeg", "gif", "webp"],
-            key="_cs_img_uploader",
+        st.markdown("**크리에이티브 이미지** (16:9 영역 · 1/2/4개 선택)")
+        count_opts = [1, 2, 4]
+        count_labels = {1: "1개 (기본)", 2: "2개 (1×2 분할)", 4: "4개 (2×2 분할)"}
+        cur_count = st.session_state.get("_cs_f_image_count", 1)
+        sel_count = st.radio(
+            "이미지 개수", count_opts,
+            index=count_opts.index(cur_count) if cur_count in count_opts else 0,
+            key="_cs_w_image_count", horizontal=True,
+            format_func=lambda n: count_labels[n],
         )
-        if up is not None:
-            if st.button("업로드", key="_cs_img_upload_btn", type="primary"):
-                try:
-                    url = upload_notice_image(up.read(), up.name)
-                    st.session_state["_cs_f_image"] = url
-                    st.success("업로드 완료")
-                    _keep_open()
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"업로드 실패: {e}")
+        st.session_state["_cs_f_image_count"] = sel_count
+
+        images = st.session_state.get("_cs_f_images", [])
+        images = (list(images) + [""] * sel_count)[:sel_count]
+        st.session_state["_cs_f_images"] = images
+
+        slot_cols = st.columns(2) if sel_count > 1 else [st.container()]
+        for i in range(sel_count):
+            with slot_cols[i % len(slot_cols)]:
+                cur = images[i]
+                if cur:
+                    st.image(cur, use_container_width=True)
+                    if st.button(f"이미지 {i + 1} 제거", key=f"_cs_img_clear_{i}"):
+                        images[i] = ""
+                        st.session_state["_cs_f_images"] = images
+                        _keep_open()
+                        st.rerun()
+                else:
+                    up = st.file_uploader(
+                        f"이미지 {i + 1} 업로드 (jpg/png/gif/webp)",
+                        type=["png", "jpg", "jpeg", "gif", "webp"],
+                        key=f"_cs_w_img_uploader_{i}",
+                    )
+                    if up is not None:
+                        if st.button(f"이미지 {i + 1} 업로드 확정", key=f"_cs_img_upload_btn_{i}", type="primary"):
+                            try:
+                                url = upload_notice_image(up.read(), up.name)
+                                images[i] = url
+                                st.session_state["_cs_f_images"] = images
+                                st.success("업로드 완료")
+                                _keep_open()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"업로드 실패: {e}")
 
         st.divider()
         nxt_c, cancel1_c = st.columns([2, 1])
@@ -607,7 +644,7 @@ def _collect_form() -> dict:
             for r in st.session_state.get("_cs_f_results", [])
             if (r.get("kpi_name") or r.get("value"))
         ],
-        "creative_image_url": st.session_state.get("_cs_f_image", ""),
+        "creative_image_urls": [u for u in st.session_state.get("_cs_f_images", []) if u],
     }
 
 
