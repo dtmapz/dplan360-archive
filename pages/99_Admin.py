@@ -33,7 +33,7 @@ if not is_admin():
 # ------------------------------------------------------------
 head_c, sync_c = st.columns([5, 1.2])
 head_c.markdown(
-    "<div style='font-size:20px;font-weight:700;margin-bottom:4px;'>⚙️ 관리자</div>"
+    "<div style='font-size:20px;font-weight:700;margin-bottom:4px;'>🔐 액세스 권한 관리</div>"
     "<div style='font-size:12px;color:#888;'>조직도 · 로그인 화이트리스트 관리</div>",
     unsafe_allow_html=True,
 )

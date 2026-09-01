@@ -59,7 +59,7 @@ calendar_page = st.Page("pages/3_EventCalendar.py", title="디플랜360 캘린�
 report_page = st.Page("pages/7_ReportDownload.py", title="통합 리포트 다운로더", icon="🔢")
 budget_page = st.Page("pages/10_BudgetReference.py", title="업종별 예산 가이드", icon="📊")
 casestudy_page = st.Page("pages/11_CaseStudy.py", title="캠페인 성공사례", icon="🏅")
-admin_page = st.Page("pages/99_Admin.py", title="관리자", icon="⚙️")
+admin_page = st.Page("pages/99_Admin.py", title="액세스 권한 관리", icon="🔐")
 
 pages = {
     "[MEDIA]": [home_page, media_guide_page, creative_page],
