@@ -64,6 +64,7 @@ st.markdown(
 home_page = st.Page("pages/1_Home.py", title="매체 검색", icon="🔍", default=True)
 media_guide_page = st.Page("pages/6_MediaGuide.py", title="미디어 가이드", icon="❓")
 creative_page = st.Page("pages/5_CreativeGuide.py", title="소재 제작 가이드", icon="🎨")
+media_archive_page = st.Page("pages/4_MediaArchive.py", title="월간 미디어 자료", icon="📁")
 promotion_page = st.Page("pages/8_Promotion.py", title="SMR&넷플릭스 프로모션 LIVE", icon="🏆")
 mediapromo_page = st.Page("pages/9_MediaPromo.py", title="미디어 프로모션", icon="🎁")
 calendar_page = st.Page("pages/3_EventCalendar.py", title="디플랜360 캘린더", icon="📅")
@@ -73,7 +74,7 @@ casestudy_page = st.Page("pages/11_CaseStudy.py", title="캠페인 성공사례"
 admin_page = st.Page("pages/99_Admin.py", title="액세스 권한 관리", icon="🔐")
 
 pages = {
-    "[MEDIA]": [home_page, media_guide_page, creative_page],
+    "[MEDIA]": [home_page, media_guide_page, creative_page, media_archive_page],
     "[PROMOTION]": [promotion_page, mediapromo_page],
     "[SUPPORT]": [calendar_page, report_page, budget_page, casestudy_page],
 }

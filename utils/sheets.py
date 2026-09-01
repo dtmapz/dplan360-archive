@@ -1678,3 +1678,122 @@ def get_attendance_summary() -> list[dict]:
     out.sort(key=lambda e: e["event_date"])
     return out
 
+
+# ======================================================================
+# MEDIA ARCHIVE (media_archive 탭) — 4_MediaArchive.py 용 (월간 미디어 자료)
+# PROMOTION_SHEET_ID 시트에 media_archive 탭을 사용. 탭 없으면 자동 생성.
+# 스키마: id | year | month | title | summary | agenda_json |
+#         drive_link | published_date | created_at
+# drive_link: 실물 PDF는 Storage 업로드가 아닌 사용자가 직접 등록하는 구글 드라이브
+# 공유 링크. "자세히 보기" 팝업에서 원본 링크로 바로 이동(새 탭)하는 방식.
+# ======================================================================
+
+MEDIA_ARCHIVE_TAB = "media_archive"
+MEDIA_ARCHIVE_HEADERS = [
+    "id", "year", "month", "title", "summary", "agenda_json",
+    "drive_link", "published_date", "created_at",
+]
+
+
+def _get_media_archive_sheet():
+    ws = _get_or_create_tab(MEDIA_ARCHIVE_TAB, MEDIA_ARCHIVE_HEADERS)
+    # 스키마 개편(file_path/file_name/file_size → drive_link) 이전에 탭이 먼저 생성된
+    # 환경에서는 헤더가 옛 스키마로 고정돼 있어 값이 엉뚱한 컬럼에 쓰이는 문제가 있었음.
+    # 헤더가 최신 스키마와 다르면 헤더+기존 데이터를 정리하고 새 헤더로 재설정.
+    if ws.row_values(1) != MEDIA_ARCHIVE_HEADERS:
+        ws.clear()
+        ws.update(values=[MEDIA_ARCHIVE_HEADERS], range_name="A1")
+    return ws
+
+
+@st.cache_data(ttl=300)
+def _get_media_archive_rows() -> list[dict]:
+    ws = _get_media_archive_sheet()
+    rows = ws.get_all_records(numericise_ignore=["all"])
+    out = []
+    for i, r in enumerate(rows):
+        if not r.get("id"):
+            continue
+        r["_row"] = i + 2
+        out.append(r)
+    return out
+
+
+def _clear_media_archive_cache():
+    _get_media_archive_rows.clear()
+
+
+def get_media_archives() -> list[dict]:
+    out = []
+    for r in _get_media_archive_rows():
+        out.append({
+            "id": str(r.get("id", "")).strip(),
+            "row": r["_row"],
+            "year": str(r.get("year", "")).strip(),
+            "month": str(r.get("month", "")).strip(),
+            "title": str(r.get("title", "")).strip(),
+            "summary": str(r.get("summary", "")).strip(),
+            "agenda": _parse_json_field(r.get("agenda_json"), []),
+            "drive_link": str(r.get("drive_link", "")).strip(),
+            "published_date": str(r.get("published_date", "")).strip(),
+            "created_at": str(r.get("created_at", "")).strip(),
+        })
+    out.sort(key=lambda x: (x.get("year", ""), x.get("month", "").zfill(2)), reverse=True)
+    return out
+
+
+def _media_archive_row(a: dict) -> list:
+    return [
+        a.get("id", ""),
+        str(a.get("year", "")),
+        str(a.get("month", "")),
+        a.get("title", ""),
+        a.get("summary", ""),
+        _json.dumps(a.get("agenda", []), ensure_ascii=False),
+        a.get("drive_link", ""),
+        a.get("published_date", "") or _kst_today_iso(),
+        a.get("created_at", "") or _kst_today_iso(),
+    ]
+
+
+def create_media_archive(a: dict) -> str:
+    a = dict(a)
+    a["id"] = ""  # id는 행 확보 후 재검증-재시도로 배정 (동시 등록 레이스 방지)
+    a.setdefault("created_at", _kst_today_iso())
+    ws = _get_media_archive_sheet()
+    resp = ws.append_row(_media_archive_row(a), value_input_option="USER_ENTERED")
+    row_num = _parse_appended_row_num(resp)
+
+    def _compute_next(rows):
+        max_num = 0
+        for r in rows:
+            aid = str(r.get("id", ""))
+            if aid.startswith("MA-"):
+                try:
+                    max_num = max(max_num, int(aid.split("-")[1]))
+                except (ValueError, IndexError):
+                    pass
+        return f"MA-{max_num + 1:04d}"
+
+    def _fresh_rows():
+        _get_media_archive_rows.clear()
+        return _get_media_archive_rows()
+
+    new_id = _write_id_with_retry(ws, row_num, 1, _compute_next, _fresh_rows, id_key="id")
+    _clear_media_archive_cache()
+    return new_id
+
+
+def update_media_archive(row_num: int, a: dict) -> None:
+    ws = _get_media_archive_sheet()
+    row = _media_archive_row(a)
+    end_col = chr(ord("A") + len(MEDIA_ARCHIVE_HEADERS) - 1)
+    ws.update(values=[row], range_name=f"A{row_num}:{end_col}{row_num}", value_input_option="USER_ENTERED")
+    _clear_media_archive_cache()
+
+
+def delete_media_archive(row_num: int) -> None:
+    ws = _get_media_archive_sheet()
+    ws.delete_rows(row_num)
+    _clear_media_archive_cache()
+
