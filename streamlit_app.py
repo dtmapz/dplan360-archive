@@ -1,6 +1,14 @@
 import streamlit as st
 from utils.ui import inject_base_style
-from utils.auth import get_current_user, is_admin, logout, render_login_page
+from utils.auth import (
+    get_current_user,
+    is_admin,
+    logout,
+    render_login_page,
+    must_change_password,
+    render_forced_password_change,
+    render_password_change_dialog,
+)
 from utils.spbot_ui import render_spbot_trigger
 
 st.set_page_config(page_title="D-PLAN360 ARCHIVE", layout="wide")
@@ -11,13 +19,19 @@ if not user:
     render_login_page()
     st.stop()
 
+if must_change_password():
+    render_forced_password_change()
+    st.stop()
+
 with st.sidebar:
-    col_email, col_btn = st.columns([2, 1])
-    with col_email:
-        st.markdown(
-            f"<div style='font-size:14px; color:#aaa; padding-top:8px;'>{user.get('email', '')}</div>",
-            unsafe_allow_html=True,
-        )
+    st.markdown(
+        f"<div style='font-size:14px; color:#aaa; padding-top:8px;'>{user.get('email', '')}</div>",
+        unsafe_allow_html=True,
+    )
+    col_pw, col_btn = st.columns(2)
+    with col_pw:
+        if st.button("🔑 비밀번호 변경", use_container_width=True):
+            render_password_change_dialog()
     with col_btn:
         if st.button("로그아웃", use_container_width=True):
             logout()
