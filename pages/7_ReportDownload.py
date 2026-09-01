@@ -7,6 +7,26 @@ from utils.ui import set_current_page
 
 set_current_page("report_download")
 
+st.markdown(
+    "<div style='background:rgba(214,69,69,0.3); color:#A83232; "
+    "border:1px solid rgb(214,69,69); border-radius:8px; "
+    "font-size:13px; font-weight:600; padding:9px 14px; margin-bottom:8px;'>"
+    "<span style='display:inline-block; font-size:10.5px; font-weight:700; "
+    "padding:2px 8px; border-radius:4px; margin-right:10px; letter-spacing:0.02em; "
+    "vertical-align:middle; background:#D64545; color:#ffffff;'>공지</span>"
+    "구글 API 오류로 사용 불가 - 해결 시 별도 안내 예정"
+    "</div>"
+    "<div style='background:rgba(242,169,59,0.3); color:#7A4E0A; "
+    "border:1px solid rgb(242,169,59); border-radius:8px; "
+    "font-size:13px; font-weight:600; padding:9px 14px; margin-bottom:16px;'>"
+    "<span style='display:inline-block; font-size:10.5px; font-weight:700; "
+    "padding:2px 8px; border-radius:4px; margin-right:10px; letter-spacing:0.02em; "
+    "vertical-align:middle; background:#F2A93B; color:#1C1200;'>공지</span>"
+    "당근, 메타 리포트 업데이트 진행 중"
+    "</div>",
+    unsafe_allow_html=True,
+)
+
 user = get_current_user()
 
 # ============================
