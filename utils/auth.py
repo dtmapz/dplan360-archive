@@ -168,61 +168,69 @@ def render_login_page():
 
     st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
 
-    tab_login, tab_signup = st.tabs(["로그인", "회원가입"])
+    # 2026-09: 회원가입 탭 UI 노출 비활성화 (Supabase 대시보드 접근 불가로 Site URL
+    # 리디렉션 이슈 해결 전까지 자율 가입 중단, 신규 인원은 관리자가 Admin API로
+    # 임시 비밀번호 계정 생성 후 강제 비밀번호 변경 플로우로 전환). 로직/코드는
+    # _render_signup_tab()에 그대로 유지, 재사용 시 아래 두 줄만 되돌리면 됨.
+    # tab_login, tab_signup = st.tabs(["로그인", "회원가입"])
+    # with tab_login:
+    email = st.text_input("이메일", key="login_email", placeholder="example@d-plan360.com")
+    password = st.text_input("비밀번호", type="password", key="login_pw")
 
-    with tab_login:
-        email = st.text_input("이메일", key="login_email", placeholder="example@d-plan360.com")
-        password = st.text_input("비밀번호", type="password", key="login_pw")
-
-        if st.button("로그인", type="primary", use_container_width=True, key="login_btn"):
-            if not email or not password:
-                st.error("이메일과 비밀번호를 입력해주세요.")
-            else:
-                email_norm = email.strip().lower()
-                # 조직도 게이트 — 미등록/비활성 사용자는 로그인 자체 차단
-                if not is_email_registered(email_norm):
-                    st.error("등록되지 않은 사용자입니다. 관리자에게 조직도 등록을 요청해주세요.")
-                else:
-                    try:
-                        sb = get_client()
-                        res = sb.auth.sign_in_with_password({"email": email_norm, "password": password})
-                        st.session_state["user"] = res.user.__dict__
-                        st.rerun()
-                    except Exception:
-                        st.error("이메일 또는 비밀번호가 올바르지 않습니다.")
-
-    with tab_signup:
-        email = st.text_input("이메일 (회사 메일로 가입)", key="signup_email", placeholder="example@d-plan360.com")
-        password = st.text_input(
-            "비밀번호",
-            type="password",
-            key="signup_pw",
-            placeholder="영문 대소문자, 숫자, 특수기호 필수 포함",
-            help="영문 대소문자 + 숫자 + 특수기호(!@#$ 등) 포함 8자 이상"
-        )
-        password_confirm = st.text_input("비밀번호 확인", type="password", key="signup_pw_confirm")
-
-        if st.button("가입하기", type="primary", use_container_width=True, key="signup_btn"):
-            email_norm = (email or "").strip().lower()
-            if not email_norm or not password or not password_confirm:
-                st.error("모든 항목을 입력해주세요.")
-            elif not email_norm.endswith(ALLOWED_DOMAIN):
-                st.error(f"D-PLAN360 사내 이메일({ALLOWED_DOMAIN})만 가입 가능합니다.")
-            elif not is_email_registered(email_norm):
-                st.error(
-                    "조직도에 등록되지 않은 이메일입니다. "
-                    "관리자에게 조직도 시트 등록을 요청한 뒤 다시 가입해주세요."
-                )
-            elif len(password) < 8:
-                st.error("비밀번호는 8자 이상이어야 합니다.")
-            elif password != password_confirm:
-                st.error("비밀번호가 일치하지 않습니다.")
+    if st.button("로그인", type="primary", use_container_width=True, key="login_btn"):
+        if not email or not password:
+            st.error("이메일과 비밀번호를 입력해주세요.")
+        else:
+            email_norm = email.strip().lower()
+            # 조직도 게이트 — 미등록/비활성 사용자는 로그인 자체 차단
+            if not is_email_registered(email_norm):
+                st.error("등록되지 않은 사용자입니다. 관리자에게 조직도 등록을 요청해주세요.")
             else:
                 try:
                     sb = get_client()
-                    sb.auth.sign_up({"email": email_norm, "password": password})
-                    st.success("가입 완료! Supabase Auth 이메일로 발송된 인증 링크 클릭 후 로그인해주세요.")
-                except Exception as e:
-                    st.error(f"오류: {str(e)}")
+                    res = sb.auth.sign_in_with_password({"email": email_norm, "password": password})
+                    st.session_state["user"] = res.user.__dict__
+                    st.rerun()
+                except Exception:
+                    st.error("이메일 또는 비밀번호가 올바르지 않습니다.")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _render_signup_tab():
+    """가입 탭 로직 (현재 미노출, §render_login_page 주석 참고). 재사용 시
+    render_login_page()에서 st.tabs로 감싸고 이 함수를 tab_signup 블록에서 호출."""
+    email = st.text_input("이메일 (회사 메일로 가입)", key="signup_email", placeholder="example@d-plan360.com")
+    password = st.text_input(
+        "비밀번호",
+        type="password",
+        key="signup_pw",
+        placeholder="영문 대소문자, 숫자, 특수기호 필수 포함",
+        help="영문 대소문자 + 숫자 + 특수기호(!@#$ 등) 포함 8자 이상"
+    )
+    password_confirm = st.text_input("비밀번호 확인", type="password", key="signup_pw_confirm")
+
+    if st.button("가입하기", type="primary", use_container_width=True, key="signup_btn"):
+        email_norm = (email or "").strip().lower()
+        if not email_norm or not password or not password_confirm:
+            st.error("모든 항목을 입력해주세요.")
+        elif not email_norm.endswith(ALLOWED_DOMAIN):
+            st.error(f"D-PLAN360 사내 이메일({ALLOWED_DOMAIN})만 가입 가능합니다.")
+        elif not is_email_registered(email_norm):
+            st.error(
+                "조직도에 등록되지 않은 이메일입니다. "
+                "관리자에게 조직도 시트 등록을 요청한 뒤 다시 가입해주세요."
+            )
+        elif len(password) < 8:
+            st.error("비밀번호는 8자 이상이어야 합니다.")
+        elif password != password_confirm:
+            st.error("비밀번호가 일치하지 않습니다.")
+        else:
+            try:
+                sb = get_client()
+                sb.auth.sign_up({"email": email_norm, "password": password})
+                st.success("가입 완료! Supabase Auth 이메일로 발송된 인증 링크 클릭 후 로그인해주세요.")
+            except Exception as e:
+                st.error(f"오류: {str(e)}")
 
     st.markdown("</div>", unsafe_allow_html=True)
