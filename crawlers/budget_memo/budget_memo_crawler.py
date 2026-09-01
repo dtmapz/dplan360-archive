@@ -11,6 +11,7 @@ API 필드:    campaignName / advertiserName / agencyName / mediaName / totalAdP
   export QNA_LOGIN_ID='...'
   export QNA_LOGIN_PW='...'
   export QNA_GCP_SERVICE_ACCOUNT_JSON='...(json or base64)...'
+  export BUDGET_SHEET_ID='...'   # BIGQUERY_MAPPING_SHEET_ID 값 (하드코딩 금지 — Public repo 원칙)
   python3 budget_memo_crawler.py --dry-run     # 매칭만 확인, 시트 미변경
   python3 budget_memo_crawler.py               # 실제 H열 업데이트
 """
@@ -38,7 +39,7 @@ LOGIN_URL = f"{BASE_URL}/_common/loginProc.php"
 API_URL = f"{BASE_URL}/ajax/ajax.inquire.php"
 CAMPAIGN_API_URL = f"{BASE_URL}/ajax/ajax.campaign.php"
 
-SHEET_ID = "1VSS1zHcoOiumySmzxyj-34zy3Qs7ln8Azp_TEZeKaDQ"
+SHEET_ID = os.environ.get("BUDGET_SHEET_ID", "").strip()
 SHEET_GID = 1008030082
 TAB_NAME = "budget_history"
 
@@ -219,6 +220,10 @@ def resolve_memo(memos: List[str]) -> Tuple[str, bool]:
 
 
 def main():
+    if not SHEET_ID:
+        log.error("환경변수 필요: BUDGET_SHEET_ID (BIGQUERY_MAPPING_SHEET_ID 값)")
+        sys.exit(1)
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="시트 미변경, 매칭 결과만 출력")
     ap.add_argument("--from-csv", metavar="PATH",
