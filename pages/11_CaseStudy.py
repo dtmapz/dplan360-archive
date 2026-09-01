@@ -22,6 +22,18 @@ from utils.casestudy_pptx import build_slide_pptx
 
 set_current_page("casestudy")
 
+st.markdown(
+    "<div style='background:rgba(214,69,69,0.3); color:#A83232; "
+    "border:1px solid rgb(214,69,69); border-radius:8px; "
+    "font-size:13px; font-weight:600; padding:9px 14px; margin-bottom:16px;'>"
+    "<span style='display:inline-block; font-size:10.5px; font-weight:700; "
+    "padding:2px 8px; border-radius:4px; margin-right:10px; letter-spacing:0.02em; "
+    "vertical-align:middle; background:#D64545; color:#ffffff;'>공지</span>"
+    "※ 외부 자료 활용 시 광고주 정보 및 소재 이미지 가공 필수"
+    "</div>",
+    unsafe_allow_html=True,
+)
+
 
 GENDER_OPTS = ["M", "F"]
 TYPE_OPTS = ["Awareness", "Consideration", "Conversion"]
@@ -196,7 +208,7 @@ def _render_grid(items: list[dict]):
 # 팝업 (view / edit 통합)
 # ---------------------------------------------------------------------
 
-@st.dialog("성공사례", width="large")
+@st.dialog(" ", width="large")
 def render_popup():
     st.session_state.pop("_cs_popup_open", None)
     mode = st.session_state.get("_cs_popup_mode", "view")
@@ -218,9 +230,10 @@ def _view(cs: dict | None):
         return
 
     ai = cs.get("ai", {}) or {}
-    # 슬라이드 프리뷰 (축소해서 다이얼로그 안에 맞춤)
-    html_body = build_slide_html(cs, ai, standalone=True, scale=0.55)
-    components.html(html_body, height=int(720 * 0.55) + 40, scrolling=False)
+    # 슬라이드 프리뷰 (다이얼로그를 최대한 채우도록 확대)
+    popup_scale = 0.68
+    html_body = build_slide_html(cs, ai, standalone=True, scale=popup_scale)
+    components.html(html_body, height=int(720 * popup_scale) + 40, scrolling=False)
 
     st.divider()
 

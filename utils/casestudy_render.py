@@ -156,8 +156,11 @@ def build_slide_html(cs: dict, ai: dict, standalone: bool = True, scale: float =
     else:
         creative_inner = "<div class='creative-placeholder'>CAMPAIGN CREATIVE · 16:9</div>"
 
+    wrap_w = round(1280 * scale)
+    wrap_h = round(720 * scale)
     body_html = f"""
-<div class='cs-slide' style='transform: scale({scale});'>
+<div class='cs-slide-wrap' style='width:{wrap_w}px; height:{wrap_h}px; overflow:hidden; margin:0 auto;'>
+<div class='cs-slide' style='transform: scale({scale}); transform-origin: top left; margin:0;'>
   <div class='cs-header'>
     <div class='cs-header-left'>
       <span class='cs-badge'>CASE STUDY</span>
@@ -216,6 +219,7 @@ def build_slide_html(cs: dict, ai: dict, standalone: bool = True, scale: float =
   </div>
 
   <div class='cs-footer'></div>
+</div>
 </div>
 """
 
