@@ -8,6 +8,18 @@ from utils.sheets import get_guide_download, upsert_guide_download, delete_guide
 
 set_current_page("media_guide")
 
+st.markdown(
+    "<div style='background:rgba(242,169,59,0.3); color:#7A4E0A; "
+    "border:1px solid rgb(242,169,59); border-radius:8px; "
+    "font-size:13px; font-weight:600; padding:9px 14px; margin-bottom:16px;'>"
+    "<span style='display:inline-block; font-size:10.5px; font-weight:700; "
+    "padding:2px 8px; border-radius:4px; margin-right:10px; letter-spacing:0.02em; "
+    "vertical-align:middle; background:#F2A93B; color:#1C1200;'>공지</span>"
+    "매체별 가이드 업데이트 진행 중 - 완료 시 별도 안내 예정"
+    "</div>",
+    unsafe_allow_html=True,
+)
+
 
 def _render_guide_action_buttons(page_id: str, mapping, admin: bool):
     """제목 행 우측에 배치되는 다운로드/관리 버튼. 컬럼 안에서 호출."""

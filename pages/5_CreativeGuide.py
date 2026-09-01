@@ -19,6 +19,18 @@ from openpyxl.utils import get_column_letter
 set_current_page("creative_guide")
 user = get_current_user()
 
+st.markdown(
+    "<div style='background:rgba(242,169,59,0.3); color:#7A4E0A; "
+    "border:1px solid rgb(242,169,59); border-radius:8px; "
+    "font-size:13px; font-weight:600; padding:9px 14px; margin-bottom:16px;'>"
+    "<span style='display:inline-block; font-size:10.5px; font-weight:700; "
+    "padding:2px 8px; border-radius:4px; margin-right:10px; letter-spacing:0.02em; "
+    "vertical-align:middle; background:#F2A93B; color:#1C1200;'>공지</span>"
+    "매체별 가이드 업데이트 진행 중 - 완료 시 별도 안내 예정"
+    "</div>",
+    unsafe_allow_html=True,
+)
+
 # ============================
 # 데이터 로드
 # ============================
