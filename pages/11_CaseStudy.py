@@ -50,7 +50,7 @@ STATE_KEYS = (
     "_cs_f_ystart", "_cs_f_yend", "_cs_f_types",
     "_cs_f_objective", "_cs_f_strategy", "_cs_f_insight", "_cs_f_extra",
     "_cs_f_results", "_cs_f_image", "_cs_f_ai",
-    "_cs_del_confirm", "_cs_img_uploader", "_cs_step",
+    "_cs_del_confirm", "_cs_img_uploader", "_cs_step", "_cs_loaded_id",
 )
 
 
@@ -93,6 +93,7 @@ def _open_edit(cs: dict | None = None):
     if cs:
         st.session_state["_cs_popup_id"] = cs["id"]
         _load_into_state(cs)
+        st.session_state["_cs_loaded_id"] = cs["id"]
     else:
         st.session_state["_cs_f_scope"] = "Internal"
         st.session_state["_cs_f_ystart"] = date.today().year
@@ -104,6 +105,7 @@ def _open_edit(cs: dict | None = None):
         ]
         st.session_state["_cs_f_types"] = []
         st.session_state["_cs_f_gender"] = []
+        st.session_state["_cs_loaded_id"] = "__new__"
 
 
 def _keep_open():
@@ -283,7 +285,8 @@ def _view(cs: dict | None):
         cA, cB = st.columns(2)
         if cA.button("✎ 수정", key=f"cs_edit_{cs['id']}", use_container_width=True):
             st.session_state["_cs_popup_mode"] = "edit"
-            _load_into_state(cs)
+            # 필드 로딩은 _edit()의 자가치유 가드가 전담 (_cs_loaded_id 불일치 감지 시 자동 로드)
+            st.session_state.pop("_cs_loaded_id", None)
             _keep_open()
             st.rerun()
         if not st.session_state.get("_cs_del_confirm"):
@@ -306,6 +309,16 @@ def _view(cs: dict | None):
 
 def _edit(existing: dict | None):
     is_edit = existing is not None
+
+    # 자가치유 가드: 어떤 경로로 진입했든(수정 버튼 클릭, 다이얼로그 재실행 등)
+    # 현재 로드된 캠페인 기본 정보가 existing과 다르면 여기서 다시 채워 넣는다.
+    # 필드 로딩 책임을 이 한 곳으로 모아 두 곳에서 따로 관리하다 어긋나는 문제를 방지.
+    desired_id = existing["id"] if is_edit else "__new__"
+    if st.session_state.get("_cs_loaded_id") != desired_id:
+        if is_edit:
+            _load_into_state(existing)
+        st.session_state["_cs_loaded_id"] = desired_id
+
     st.markdown("#### 성공사례 수정" if is_edit else "#### 성공사례 등록")
 
     step = st.session_state.setdefault("_cs_step", 1)
@@ -322,28 +335,63 @@ def _edit(existing: dict | None):
     )
 
     if step == 1:
+        # 주의: 위젯 key와 저장용 session_state key를 분리한다.
+        # Streamlit은 위젯이 렌더링되지 않는 스텝(예: step2)으로 넘어가면 그 위젯의
+        # session_state 값을 자동으로 삭제한다 — key="_cs_f_*"를 위젯에 직접 물려두면
+        # step2 진입 시 광고주/브랜드 등 입력값이 통째로 사라지는 버그가 재현됨(2026-09).
+        # 그래서 위젯은 "_cs_w_*" 키로 렌더링하고, 반환값을 안정적인 "_cs_f_*"에 매번 복사한다.
         c1, c2 = st.columns([1, 2])
-        c1.radio("공개 범위", ["Internal", "External"], key="_cs_f_scope", horizontal=True)
-        c2.text_input("매체 *", key="_cs_f_media", placeholder="예: Meta, Google, Kakao")
+        scope_opts = ["Internal", "External"]
+        scope_val = st.session_state.get("_cs_f_scope", "Internal")
+        st.session_state["_cs_f_scope"] = c1.radio(
+            "공개 범위", scope_opts,
+            index=scope_opts.index(scope_val) if scope_val in scope_opts else 0,
+            key="_cs_w_scope", horizontal=True,
+        )
+        st.session_state["_cs_f_media"] = c2.text_input(
+            "매체 *", value=st.session_state.get("_cs_f_media", ""),
+            key="_cs_w_media", placeholder="예: Meta, Google, Kakao",
+        )
 
         c1, c2 = st.columns(2)
-        c1.text_input("광고주 *", key="_cs_f_advertiser")
-        c2.text_input("브랜드 *", key="_cs_f_brand")
+        st.session_state["_cs_f_advertiser"] = c1.text_input(
+            "광고주 *", value=st.session_state.get("_cs_f_advertiser", ""), key="_cs_w_advertiser",
+        )
+        st.session_state["_cs_f_brand"] = c2.text_input(
+            "브랜드 *", value=st.session_state.get("_cs_f_brand", ""), key="_cs_w_brand",
+        )
 
         c1, c2 = st.columns(2)
-        c1.text_input("업종", key="_cs_f_industry", placeholder="예: Beauty / Skincare")
-        c2.text_input("타겟 연령 *", key="_cs_f_age", placeholder="예: 2049, 4050")
+        st.session_state["_cs_f_industry"] = c1.text_input(
+            "업종", value=st.session_state.get("_cs_f_industry", ""),
+            key="_cs_w_industry", placeholder="예: Beauty / Skincare",
+        )
+        st.session_state["_cs_f_age"] = c2.text_input(
+            "타겟 연령 *", value=st.session_state.get("_cs_f_age", ""),
+            key="_cs_w_age", placeholder="예: 2049, 4050",
+        )
 
         c1, c2 = st.columns(2)
-        c1.multiselect("타겟 성별 *", GENDER_OPTS, key="_cs_f_gender")
-        c2.multiselect("캠페인 타입 *", TYPE_OPTS, key="_cs_f_types",
-                       help="3개 모두 선택 시 FULL-FUNNEL 로 자동 축약")
+        st.session_state["_cs_f_gender"] = c1.multiselect(
+            "타겟 성별 *", GENDER_OPTS, default=st.session_state.get("_cs_f_gender", []),
+            key="_cs_w_gender",
+        )
+        st.session_state["_cs_f_types"] = c2.multiselect(
+            "캠페인 타입 *", TYPE_OPTS, default=st.session_state.get("_cs_f_types", []),
+            key="_cs_w_types", help="3개 모두 선택 시 FULL-FUNNEL 로 자동 축약",
+        )
 
         c1, c2 = st.columns(2)
-        c1.number_input("시작 연도 *", min_value=2000, max_value=2100,
-                        step=1, key="_cs_f_ystart")
-        c2.number_input("종료 연도 *", min_value=2000, max_value=2100,
-                        step=1, key="_cs_f_yend")
+        st.session_state["_cs_f_ystart"] = c1.number_input(
+            "시작 연도 *", min_value=2000, max_value=2100, step=1,
+            value=int(st.session_state.get("_cs_f_ystart") or date.today().year),
+            key="_cs_w_ystart",
+        )
+        st.session_state["_cs_f_yend"] = c2.number_input(
+            "종료 연도 *", min_value=2000, max_value=2100, step=1,
+            value=int(st.session_state.get("_cs_f_yend") or date.today().year),
+            key="_cs_w_yend",
+        )
 
         st.markdown("**성과 KPI** (2~4개 · 첫 KPI가 강조 표시)")
         results = st.session_state.get("_cs_f_results", [])
@@ -372,14 +420,26 @@ def _edit(existing: dict | None):
                 _keep_open()
                 st.rerun()
 
-        st.text_area("캠페인 목표 (Objective) *", key="_cs_f_objective", height=90,
-                     placeholder="배경·문제·해결 과제를 자유롭게 서술 → AI가 bullet로 정리")
-        st.text_area("캠페인 전략 (Strategy) *", key="_cs_f_strategy", height=90,
-                     placeholder="실행한 액션 중심 → AI가 3개 bullet로 정리")
-        st.text_area("인사이트 / 테스트 (Insight) *", key="_cs_f_insight", height=90,
-                     placeholder="A/B 테스트 결과·학습·시사점 → AI가 bullet로 정리")
-        st.text_area("추가 메모 (extra_note)", key="_cs_f_extra", height=60,
-                     placeholder="선택 · AI가 title/caption/bullet 작성 시 보조 힌트로만 활용")
+        st.session_state["_cs_f_objective"] = st.text_area(
+            "캠페인 목표 (Objective) *", value=st.session_state.get("_cs_f_objective", ""),
+            key="_cs_w_objective", height=90,
+            placeholder="배경·문제·해결 과제를 자유롭게 서술 → AI가 bullet로 정리",
+        )
+        st.session_state["_cs_f_strategy"] = st.text_area(
+            "캠페인 전략 (Strategy) *", value=st.session_state.get("_cs_f_strategy", ""),
+            key="_cs_w_strategy", height=90,
+            placeholder="실행한 액션 중심 → AI가 3개 bullet로 정리",
+        )
+        st.session_state["_cs_f_insight"] = st.text_area(
+            "인사이트 / 테스트 (Insight) *", value=st.session_state.get("_cs_f_insight", ""),
+            key="_cs_w_insight", height=90,
+            placeholder="A/B 테스트 결과·학습·시사점 → AI가 bullet로 정리",
+        )
+        st.session_state["_cs_f_extra"] = st.text_area(
+            "추가 메모 (extra_note)", value=st.session_state.get("_cs_f_extra", ""),
+            key="_cs_w_extra", height=60,
+            placeholder="선택 · AI가 title/caption/bullet 작성 시 보조 힌트로만 활용",
+        )
 
         st.markdown("**크리에이티브 이미지** (16:9 권장)")
         current_img = st.session_state.get("_cs_f_image", "")
