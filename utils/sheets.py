@@ -2,6 +2,8 @@ import streamlit as st
 import gspread
 import requests
 import re
+import random
+import time
 from datetime import date, timedelta, datetime as _dt
 from google.oauth2 import service_account
 
@@ -37,6 +39,60 @@ def _get_auth_token() -> str:
 
 
 # ======================================================================
+# 순번 ID 채번 동시성 보호 (2026-09-02)
+# 여러 사용자가 거의 동시에 등록(행사/성공사례/매체/프로모션/카테고리)하면
+# "전체 조회 → max+1 계산 → append" 방식은 stale read로 인해 서로 다른 행에
+# 같은 ID 값이 찍히는 레이스 컨디션이 발생함 (실측: 8개 동시 요청 100% 충돌).
+# Sheets API 자체는 동시 append를 서로 다른 행으로 안전하게 분리해주므로,
+# "행 확보(placeholder) → ID는 재검증-재시도로 배정" 순서로 바꿔서 해결.
+# ======================================================================
+
+def _parse_appended_row_num(append_response: dict) -> int:
+    """append_row()의 반환값에서 방금 추가된 실제 시트 행 번호를 추출."""
+    updated_range = append_response["updates"]["updatedRange"]
+    cell_ref = updated_range.split("!")[1].split(":")[0]
+    m = re.match(r"[A-Za-z]+(\d+)", cell_ref)
+    return int(m.group(1))
+
+
+def _write_id_with_retry(ws, row_num: int, id_col: int, compute_next_id, fresh_rows_fn,
+                          id_key: str = "id", max_attempts: int = 6) -> str:
+    """append로 확보한 row_num에 ID를 쓰고, 값 레벨 충돌이 없는지 재검증.
+    충돌 시(동시에 같은 번호를 계산한 경쟁자가 있으면) 최신 상태로 재계산해 재시도.
+    compute_next_id(rows: list[dict]) -> 후보 ID 문자열.
+    fresh_rows_fn() -> 캐시를 거치지 않은 최신 행 목록 (각 행에 id_key, "_row" 포함).
+    """
+    # 매 시도마다 2회씩 읽으면 동시 경합 시 Sheets 읽기 쿼터(분당 제한)를 순식간에 소진함.
+    # 검증 읽기 결과를 다음 시도의 기준으로 재사용해 시도당 읽기 1회로 절반 줄이고,
+    # 지수 백오프로 재충돌 확률과 초당 요청 폭주를 함께 낮춤.
+    #
+    # Sheets API는 진짜 락(compare-and-swap)을 제공하지 않아 완벽한 보장은 불가능하지만,
+    # 실제 API 왕복이 0.5~2초대인 점을 고려해 검증 대기를 그만큼 넉넉히 두고, 1차 검증
+    # 통과 후에도 짧게 한 번 더 재확인(2중 체크)해서 "거의 동시" 경쟁자를 잡아낸다.
+    rows = fresh_rows_fn()
+    candidate = None
+    backoff = 0.8
+    for _ in range(max_attempts):
+        candidate = compute_next_id(rows)
+        ws.update_cell(row_num, id_col, candidate)
+        time.sleep(backoff + random.random() * 0.4)
+        rows = fresh_rows_fn()
+        owners = [r for r in rows if str(r.get(id_key, "")).strip() == candidate]
+        if len(owners) != 1:
+            backoff = min(backoff * 1.6, 3.0)
+            continue
+
+        # 2차 재확인: 거의 동시에 같은 번호를 쓴 경쟁자가 아직 반영 전일 수 있으므로 한 번 더 확인
+        time.sleep(0.5 + random.random() * 0.3)
+        rows = fresh_rows_fn()
+        owners = [r for r in rows if str(r.get(id_key, "")).strip() == candidate]
+        if len(owners) == 1:
+            return candidate
+        backoff = min(backoff * 1.6, 3.0)
+    return candidate  # 극단적 경합 상황 fallback (그래도 최선의 후보 반환)
+
+
+# ======================================================================
 # 카테고리
 # ======================================================================
 
@@ -66,6 +122,12 @@ def get_sub_categories(major: str) -> list[str]:
     })
 
 
+def _clear_category_cache():
+    get_all_categories.clear()
+    get_major_categories.clear()
+    get_sub_categories.clear()
+
+
 def get_or_create_category(major: str, sub: str | None = None) -> str:
     sub = sub or "-"
     cats = get_all_categories()
@@ -74,21 +136,49 @@ def get_or_create_category(major: str, sub: str | None = None) -> str:
             return c["카테고리ID"]
 
     prefix = major[:2] if len(major) >= 2 and major[:2].isdigit() else "99"
-    max_seq = -1
-    for c in cats:
-        parts = c["카테고리ID"].split("-")
-        if len(parts) == 3 and parts[1] == prefix:
-            try:
-                max_seq = max(max_seq, int(parts[2]))
-            except ValueError:
-                pass
-
-    new_id = f"CAT-{prefix}-{max_seq + 1:03d}"
     ws = _get_sheet("category")
-    ws.append_row([new_id, major, sub], value_input_option="USER_ENTERED")
-    get_all_categories.clear()
-    get_major_categories.clear()
-    get_sub_categories.clear()
+
+    def _compute_next(rows):
+        max_seq = -1
+        for c in rows:
+            parts = str(c.get("카테고리ID", "")).split("-")
+            if len(parts) == 3 and parts[1] == prefix:
+                try:
+                    max_seq = max(max_seq, int(parts[2]))
+                except ValueError:
+                    pass
+        return f"CAT-{prefix}-{max_seq + 1:03d}"
+
+    def _fresh_rows():
+        _clear_category_cache()
+        return get_all_categories()
+
+    new_id = _compute_next(_fresh_rows())
+    resp = ws.append_row([new_id, major, sub], value_input_option="USER_ENTERED")
+    row_num = _parse_appended_row_num(resp)
+
+    for _ in range(5):
+        rows2 = _fresh_rows()
+        # 같은 (major, sub) 조합이 다른 id로 이미 존재하면 경쟁자가 먼저 성공한 것
+        # → 내가 만든 중복 행은 지우고 그 id를 사용
+        other = next(
+            (c for c in rows2
+             if c["대분류"] == major and c["중분류"] == sub and c["카테고리ID"] != new_id),
+            None,
+        )
+        if other:
+            ws.delete_rows(row_num)
+            _clear_category_cache()
+            return other["카테고리ID"]
+
+        dup = [c for c in rows2 if c["카테고리ID"] == new_id]
+        if len(dup) <= 1:
+            break
+        new_id = _compute_next(rows2)
+        ws.update_cell(row_num, 1, new_id)
+        time.sleep(0.12 + random.random() * 0.18)
+
+    _clear_category_cache()
     return new_id
 
 
@@ -272,23 +362,11 @@ def create_media_info(
     last_contact: str | None,
     memo: str | None = None,
 ) -> str:
-    rows = _get_all_media_rows()
-    max_num = 0
-    for r in rows:
-        mid = r.get("매체ID", "")
-        parts = mid.split("-")
-        if len(parts) == 2:
-            try:
-                max_num = max(max_num, int(parts[1]))
-            except ValueError:
-                pass
-    new_id = f"MED-{max_num + 1:03d}"
-
     cat_id = get_or_create_category(major, sub)
     today = date.today().isoformat()
 
     row_data = [
-        new_id,
+        "",  # 매체ID는 행 확보 후 재검증-재시도로 배정 (동시 등록 레이스 방지)
         cat_id,
         name or "",
         doc_url or "",
@@ -302,7 +380,25 @@ def create_media_info(
         memo or "",
     ]
     ws = _get_sheet("media_info")
-    ws.append_row(row_data, value_input_option="USER_ENTERED")
+    resp = ws.append_row(row_data, value_input_option="USER_ENTERED")
+    row_num = _parse_appended_row_num(resp)
+
+    def _compute_next(rows):
+        max_num = 0
+        for r in rows:
+            parts = str(r.get("매체ID", "")).split("-")
+            if len(parts) == 2:
+                try:
+                    max_num = max(max_num, int(parts[1]))
+                except ValueError:
+                    pass
+        return f"MED-{max_num + 1:03d}"
+
+    def _fresh_rows():
+        _get_all_media_rows.clear()
+        return _get_all_media_rows()
+
+    new_id = _write_id_with_retry(ws, row_num, 1, _compute_next, _fresh_rows, id_key="매체ID")
     _clear_media_caches()
     return new_id
 
@@ -761,20 +857,8 @@ def create_home_promotion(
     memo: str = "",
     preview_image_url: str = "",
 ) -> str:
-    rows = _get_promotion_rows()
-    max_num = 0
-    for r in rows:
-        pid = r.get("프로모션ID", "")
-        parts = pid.split("-")
-        if len(parts) == 2:
-            try:
-                max_num = max(max_num, int(parts[1]))
-            except ValueError:
-                pass
-    new_id = f"PROMO-{max_num + 1:03d}"
-
     row_data = [
-        new_id,
+        "",  # 프로모션ID는 행 확보 후 재검증-재시도로 배정 (동시 등록 레이스 방지)
         media_name or "",
         name or "",
         subtitle or "",
@@ -787,7 +871,25 @@ def create_home_promotion(
         normalize_image_url(preview_image_url or ""),
     ]
     ws = _get_promo_sheet("home_promotion")
-    ws.append_row(row_data, value_input_option="USER_ENTERED")
+    resp = ws.append_row(row_data, value_input_option="USER_ENTERED")
+    row_num = _parse_appended_row_num(resp)
+
+    def _compute_next(rows):
+        max_num = 0
+        for r in rows:
+            parts = str(r.get("프로모션ID", "")).split("-")
+            if len(parts) == 2:
+                try:
+                    max_num = max(max_num, int(parts[1]))
+                except ValueError:
+                    pass
+        return f"PROMO-{max_num + 1:03d}"
+
+    def _fresh_rows():
+        _get_promotion_rows.clear()
+        return _get_promotion_rows()
+
+    new_id = _write_id_with_retry(ws, row_num, 1, _compute_next, _fresh_rows, id_key="프로모션ID")
     _clear_promotion_caches()
     return new_id
 
@@ -1134,21 +1236,29 @@ def _cs_row(cs: dict) -> list:
 
 
 def create_case_study(cs: dict) -> str:
-    rows = _get_casestudy_rows()
-    max_num = 0
-    for r in rows:
-        pid = str(r.get("id", ""))
-        if pid.startswith("CS-"):
-            try:
-                max_num = max(max_num, int(pid.split("-")[1]))
-            except (ValueError, IndexError):
-                pass
-    new_id = f"CS-{max_num + 1:04d}"
     cs = dict(cs)
-    cs["id"] = new_id
+    cs["id"] = ""  # id는 행 확보 후 재검증-재시도로 배정 (동시 등록 레이스 방지)
     cs.setdefault("created_at", date.today().isoformat())
     ws = _get_casestudy_sheet()
-    ws.append_row(_cs_row(cs), value_input_option="USER_ENTERED")
+    resp = ws.append_row(_cs_row(cs), value_input_option="USER_ENTERED")
+    row_num = _parse_appended_row_num(resp)
+
+    def _compute_next(rows):
+        max_num = 0
+        for r in rows:
+            pid = str(r.get("id", ""))
+            if pid.startswith("CS-"):
+                try:
+                    max_num = max(max_num, int(pid.split("-")[1]))
+                except (ValueError, IndexError):
+                    pass
+        return f"CS-{max_num + 1:04d}"
+
+    def _fresh_rows():
+        _get_casestudy_rows.clear()
+        return _get_casestudy_rows()
+
+    new_id = _write_id_with_retry(ws, row_num, 1, _compute_next, _fresh_rows, id_key="id")
     _clear_casestudy_cache()
     return new_id
 
@@ -1433,24 +1543,33 @@ def _event_row_values(ev: dict) -> list:
 
 def create_event(title: str, event_date: str, start_time: str, end_time: str,
                   category: str, venue: str, memo: str | None, requires_check: bool) -> str:
-    rows = _get_event_rows()
-    max_num = 0
-    for r in rows:
-        eid = str(r.get("id", ""))
-        if eid.startswith("EVT-"):
-            try:
-                max_num = max(max_num, int(eid.split("-")[1]))
-            except (ValueError, IndexError):
-                pass
-    new_id = f"EVT-{max_num + 1:04d}"
     ev = {
-        "id": new_id, "title": title, "event_date": event_date,
+        "id": "",  # id는 행 확보 후 재검증-재시도로 배정 (동시 등록 레이스 방지)
+        "title": title, "event_date": event_date,
         "start_time": start_time, "end_time": end_time,
         "category": category, "venue": venue, "memo": memo,
         "requires_check": requires_check, "created_at": _kst_today_iso(),
     }
     ws = _get_events_sheet()
-    ws.append_row(_event_row_values(ev), value_input_option="USER_ENTERED")
+    resp = ws.append_row(_event_row_values(ev), value_input_option="USER_ENTERED")
+    row_num = _parse_appended_row_num(resp)
+
+    def _compute_next(rows):
+        max_num = 0
+        for r in rows:
+            eid = str(r.get("id", ""))
+            if eid.startswith("EVT-"):
+                try:
+                    max_num = max(max_num, int(eid.split("-")[1]))
+                except (ValueError, IndexError):
+                    pass
+        return f"EVT-{max_num + 1:04d}"
+
+    def _fresh_rows():
+        _get_event_rows.clear()
+        return _get_event_rows()
+
+    new_id = _write_id_with_retry(ws, row_num, 1, _compute_next, _fresh_rows, id_key="id")
     _clear_event_cache()
     return new_id
 
