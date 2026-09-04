@@ -24,3 +24,6 @@ crawlers/*/*.log
 
 # 교육자료 본문 HTML — Storage 관리, Public 레포에 커밋 금지 (scripts/upload_media_practice.py)
 assets/media_practice.html
+
+# 리마인더 메일 미리보기 생성물 (preview_local.js로 언제든 재생성)
+crawlers/event_reminder/preview_out.html
