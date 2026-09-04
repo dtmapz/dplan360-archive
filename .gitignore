@@ -21,3 +21,6 @@ crawlers/*/conflicts.log
 crawlers/*/no_match.log
 crawlers/*/*.log
 /tmp/
+
+# 교육자료 본문 HTML — Storage 관리, Public 레포에 커밋 금지 (scripts/upload_media_practice.py)
+assets/media_practice.html

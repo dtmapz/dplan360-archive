@@ -56,6 +56,24 @@ st.markdown(
     [data-testid="stSidebarNav"] details ul li a span {
         font-size: 11px !important;
     }
+
+    /* 대행사 실무 가이드 항목: 항상 앰버 70% 배경 강조 (선택 여부 무관) */
+    [data-testid="stSidebarNav"] a[href*="MediaPractice"] {
+        background: rgba(242, 169, 59, 0.70) !important;
+        border-left: 3px solid #F2A93B !important;
+        border-radius: 4px !important;
+    }
+    [data-testid="stSidebarNav"] a[href*="MediaPractice"]:hover {
+        background: rgba(242, 169, 59, 0.85) !important;
+    }
+    [data-testid="stSidebarNav"] a[href*="MediaPractice"] * {
+        color: #1C1200 !important;
+        font-weight: 600 !important;
+        background: transparent !important;
+    }
+    [data-testid="stSidebarNav"] li:has(a[href*="MediaPractice"]) {
+        background: transparent !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -71,12 +89,13 @@ calendar_page = st.Page("pages/3_EventCalendar.py", title="디플랜360 캘린�
 report_page = st.Page("pages/7_ReportDownload.py", title="통합 리포트 다운로더", icon="🔢")
 budget_page = st.Page("pages/10_BudgetReference.py", title="업종별 예산 가이드", icon="📊")
 casestudy_page = st.Page("pages/11_CaseStudy.py", title="캠페인 성공사례", icon="🏅")
+media_practice_page = st.Page("pages/12_MediaPractice.py", title="[중요] 대행사 실무 가이드", icon="📘")
 admin_page = st.Page("pages/99_Admin.py", title="액세스 권한 관리", icon="🔐")
 
 pages = {
     "[MEDIA]": [home_page, media_guide_page, creative_page, media_archive_page],
     "[PROMOTION]": [promotion_page, mediapromo_page],
-    "[SUPPORT]": [calendar_page, report_page, budget_page, casestudy_page],
+    "[SUPPORT]": [calendar_page, report_page, budget_page, casestudy_page, media_practice_page],
 }
 if is_admin():
     pages["[ADMIN]"] = [admin_page]
