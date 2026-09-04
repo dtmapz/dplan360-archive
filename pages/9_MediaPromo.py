@@ -270,8 +270,16 @@ def _render_promo_card(promo: dict):
         f"{img_tag}"
         f"<div style='padding:12px 14px 8px;'>"
         f"{header_row}"
-        f"<div style='font-size:14px;font-weight:700;margin-bottom:4px;color:#111;'>{promo['name']}</div>"
-        f"<div style='font-size:12px;color:#666;min-height:18px;'>{promo['subtitle']}</div>"
+        # 제목은 1줄, 부제목은 2줄로 높이를 고정해 카드 정렬을 맞춘다.
+        f"<div style='font-size:14px;font-weight:700;margin-bottom:4px;color:#111;"
+        f"line-height:20px;min-height:20px;display:-webkit-box;-webkit-line-clamp:1;"
+        f"-webkit-box-orient:vertical;overflow:hidden;'>{promo['name']}</div>"
+        # 부제목은 항상 2줄 높이를 확보한다(1줄·공란이어도 둘째 줄은 여백).
+        # 카드마다 높이가 달라져 '자세히 보기' 버튼이 어긋나는 것을 막기 위함.
+        # 2줄을 넘기면 말줄임 처리하고, 전문은 상세 팝업에서 볼 수 있다.
+        f"<div style='font-size:12px;color:#666;line-height:18px;min-height:36px;"
+        f"display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;"
+        f"overflow:hidden;'>{promo['subtitle']}</div>"
         f"</div></div>"
     )
     st.markdown(card_html, unsafe_allow_html=True)
