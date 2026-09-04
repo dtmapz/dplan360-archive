@@ -101,9 +101,16 @@ def main() -> int:
         print("--local-only: Storage 업로드는 건너뜁니다.")
         return 0
 
-    from utils.db import MEDIA_GUIDE_BUCKET, upload_to_storage
+    # 버킷이 authenticated 기준 RLS로 잠겨 있어 anon 키로는 403이 난다.
+    # 앱의 읽기 경로와 동일하게 service_role로 처리한다.
+    from utils.db import MEDIA_GUIDE_BUCKET, get_service_client
 
-    upload_to_storage(MEDIA_GUIDE_BUCKET, STORAGE_PATH, cleaned.encode("utf-8"))
+    sb = get_service_client()
+    sb.storage.from_(MEDIA_GUIDE_BUCKET).upload(
+        STORAGE_PATH,
+        cleaned.encode("utf-8"),
+        {"upsert": "true", "content-type": "text/html; charset=utf-8"},
+    )
     print(f"업로드 완료  {MEDIA_GUIDE_BUCKET}/{STORAGE_PATH}")
     print("앱에는 캐시(TTL 1시간) 만료 후 반영됩니다. 즉시 확인하려면 앱을 재시작하세요.")
     return 0
