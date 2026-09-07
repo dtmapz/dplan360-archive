@@ -102,7 +102,9 @@ def _spbot_dialog():
                     title = q.get("title", "")
                     created_date = q.get("created_date", "")
                     is_outdated = q.get("is_outdated", False)
-                    qna_link = f"http://works.dplan360.emato.net/page/qnaDetail.php?id={qna_id}"
+                    # 내부 게시판 호스트는 시크릿으로만 참조(§17-10)
+                    _board = str(st.secrets.get("QNA_BOARD_URL", "")).rstrip("/")
+                    qna_link = f"{_board}/page/qnaDetail.php?id={qna_id}" if _board else ""
 
                     # 오래된 글이면 ⚠️ 아이콘 표시
                     icon = "⚠️" if is_outdated else "📋"

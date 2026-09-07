@@ -10,7 +10,9 @@ import os
 import sys
 import requests
 
-BASE_URL = "https://dplan360.emato.net"
+BASE_URL = os.environ.get("BUDGET_PLATFORM_URL", "").strip().rstrip("/")
+if not BASE_URL:
+    raise SystemExit("BUDGET_PLATFORM_URL 환경변수 없음")
 LOGIN_URL = f"{BASE_URL}/_common/loginProc.php"
 LIST_URL = f"{BASE_URL}/page/inquireList.php"
 

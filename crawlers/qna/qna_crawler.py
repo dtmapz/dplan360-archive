@@ -19,7 +19,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-BASE_URL = "http://works.dplan360.emato.net"
+# 하드코딩 금지(§17-10) — Public repo. 내부 게시판 호스트는 env로만 참조
+BASE_URL = os.environ.get("QNA_BOARD_URL", "").strip().rstrip("/")
+if not BASE_URL:
+    raise SystemExit("QNA_BOARD_URL 환경변수 없음")
 LOGIN_URL = f"{BASE_URL}/_common/loginProc.php"
 QNA_DETAIL_URL = f"{BASE_URL}/page/qnaDetail.php"
 

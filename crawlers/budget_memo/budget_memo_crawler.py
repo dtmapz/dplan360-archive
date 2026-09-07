@@ -34,7 +34,10 @@ from google.oauth2 import service_account
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 log = logging.getLogger("budget_memo")
 
-BASE_URL = "https://dplan360.emato.net"
+# 하드코딩 금지(§17-10) — Public repo. 플랫폼 호스트는 env로만 참조
+BASE_URL = os.environ.get("BUDGET_PLATFORM_URL", "").strip().rstrip("/")
+if not BASE_URL:
+    raise SystemExit("BUDGET_PLATFORM_URL 환경변수 없음")
 LOGIN_URL = f"{BASE_URL}/_common/loginProc.php"
 API_URL = f"{BASE_URL}/ajax/ajax.inquire.php"
 CAMPAIGN_API_URL = f"{BASE_URL}/ajax/ajax.campaign.php"

@@ -19,7 +19,7 @@
  *    (일시 계산이 KST 기준이어야 정확함)
  * 5. 프로젝트 설정 > 스크립트 속성에 등록
  *    SHEET_ID     = PROMOTION_SHEET_ID 값 (하드코딩 금지 — Public repo 원칙)
- *    NOTIFY_EMAIL = all@d-plan360.com  (미설정 시 기본값으로 대체)
+ *    NOTIFY_EMAIL = 알림 수신 이메일 (필수 — 하드코딩 금지, Public repo 원칙)
  *    HOLIDAYS     = (선택) 공휴일 보조 목록, yyyy-MM-dd 콤마 구분.
  *                   공휴일은 아래 "공휴일" 탭으로 관리하는 것이 기본이며,
  *                   이 속성은 시트를 쓸 수 없을 때의 보조 수단이다
@@ -42,7 +42,7 @@
 
 var _PROPS = PropertiesService.getScriptProperties();
 var SHEET_ID = _PROPS.getProperty("SHEET_ID");
-var NOTIFY_EMAIL = _PROPS.getProperty("NOTIFY_EMAIL") || "all@d-plan360.com";
+var NOTIFY_EMAIL = _PROPS.getProperty("NOTIFY_EMAIL");   // 스크립트 속성 필수(하드코딩 금지)
 var EVENTS_TAB = "events";
 var HOLIDAY_TAB = "공휴일";
 var CALENDAR_URL = "https://dplan360-media.streamlit.app/EventCalendar";

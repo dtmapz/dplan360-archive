@@ -34,6 +34,7 @@ jobs:
           QNA_GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.QNA_GCP_SERVICE_ACCOUNT_JSON }}
           QNA_SHEET_ID: ${{ secrets.BIGQUERY_MAPPING_SHEET_ID }}
           QNA_SHEET_GID: 1776222090
+          QNA_BOARD_URL: ${{ secrets.QNA_BOARD_URL }}
           QNA_CRAWL_MODE: incremental
         run: |
           python qna_crawler.py

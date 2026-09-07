@@ -158,8 +158,12 @@ def _get_workspace_hub(notion: Client) -> str | None:
 # DPLAN360 hub 하위에 있지만 SP봇이 인덱싱하면 안 되는 페이지 목록.
 # - 가이드 초안함: media-guide-draft 스킬이 생성하는 미완성 초안 저장소.
 #   위치는 hub 직속(매체 페이지와 같은 계층)이라 skip 하지 않으면 초안이 검색에 노출됨.
+# 하드코딩 금지(§17-10) — Public repo. Notion 페이지 ID는 env(콤마 구분)로만 참조.
+# 예: SPBOT_SKIP_HUB_PAGE_IDS="<가이드초안함 page_id>,<다른 page_id>"
 SKIP_HUB_PAGE_IDS = {
-    "3b5bc3813815805ab391cbcaf26cc0a7",  # 가이드 초안함
+    x.strip().replace("-", "").lower()
+    for x in os.environ.get("SPBOT_SKIP_HUB_PAGE_IDS", "").split(",")
+    if x.strip()
 }
 
 

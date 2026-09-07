@@ -1,7 +1,7 @@
 /**
  * budget_history 월간 자동 동기화 — Apps Script
  *
- * 목표: 매월 12일, 전월 대행사 발행월 기준 신규 캠페인 이력을 dplan360.emato.net 플랫폼에서 수집해
+ * 목표: 매월 12일, 전월 대행사 발행월 기준 신규 캠페인 이력을 내부 플랫폼에서 수집해
  *      budget_history 시트에 append. 신규 광고주/브랜드는 budget_adv에 append. 완료 이메일 발송.
  *
  * 설정:
@@ -9,10 +9,11 @@
  * 2. 확장 프로그램 > Apps Script
  * 3. 이 파일 붙여넣기 → 저장
  * 4. 프로젝트 설정 > 스크립트 속성:
- *    - SHEET_ID           : 시트 ID (1VSS1zHc...)
+ *    - SHEET_ID           : 시트 ID
  *    - LOGIN_ID           : 플랫폼 로그인 ID
  *    - LOGIN_PW           : 플랫폼 로그인 PW
- *    - NOTIFY_EMAIL       : mj.park@d-plan360.com (미설정 시 기본값 사용)
+ *    - NOTIFY_EMAIL       : 알림 수신 이메일 (필수)
+ *    - PLATFORM_BASE_URL  : 플랫폼 호스트 (예: https://<host>)
  * 5. 프로젝트 설정 > 시간대: (GMT+09:00) 서울 확인
  * 6. 첫 실행: testJuly2026() 를 dry-run으로 검증
  * 7. 정상 확인 후 setupMonthlyTrigger() 실행 → 매월 12일 05시 자동 트리거 등록
@@ -24,12 +25,12 @@ var _PROPS = PropertiesService.getScriptProperties();
 var SHEET_ID = _PROPS.getProperty("SHEET_ID");
 var LOGIN_ID = _PROPS.getProperty("LOGIN_ID");
 var LOGIN_PW = _PROPS.getProperty("LOGIN_PW");
-var NOTIFY_EMAIL = _PROPS.getProperty("NOTIFY_EMAIL") || "mj.park@d-plan360.com";
+var NOTIFY_EMAIL = _PROPS.getProperty("NOTIFY_EMAIL");   // 스크립트 속성 필수(하드코딩 금지)
 
 var HISTORY_GID = 1008030082;   // budget_history
 var ADV_GID = 528569663;        // budget_adv
 
-var BASE = "https://dplan360.emato.net";
+var BASE = _PROPS.getProperty("PLATFORM_BASE_URL");     // 스크립트 속성 필수
 var LOGIN_URL = BASE + "/_common/loginProc.php";
 var LIST_API = BASE + "/ajax/ajax.inquire.php";
 var DETAIL_API = BASE + "/ajax/ajax.campaign.php";

@@ -12,7 +12,7 @@
 
 var _PROPS = PropertiesService.getScriptProperties();
 var SHEET_ID = _PROPS.getProperty("SHEET_ID");
-var NOTIFY_EMAIL = _PROPS.getProperty("NOTIFY_EMAIL") || "mj.park@d-plan360.com";
+var NOTIFY_EMAIL = _PROPS.getProperty("NOTIFY_EMAIL");   // 스크립트 속성 필수(하드코딩 금지)
 var LOG_TAB = "creative_guide_log";
 
 function sendCreativeGuideAlert() {

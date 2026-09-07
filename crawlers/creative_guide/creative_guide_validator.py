@@ -23,12 +23,13 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 KST = timezone(timedelta(hours=9))
-FOLDER_ID = "1DPwoSQd41b-GIe1P0wRMbql_iiCCCqCQ"
+# 하드코딩 금지(§17-10) — Public repo. 시크릿/식별자는 env로만 참조
+FOLDER_ID = os.environ.get("CG_DRIVE_FOLDER_ID", "").strip()
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive.readonly",
 ]
-NOTIFY_EMAIL = "mj.park@d-plan360.com"
+NOTIFY_EMAIL = os.environ.get("CG_NOTIFY_EMAIL", "").strip()
 
 # ---------------------------------------------------------------------------
 # 1. 인증
@@ -257,6 +258,11 @@ def write_changes_to_sheet(gc, all_changes):
 def main():
     start = datetime.now(KST)
     log.info("=== 제작 가이드 검증 시작 ===")
+
+    if not FOLDER_ID:
+        sys.exit("CG_DRIVE_FOLDER_ID 환경변수 없음")
+    if not NOTIFY_EMAIL:
+        sys.exit("CG_NOTIFY_EMAIL 환경변수 없음")
 
     creds = _get_credentials()
     gc, drive = _init_clients(creds)

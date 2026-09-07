@@ -111,10 +111,13 @@ else:  # mode == "매체지도"
                         render_media_grid(media_list, key_prefix=f"05_{sub}", n_cols=1)
 
 render_pending_dialog()
+# 관리자 연락처는 시크릿으로만 참조(§17-10) — 미설정 시 문구 생략
+_admin_email = st.secrets.get("ADMIN_CONTACT_EMAIL", "")
+_admin_suffix = f" &nbsp;|&nbsp; 관리자: {_admin_email}" if _admin_email else ""
 st.markdown(
     "<div style='margin-top:40px; padding-top:14px; border-top:0.5px solid #0B0B0B; "
     "font-size:11px; color:#9099B0; text-align:center;'>"
-    "본 플랫폼은 D-PLAN360 내부 전용이며, 무단 배포 및 외부 공유를 금합니다. "
-    "&nbsp;|&nbsp; 관리자: sp@d-plan360.com</div>",
+    "본 플랫폼은 D-PLAN360 내부 전용이며, 무단 배포 및 외부 공유를 금합니다."
+    f"{_admin_suffix}</div>",
     unsafe_allow_html=True,
 )

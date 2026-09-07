@@ -12,7 +12,9 @@ import sys
 import json
 import requests
 
-BASE_URL = "https://dplan360.emato.net"
+BASE_URL = os.environ.get("BUDGET_PLATFORM_URL", "").strip().rstrip("/")
+if not BASE_URL:
+    raise SystemExit("BUDGET_PLATFORM_URL 환경변수 없음")
 LOGIN_URL = f"{BASE_URL}/_common/loginProc.php"
 API_URL = f"{BASE_URL}/ajax/ajax.inquire.php"
 

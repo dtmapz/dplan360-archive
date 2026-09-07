@@ -30,6 +30,8 @@ jobs:
         env:
           CG_GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.QNA_GCP_SERVICE_ACCOUNT_JSON }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CG_DRIVE_FOLDER_ID: ${{ secrets.CG_DRIVE_FOLDER_ID }}
+          CG_NOTIFY_EMAIL: ${{ secrets.CG_NOTIFY_EMAIL }}
         run: python creative_guide_validator.py
 
       - name: 완료
