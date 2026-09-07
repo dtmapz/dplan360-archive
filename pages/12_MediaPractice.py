@@ -80,11 +80,11 @@ viewer = f"""<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
 {head_links}
 {head_styles}
 <style>
-  html, body {{ margin:0; padding:0; background:#fff; font-family:'Pretendard', -apple-system, system-ui, sans-serif; }}
+  html, body {{ margin:0; padding:0; background:#fff; font-family:'IBM Plex Sans KR', -apple-system, system-ui, sans-serif; }}
   .doc-header {{
     background: linear-gradient(180deg, #FFF8E7 0%, #FFFDF6 100%);
     border: 1px solid #F0D48A;
