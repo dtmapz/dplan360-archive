@@ -38,6 +38,7 @@ jobs:
           GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
           SHEET_ID: ${{ secrets.BIGQUERY_MAPPING_SHEET_ID }}
           PROMOTION_SHEET_ID: ${{ secrets.PROMOTION_SHEET_ID }}
+          SPBOT_SKIP_HUB_PAGE_IDS: ${{ secrets.SPBOT_SKIP_HUB_PAGE_IDS }}
         run: python scripts/spbot_sync_notion.py
 
       - name: Sleep 60s (Sheets API quota reset)
