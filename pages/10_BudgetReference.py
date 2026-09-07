@@ -21,6 +21,10 @@ GROUP_COLS = ["대업종", "소업종", "광고주", "브랜드", "대행사", "
 DISPLAY_COLS = ["구분", "매체사", "상품", "광고수주액", "비중", "집행월"]
 EMPTY_PRODUCT = "—"
 
+# 페이지 최초 진입 시 기본으로 표시할 조건 (데이터에 존재할 때만 적용)
+DEFAULT_MAJOR = "가구/패브릭"
+DEFAULT_SUBS = ["침구"]
+
 
 def _norm_month(s: str) -> str:
     """대행사 발행월 표기 정규화 → 'YYYY.MM'. 파싱 불가면 원문 유지."""
@@ -112,8 +116,14 @@ majors = sorted(
 
 col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns([1.6, 2.2, 1.1, 1.1, 0.9])
 
+major_options = ["-- 선택 --"] + majors
+try:
+    default_major_idx = major_options.index(DEFAULT_MAJOR)
+except ValueError:
+    default_major_idx = 0
+
 with col_f1:
-    sel_major = st.selectbox("대업종 (필수)", ["-- 선택 --"] + majors, index=0)
+    sel_major = st.selectbox("대업종 (필수)", major_options, index=default_major_idx)
 
 sub_options: list[str] = []
 if sel_major and sel_major != "-- 선택 --":
@@ -127,8 +137,10 @@ if sel_major and sel_major != "-- 선택 --":
         ]
     )
 
+default_subs = [s for s in DEFAULT_SUBS if s in sub_options]
+
 with col_f2:
-    sel_subs = st.multiselect("소업종 (선택)", sub_options, default=[])
+    sel_subs = st.multiselect("소업종 (선택)", sub_options, default=default_subs)
 
 # 연/월 옵션 — 선택한 업종 범위 내에서만 노출
 _scope = df_all.copy()
@@ -155,21 +167,34 @@ with col_f5:
     st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
     search = st.button("조회", type="primary", use_container_width=True)
 
+def _apply_filters(base, major, subs, years, months):
+    df = base.copy()
+    df = df[df["대업종"] == major]
+    if subs:
+        df = df[df["소업종"].isin(subs)]
+    if years:
+        df = df[df["대행사 발행월"].astype(str).str[:4].isin(years)]
+    if months:
+        df = df[df["대행사 발행월"].astype(str).str[-2:].isin(months)]
+    return df.reset_index(drop=True)
+
+
 if search:
     if not sel_major or sel_major == "-- 선택 --":
         st.warning("대업종을 선택해주세요.")
         st.stop()
 
-    df = df_all.copy()
-    df = df[df["대업종"] == sel_major]
-    if sel_subs:
-        df = df[df["소업종"].isin(sel_subs)]
-    if sel_years:
-        df = df[df["대행사 발행월"].astype(str).str[:4].isin(sel_years)]
-    if sel_months:
-        df = df[df["대행사 발행월"].astype(str).str[-2:].isin(sel_months)]
+    st.session_state["_budget_result"] = _apply_filters(
+        df_all, sel_major, sel_subs, sel_years, sel_months
+    )
 
-    st.session_state["_budget_result"] = df.reset_index(drop=True)
+# 최초 진입 시 기본 조건(가구/패브릭 · 침구)으로 자동 조회
+if "_budget_initialized" not in st.session_state:
+    st.session_state["_budget_initialized"] = True
+    if sel_major and sel_major != "-- 선택 --":
+        st.session_state["_budget_result"] = _apply_filters(
+            df_all, sel_major, sel_subs, sel_years, sel_months
+        )
 
 
 # ============================================================

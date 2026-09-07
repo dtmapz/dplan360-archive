@@ -406,6 +406,26 @@ if not media_pages:
     st.warning("허브 페이지에 하위 매체 페이지가 없습니다. Notion 구조를 확인해주세요.")
     st.stop()
 
+# 최초 진입 시 기본 매체/가이드 선택 (구글 · 구글 Ads 광고주 인증 가이드)
+DEFAULT_MEDIA_TITLE = "구글"
+DEFAULT_GUIDE_TITLE = "구글 Ads 광고주 인증 가이드"
+if "mg_initialized" not in st.session_state:
+    st.session_state["mg_initialized"] = True
+    if not st.session_state.get("mg_media"):
+        default_media = (
+            next((m for m in media_pages if m["title"].strip() == DEFAULT_MEDIA_TITLE), None)
+            or next((m for m in media_pages if DEFAULT_MEDIA_TITLE in m["title"]), None)
+        )
+        if default_media:
+            st.session_state["mg_media"] = default_media["id"]
+            _default_subs = get_sub_pages(default_media["id"])
+            default_guide = (
+                next((s for s in _default_subs if s["title"].strip() == DEFAULT_GUIDE_TITLE), None)
+                or next((s for s in _default_subs if DEFAULT_GUIDE_TITLE in s["title"]), None)
+            )
+            if default_guide:
+                st.session_state["mg_guide"] = default_guide["id"]
+
 # ============================
 # 검색 모드
 # ============================

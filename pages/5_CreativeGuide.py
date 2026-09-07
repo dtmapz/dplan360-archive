@@ -49,12 +49,23 @@ for g in guides:
 
 majors = get_major_categories()
 
+# 페이지 최초 진입 시 기본 대분류 (데이터에 존재할 때만 적용)
+DEFAULT_MAJOR_CAT = "01 매스미디어"
+major_options = [""] + majors
+try:
+    _default_major_idx = major_options.index(DEFAULT_MAJOR_CAT)
+except ValueError:
+    _default_major_idx = next(
+        (i for i, m in enumerate(major_options) if "매스미디어" in str(m)), 0
+    )
+
 col_f1, col_f2, col_or, col_f3 = st.columns([2, 2, 0.4, 3])
 
 with col_f1:
     major_filter = st.selectbox(
-        "대분류", [""] + majors, label_visibility="collapsed",
-        key="cg_major", format_func=lambda x: "대분류 선택" if x == "" else x,
+        "대분류", major_options, label_visibility="collapsed",
+        key="cg_major", index=_default_major_idx,
+        format_func=lambda x: "대분류 선택" if x == "" else x,
     )
 
 with col_f2:
@@ -104,18 +115,25 @@ if "cg_selected" not in st.session_state:
 # 매체/상품 목록
 # ============================
 
-if not any_filter:
+def _render_quick_guide():
+    """Quick Guide 1행 (다운로드 버튼 하단 안내)."""
     st.markdown(
-        "<div style='margin:40px auto;max-width:480px;background:rgba(0,0,0,0.04);"
-        "border-radius:12px;padding:24px 28px;opacity:0.6;text-align:center;'>"
-        "<div style='font-size:14px;font-weight:600;margin-bottom:12px;'>Quick Guide</div>"
-        "<div style='font-size:13px;color:var(--text-secondary);text-align:center;line-height:2;'>"
-        "① 희망하는 매체를 카테고리에서 직접 선택하거나 검색<br>"
-        "② 해당 상품 체크<br>"
-        "③ 체크 완료된 파일 확인 후 다운로드 버튼 클릭!"
-        "</div></div>",
+        "<div style='margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;"
+        "background:rgba(0,0,0,0.04);border-radius:10px;padding:10px 16px;font-size:12.5px;'>"
+        "<span style='font-weight:700;color:var(--text-secondary);'>Quick Guide</span>"
+        "<span style='color:var(--text-secondary);'>① 매체를 카테고리에서 선택하거나 검색</span>"
+        "<span style='color:#ccc;'>·</span>"
+        "<span style='color:var(--text-secondary);'>② 해당 상품 체크</span>"
+        "<span style='color:#ccc;'>·</span>"
+        "<span style='color:var(--text-secondary);'>③ 파일 확인 후 다운로드</span>"
+        "</div>",
         unsafe_allow_html=True,
     )
+
+
+if not any_filter:
+    st.info("대분류를 선택하거나 매체명을 검색해 주세요.")
+    _render_quick_guide()
 
 else:
     # 시안 C — Split Button (좌: 선택 / 우: 원본 이동)
@@ -330,3 +348,5 @@ else:
                         st.error(f"다운로드 준비 중 오류: {e}")
 
     download_fragment()
+
+    _render_quick_guide()
