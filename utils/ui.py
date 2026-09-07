@@ -30,8 +30,19 @@ def inject_base_style() -> None:
     st.markdown(
         """
         <style>
-        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-        html, body, [class*="css"] { font-family: 'Pretendard', sans-serif; }
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap');
+        html, body, .stApp, [class*="st-emotion-cache"],
+        button, input, select, textarea {
+            font-family: 'IBM Plex Sans KR', -apple-system, 'Malgun Gothic', sans-serif !important;
+        }
+        /* Streamlit Material 아이콘(ligature)은 폰트 override에서 제외 —
+           덮어쓰면 keyboard_double_arrow_left / expand_more 같은 원문이 노출됨 */
+        [data-testid="stIconMaterial"],
+        span.material-icons, span.material-icons-outlined,
+        span.material-symbols-outlined, span.material-symbols-rounded {
+            font-family: 'Material Symbols Rounded', 'Material Symbols Outlined',
+                         'Material Icons', 'Material Icons Outlined' !important;
+        }
 
         .media-card {
             background: #F6F8FC;
