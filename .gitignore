@@ -27,3 +27,7 @@ assets/media_practice.html
 
 # 리마인더 메일 미리보기 생성물 (preview_local.js로 언제든 재생성)
 crawlers/event_reminder/preview_out.html
+
+# Apps Script 소스는 Public 레포에 두지 않음 (실행 원본은 Apps Script 편집기, §17-24)
+crawlers/**/apps_script_*.js
+crawlers/event_reminder/preview_local.js
