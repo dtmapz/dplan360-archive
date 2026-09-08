@@ -24,7 +24,7 @@ LOCAL_FALLBACK = Path(__file__).resolve().parent.parent / "assets" / "media_prac
 
 DOC_TITLE = "대행사 만족도를 이끌어 낼 수 있는 실무"
 DOC_EYEBROW = "실무 교육자료"
-DOC_META = ["최종 업데이트 2026-09-04", "섹션 8개"]
+DOC_META = ["최종 업데이트 2026-09-08", "섹션 8개"]
 
 SECTIONS = [
     "업무에 임하는 마인드",
