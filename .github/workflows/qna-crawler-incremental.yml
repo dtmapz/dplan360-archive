@@ -1,10 +1,11 @@
-name: QNA 크롤러 - 증분 (매일 새벽 5시)
+name: QNA 크롤러 - 증분 (수동 실행 · 자동 스케줄 중단)
 
 on:
-  schedule:
-    # 매일 새벽 5시 KST = 전날 20:00 UTC
-    - cron: '0 20 * * *'
-  workflow_dispatch:  # 수동 트리거도 지원
+  # 자동 스케줄 중단 (2026-09-10) — SP봇 미사용에 따라 QNA 수집을 멈춤.
+  # 재개하려면 아래 두 줄의 주석을 풀면 된다.
+  # schedule:
+  #   - cron: '0 20 * * *'   # 매일 새벽 5시 KST
+  workflow_dispatch:  # 수동 트리거는 계속 가능
 
 jobs:
   crawl:

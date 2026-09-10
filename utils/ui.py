@@ -1,3 +1,5 @@
+import hashlib as _hashlib
+
 import streamlit as st
 from utils.sheets import (
     get_major_categories,
@@ -21,6 +23,49 @@ from utils.sheets import (
 from utils.auth import is_admin
 from utils.db import upload_notice_image
 from st_click_detector import click_detector
+
+# ----------------------------------------------------------------------
+# 매체 색상 — §5 디자인 시스템의 "매체 색상 배지"를 단일 출처로 모은 것.
+# (기존에는 7_ReportDownload / 3_EventCalendar 등에 같은 값이 흩어져 하드코딩돼 있었다)
+# 카드 밴드처럼 면적이 넓은 곳에는 (밝은색, 어두운색) 쌍으로 그라데이션을 만든다.
+# ----------------------------------------------------------------------
+
+MEDIA_COLORS: dict[str, tuple[str, str]] = {
+    "디플랜360": ("#16171A", "#2C2C2C"),   # 자사 발간물 — 기존 검정 유지
+    "구글":      ("#0F6E56", "#0A4A3A"),   # §5
+    "카카오":    ("#993556", "#6B2440"),   # §5
+    "네이버":    ("#3B6D11", "#27500A"),   # §5
+    "메타":      ("#1B4E9B", "#12356B"),
+    "틱톡":      ("#2B6A7F", "#1B4757"),
+    "당근":      ("#C2571A", "#8E3D10"),
+    "넷플릭스":  ("#B3121D", "#7C0C14"),
+    "SMR":       ("#0B4F9E", "#073869"),
+}
+
+# 표에 없는 매체용 폴백 팔레트. 매체명 해시로 배정하므로 같은 매체는 항상 같은 색이 나오고,
+# 신규 매체가 늘어도 코드를 고칠 필요가 없다(색 고갈 없음).
+_MEDIA_FALLBACK: list[tuple[str, str]] = [
+    ("#5B4A9E", "#3C3070"), ("#8A5A1E", "#5E3C11"), ("#1F6B6B", "#124747"),
+    ("#7A2C6B", "#521E48"), ("#2F5D8C", "#1D3C5C"), ("#6B6112", "#48410B"),
+    ("#8C3030", "#5E1F1F"), ("#37634A", "#234030"),
+]
+
+
+def media_color(name: str) -> tuple[str, str]:
+    """매체명 → (밝은색, 어두운색). 미등록 매체는 이름 해시로 결정적으로 배정한다."""
+    key = (name or "").strip()
+    if not key:
+        return MEDIA_COLORS["디플랜360"]
+    if key in MEDIA_COLORS:
+        return MEDIA_COLORS[key]
+    # "네이버GFA"처럼 접두어가 붙은 표기도 흡수
+    for known, pair in MEDIA_COLORS.items():
+        if known != "디플랜360" and known in key:
+            return pair
+    # 파이썬 hash()는 실행마다 값이 달라져 색이 바뀌므로 md5를 쓴다(결정적)
+    idx = int(_hashlib.md5(key.encode("utf-8")).hexdigest(), 16) % len(_MEDIA_FALLBACK)
+    return _MEDIA_FALLBACK[idx]
+
 
 NAVY = "#1E2761"
 ICE = "#CADCFC"

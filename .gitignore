@@ -31,3 +31,6 @@ crawlers/event_reminder/preview_out.html
 # Apps Script 소스는 Public 레포에 두지 않음 (실행 원본은 Apps Script 편집기, §17-24)
 crawlers/**/apps_script_*.js
 crawlers/event_reminder/preview_local.js
+
+# 포트폴리오 초안 — 내부 작업 맥락이 담기므로 Public 레포에 커밋하지 않음 (CLAUDE.md와 동일 취급)
+portfolio.md

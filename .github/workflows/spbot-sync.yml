@@ -1,10 +1,11 @@
-name: SP-bot Sync
+name: SP-bot Sync (수동 실행 · 자동 스케줄 중단)
 
 on:
-  schedule:
-    # 매일 KST 03:00 (UTC 18:00 전날) — 광고 리포트 자동화(04:00) 앞시간
-    - cron: "0 18 * * *"
-  workflow_dispatch:  # 수동 실행 허용
+  # 자동 스케줄 중단 (2026-09-10) — SP봇 미사용에 따라 데이터 수집·Gemini 호출을 멈춤.
+  # 재개하려면 아래 두 줄의 주석을 풀면 된다.
+  # schedule:
+  #   - cron: "0 18 * * *"   # 매일 KST 03:00
+  workflow_dispatch:  # 수동 실행은 계속 가능
 
 jobs:
   sync:

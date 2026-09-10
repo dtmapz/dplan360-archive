@@ -1691,18 +1691,49 @@ def get_attendance_summary() -> list[dict]:
 MEDIA_ARCHIVE_TAB = "media_archive"
 MEDIA_ARCHIVE_HEADERS = [
     "id", "year", "month", "title", "summary", "agenda_json",
-    "drive_link", "published_date", "created_at",
+    "drive_link", "published_date", "created_at", "publisher", "memo",
 ]
+# publisher(배포주체) 미입력·구 스키마 행의 기본값. 기존 SP팀 발간 자료가 전부 여기 해당하며,
+# 아젠다 파싱 분기는 publisher != 이 값일 때만 타므로 기존 동작이 그대로 유지된다.
+MEDIA_ARCHIVE_DEFAULT_PUBLISHER = "디플랜360"
+
+
+def _normalize_agenda_items(raw_list) -> list[dict]:
+    """아젠다를 [{"text","newsroom"}] 형태로 통일.
+
+    구 스키마는 문자열 리스트(["구글, 신규 지면", ...])였고 신 스키마는 dict 리스트다.
+    마이그레이션 전후 어느 쪽이든 읽히도록 양쪽을 모두 받는다 (구 항목은 newsroom=False).
+    """
+    out = []
+    for item in raw_list or []:
+        if isinstance(item, dict):
+            text = str(item.get("text", "")).strip()
+            newsroom = bool(item.get("newsroom", False))
+        else:
+            text = str(item).strip()
+            newsroom = False
+        if text:
+            out.append({"text": text, "newsroom": newsroom})
+    return out
 
 
 def _get_media_archive_sheet():
+    """media_archive 탭 핸들. **어떤 경우에도 기존 데이터를 지우지 않는다.**
+
+    과거에는 헤더가 상수와 다르면 ws.clear() 로 탭을 비웠는데(개발 초기 스키마 정리용),
+    운영 데이터가 쌓인 뒤에는 이 동작이 곧 데이터 유실이다(§17-17).
+    지금은 **헤더가 신 스키마의 앞부분과 일치할 때만 빠진 컬럼을 뒤에 덧붙이고**,
+    그 외의 예상 밖 헤더는 손대지 않고 그대로 쓴다(사람이 확인할 문제).
+    """
     ws = _get_or_create_tab(MEDIA_ARCHIVE_TAB, MEDIA_ARCHIVE_HEADERS)
-    # 스키마 개편(file_path/file_name/file_size → drive_link) 이전에 탭이 먼저 생성된
-    # 환경에서는 헤더가 옛 스키마로 고정돼 있어 값이 엉뚱한 컬럼에 쓰이는 문제가 있었음.
-    # 헤더가 최신 스키마와 다르면 헤더+기존 데이터를 정리하고 새 헤더로 재설정.
-    if ws.row_values(1) != MEDIA_ARCHIVE_HEADERS:
-        ws.clear()
-        ws.update(values=[MEDIA_ARCHIVE_HEADERS], range_name="A1")
+    header = ws.row_values(1)
+    if header == MEDIA_ARCHIVE_HEADERS:
+        return ws
+    # 구 스키마는 신 스키마의 접두사(prefix)다 → 뒤에 빠진 컬럼만 덧붙이면 안전하게 확장된다.
+    if header and header == MEDIA_ARCHIVE_HEADERS[: len(header)]:
+        missing = MEDIA_ARCHIVE_HEADERS[len(header):]
+        start_col = chr(ord("A") + len(header))
+        ws.update(values=[missing], range_name=f"{start_col}1")
     return ws
 
 
@@ -1733,7 +1764,9 @@ def get_media_archives() -> list[dict]:
             "month": str(r.get("month", "")).strip(),
             "title": str(r.get("title", "")).strip(),
             "summary": str(r.get("summary", "")).strip(),
-            "agenda": _parse_json_field(r.get("agenda_json"), []),
+            "agenda": _normalize_agenda_items(_parse_json_field(r.get("agenda_json"), [])),
+            "publisher": str(r.get("publisher", "")).strip() or MEDIA_ARCHIVE_DEFAULT_PUBLISHER,
+            "memo": str(r.get("memo", "")).strip(),
             "drive_link": str(r.get("drive_link", "")).strip(),
             "published_date": str(r.get("published_date", "")).strip(),
             "created_at": str(r.get("created_at", "")).strip(),
@@ -1749,10 +1782,12 @@ def _media_archive_row(a: dict) -> list:
         str(a.get("month", "")),
         a.get("title", ""),
         a.get("summary", ""),
-        _json.dumps(a.get("agenda", []), ensure_ascii=False),
+        _json.dumps(_normalize_agenda_items(a.get("agenda", [])), ensure_ascii=False),
         a.get("drive_link", ""),
         a.get("published_date", "") or _kst_today_iso(),
         a.get("created_at", "") or _kst_today_iso(),
+        a.get("publisher", "") or MEDIA_ARCHIVE_DEFAULT_PUBLISHER,
+        a.get("memo", ""),
     ]
 
 

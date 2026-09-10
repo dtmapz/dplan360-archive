@@ -1,70 +1,93 @@
+import pandas as pd
 import streamlit as st
 from datetime import date
 from utils.auth import is_admin
-from utils.ui import set_current_page
+from utils.ui import set_current_page, media_color
 from utils.sheets import (
     get_media_archives,
     create_media_archive,
     update_media_archive,
     delete_media_archive,
+    get_all_media,
+    MEDIA_ARCHIVE_DEFAULT_PUBLISHER as DPLAN,
 )
 
 set_current_page("media_archive")
 
 MONTHS = [f"{m}월" for m in range(1, 13)]
+ALL_PUBLISHERS = "전체"
 
 
 # ----------------------------------------------------------------------
-# 아젠다 파싱 — "매체명, 아젠다텍스트" 형식
+# 아젠다 파싱 — 배포주체에 따라 형식이 다르다
+#   · 디플랜360 발간 자료 : "매체명, 아젠다텍스트"  (한 문서가 여러 매체를 다룸)
+#   · 매체 배포 자료      : "아젠다텍스트"만        (문서 전체가 그 매체 것이라 매체명이 중복)
 # ----------------------------------------------------------------------
 
-def _parse_agenda_line(line: str) -> tuple[str | None, str]:
+def _agenda_texts(a: dict) -> list[str]:
+    """아젠다 항목(dict)에서 텍스트만 뽑아낸다."""
+    return [it.get("text", "") for it in (a.get("agenda") or []) if it.get("text")]
+
+
+def _parse_agenda_line(line: str, publisher: str = DPLAN) -> tuple[str | None, str]:
     """한 라인을 (매체명, 아젠다텍스트)로 파싱.
-    콤마 없거나 매체명이 비면 (None, 원문) 반환 → 필터에서 제외되지만 팝업엔 그대로 노출.
 
-    또한 "신규 미디어&상품 소개..." 처럼 특정 매체가 아닌 일반 소개 라인은
-    필터에서 완전 제외 (팝업에만 노출)."""
-    line_stripped = line.strip()
-    # 매체 매칭 대상이 아닌 예외 프리픽스
+    배포주체가 매체면 콤마로 자르지 않고 **배포주체를 매체로 자동 귀속**한다.
+    덕분에 아젠다 안에 콤마가 있어도(`PMax, 신규 지면`) 안전하다.
+    실수로 "구글, ..." 처럼 배포주체명을 앞에 붙여 입력한 경우는 떼어내 준다.
+    """
+    line_stripped = (line or "").strip()
+    if not line_stripped:
+        return (None, "")
+
+    if publisher and publisher != DPLAN:
+        prefix = f"{publisher},"
+        if line_stripped.startswith(prefix):
+            line_stripped = line_stripped[len(prefix):].strip()
+        return (publisher, line_stripped) if line_stripped else (None, "")
+
+    # ── 이하 디플랜360 발간 자료: 기존 동작 그대로 ──
     EXCLUDE_PREFIXES = ("신규 미디어", "신규미디어")
-    if any(line_stripped.startswith(p) for p in EXCLUDE_PREFIXES):
+    if any(line_stripped.startswith(pf) for pf in EXCLUDE_PREFIXES):
         return (None, line_stripped)
-    if "," not in line:
+    if "," not in line_stripped:
         return (None, line_stripped)
-    head, _, tail = line.partition(",")
-    media = head.strip()
-    agenda = tail.strip()
+    head, _, tail = line_stripped.partition(",")
+    media, agenda = head.strip(), tail.strip()
     if not media or not agenda:
         return (None, line_stripped)
     return (media, agenda)
 
 
-def _extract_media_agenda_map(items: list[dict]) -> dict[str, list[str]]:
-    """전체 자료에서 {매체명: [아젠다1, 아젠다2, ...]} 맵 생성 (중복 제거·정렬)."""
-    m: dict[str, set[str]] = {}
+def _extract_publisher_map(items: list[dict]) -> dict[str, dict[str, list[str]]]:
+    """{배포주체: {매체명: [아젠다...]}} 맵 생성 (중복 제거·정렬)."""
+    out: dict[str, dict[str, set]] = {}
     for a in items:
-        for line in a.get("agenda") or []:
-            media, agenda_text = _parse_agenda_line(line)
-            if not media:
+        pub = a.get("publisher") or DPLAN
+        bucket = out.setdefault(pub, {})
+        for txt in _agenda_texts(a):
+            media, agenda_text = _parse_agenda_line(txt, pub)
+            if not media or not agenda_text:
                 continue
-            m.setdefault(media, set()).add(agenda_text)
-    return {k: sorted(v) for k, v in sorted(m.items())}
+            bucket.setdefault(media, set()).add(agenda_text)
+    return {p: {m: sorted(v) for m, v in sorted(b.items())} for p, b in sorted(out.items())}
 
 
 def _get_matched_lines(a: dict, sel_media: list[str], sel_agenda: list[str]) -> list[str]:
-    """이 카드에서 필터 조건에 매칭되는 아젠다 라인들 반환."""
+    """이 카드에서 필터 조건에 매칭되는 아젠다 라인(원문 텍스트)들 반환."""
     if not sel_media and not sel_agenda:
         return []
+    pub = a.get("publisher") or DPLAN
     matched = []
-    for line in a.get("agenda") or []:
-        media, agenda_text = _parse_agenda_line(line)
+    for txt in _agenda_texts(a):
+        media, agenda_text = _parse_agenda_line(txt, pub)
         if not media:
             continue
         if sel_media and media not in sel_media:
             continue
         if sel_agenda and agenda_text not in sel_agenda:
             continue
-        matched.append(line)
+        matched.append(txt)
     return matched
 
 
@@ -75,7 +98,7 @@ def _get_matched_lines(a: dict, sel_media: list[str], sel_agenda: list[str]) -> 
 POPUP_KEYS = (
     "_ma_popup_open", "_ma_popup_mode", "_ma_popup_id",
     "_ma_f_year", "_ma_f_month", "_ma_f_title", "_ma_f_summary",
-    "_ma_f_agenda", "_ma_f_drive_link",
+    "_ma_f_agenda_rows", "_ma_f_publisher", "_ma_f_memo", "_ma_f_drive_link",
     "_ma_f_published", "_ma_del_confirm",
 )
 
@@ -97,7 +120,9 @@ def _fill_edit_fields(a: dict):
     st.session_state["_ma_f_month"] = a["month"]
     st.session_state["_ma_f_title"] = a["title"]
     st.session_state["_ma_f_summary"] = a["summary"]
-    st.session_state["_ma_f_agenda"] = "\n".join(a.get("agenda") or [])
+    st.session_state["_ma_f_agenda_rows"] = [dict(it) for it in (a.get("agenda") or [])]
+    st.session_state["_ma_f_publisher"] = a.get("publisher") or DPLAN
+    st.session_state["_ma_f_memo"] = a.get("memo") or ""
     st.session_state["_ma_f_drive_link"] = a["drive_link"]
     st.session_state["_ma_f_published"] = a["published_date"]
 
@@ -113,6 +138,8 @@ def _open_edit_popup(a: dict | None = None):
         this_year = date.today().year
         st.session_state["_ma_f_year"] = str(this_year)
         st.session_state["_ma_f_month"] = f"{date.today().month}월"
+        st.session_state["_ma_f_agenda_rows"] = []
+        st.session_state["_ma_f_publisher"] = DPLAN
 
 
 def _switch_to_edit_mode(a: dict):
@@ -141,7 +168,7 @@ def _render_card(a: dict, matched_lines: list[str] | None = None, dimmed: bool =
         # 라인마다 매체명은 볼드 처리
         rows = []
         for line in matched_lines:
-            media, agenda_text = _parse_agenda_line(line)
+            media, agenda_text = _parse_agenda_line(line, a.get("publisher") or DPLAN)
             if media:
                 rows.append(
                     f"<div style='margin-bottom:2px;'><strong style='color:#3C2703;font-weight:700;'>{media}</strong>"
@@ -158,12 +185,18 @@ def _render_card(a: dict, matched_lines: list[str] | None = None, dimmed: bool =
             "</div>"
         )
 
+    # 배포주체별 색 + 이름 칩 — 색은 빠른 스캔용, 칩은 확인용(색만으로 구분하지 않는다)
+    _pub = a.get("publisher") or DPLAN
+    _c1, _c2 = media_color(_pub)
+
     card_html = (
         f"<div style='{wrapper_style}'>"
         f"<div style='border:{border_style};border-radius:8px;overflow:hidden;"
         f"background:#fff;{shadow}'>"
-        "<div style='height:96px;background:linear-gradient(135deg,#16171A 0%,#232323 60%,#2C2C2C 100%);"
+        f"<div style='height:96px;background:linear-gradient(135deg,{_c1} 0%,{_c2} 100%);"
         "position:relative;display:flex;flex-direction:column;justify-content:flex-end;padding:12px 14px;color:#fff;'>"
+        f"<span style='position:absolute;top:10px;left:10px;background:rgba(255,255,255,0.93);color:{_c1};"
+        f"font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;'>{_pub}</span>"
         "<span style='position:absolute;top:10px;right:10px;background:#F2A93B;color:#1C1200;"
         "font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;'>PDF</span>"
         f"<div style='font-size:22px;font-weight:800;line-height:1;'>{a['month']}</div>"
@@ -206,7 +239,9 @@ def _render_grid(items: list[dict], sel_media: list[str], sel_agenda: list[str])
 # 팝업 (view + edit)
 # ----------------------------------------------------------------------
 
-@st.dialog("월간 미디어 자료")
+# 팝업 상단 타이틀 텍스트는 노출하지 않는다(문서 헤더가 이미 제목 역할을 함).
+# st.dialog 는 title 인자가 필수라 공백을 넘겨 텍스트만 비우고 닫기(X)는 유지한다.
+@st.dialog(" ")
 def render_archive_popup():
     st.session_state.pop("_ma_popup_open", None)
     mode = st.session_state.get("_ma_popup_mode", "view")
@@ -229,15 +264,15 @@ def _render_view_mode(a: dict | None):
 
     st.markdown(
         "<div style='background:#0B0B0B;color:#fff;border-radius:8px;padding:18px 20px;margin-bottom:16px;'>"
-        f"<div style='font-size:11px;color:#F2A93B;font-weight:700;margin-bottom:4px;'>{a['year']}년 {a['month']} · SP팀 발간</div>"
+        f"<div style='font-size:11px;color:#F2A93B;font-weight:700;margin-bottom:4px;'>{a['year']}년 {a['month']} · {a.get('publisher') or DPLAN} 발간</div>"
         f"<div style='font-size:18px;font-weight:800;'>{a['title']}</div>"
         f"<div style='font-size:12px;color:#C8C8C8;margin-top:4px;'>발행일 {a['published_date'] or '-'}</div>"
         "</div>",
         unsafe_allow_html=True,
     )
 
-    agenda = a.get("agenda") or []
-    if agenda:
+    agenda_items = a.get("agenda") or []
+    if agenda_items:
         st.markdown(
             "<div style='font-size:11px;font-weight:700;color:#999;letter-spacing:.04em;"
             "text-transform:uppercase;margin-bottom:8px;'>주요 아젠다</div>",
@@ -249,17 +284,22 @@ def _render_view_mode(a: dict | None):
         matched_set = set(_get_matched_lines(a, sel_media, sel_agenda)) if (sel_media or sel_agenda) else set()
 
         rows = []
-        for i, txt in enumerate(agenda):
+        for i, item in enumerate(agenda_items):
+            txt = item.get("text", "")
             is_hit = txt in matched_set
             row_bg = "background:#FFE8A3;" if is_hit else ""
             hit_mark = "<span style='margin-left:auto;font-size:10px;font-weight:700;color:#8C6614;'>MATCHED</span>" if is_hit else ""
+            # 주간 뉴스룸에 연동되는 아젠다는 배지로 구분
+            nr_mark = ("<span style='flex:0 0 auto;font-size:9.5px;font-weight:700;color:#0F5E86;"
+                       "background:rgba(15,94,134,0.12);padding:1px 6px;border-radius:4px;'>뉴스룸</span>"
+                       if item.get("newsroom") else "")
             rows.append(
                 f"<div style='display:flex;gap:10px;align-items:center;font-size:13px;color:#111;"
                 f"padding:6px 8px;border-radius:4px;margin-bottom:2px;{row_bg}'>"
                 f"<span style='flex:0 0 auto;font-size:11px;font-weight:700;color:#F2A93B;"
                 f"background:rgba(242,169,59,0.18);width:20px;height:20px;border-radius:5px;"
                 f"display:flex;align-items:center;justify-content:center;'>{i+1}</span>"
-                f"<span style='flex:1;'>{txt}</span>{hit_mark}</div>"
+                f"<span style='flex:1;'>{txt}</span>{nr_mark}{hit_mark}</div>"
             )
         st.markdown(
             f"<div style='background:#FFF8E1;border-left:3px solid #F2A93B;border-radius:6px;"
@@ -289,6 +329,16 @@ def _render_view_mode(a: dict | None):
     else:
         st.caption("등록된 파일 링크가 없습니다.")
 
+    # 메모 — 매체 팝업과 동일한 표시 규격. 관리자 전용이 아니라 전체 사용자에게 보인다.
+    if a.get("memo"):
+        st.write("")
+        st.markdown(
+            f"<div style='background:#F6F8FC; border:1px solid #E5EAF5; "
+            f"border-radius:8px; padding:10px 12px; font-size:13px; "
+            f"white-space:pre-wrap; line-height:1.5;'>{a['memo']}</div>",
+            unsafe_allow_html=True,
+        )
+
     if is_admin():
         st.divider()
         if st.button("✎ 수정하기", key=f"ma_edit_entry_{a['id']}", use_container_width=True):
@@ -299,7 +349,7 @@ def _render_view_mode(a: dict | None):
 
 def _render_edit_mode(existing: dict | None):
     is_edit = existing is not None
-    st.markdown("#### 월간 자료 수정" if is_edit else "#### 월간 자료 등록")
+    st.markdown("#### 자료 수정" if is_edit else "#### 자료 등록")
 
     c1, c2 = st.columns(2)
     this_year = date.today().year
@@ -313,12 +363,58 @@ def _render_edit_mode(existing: dict | None):
         idx = MONTHS.index(cur_month) if cur_month in MONTHS else 0
         st.selectbox("월 *", MONTHS, index=idx, key="_ma_f_month")
 
+    # 배포주체 — 자유 입력을 막아 "구글 / Google" 표기 혼선을 방지한다
+    pub_options = [DPLAN] + [m["name"] for m in get_all_media() if m.get("name")]
+    cur_pub = st.session_state.get("_ma_f_publisher") or DPLAN
+    if cur_pub not in pub_options:
+        pub_options.append(cur_pub)
+    st.selectbox(
+        "배포주체 *", pub_options, index=pub_options.index(cur_pub), key="_ma_f_publisher",
+        help="디플랜360 발간 자료인지, 매체가 배포한 자료인지 선택합니다.",
+    )
+    is_media_pub = (st.session_state.get("_ma_f_publisher") or DPLAN) != DPLAN
+
     st.text_input("제목 *", key="_ma_f_title", placeholder="예: 9월 미디어 트렌드 & 매체 업데이트")
     st.text_area("카드 요약 설명", key="_ma_f_summary", placeholder="카드에 노출되는 한 줄 설명")
-    st.text_area(
-        "주요 아젠다 (한 줄에 하나)", key="_ma_f_agenda", height=120,
-        placeholder="숏폼 광고 상품 개편\n네이버GFA 신규 타겟팅 옵션 출시",
+
+    st.markdown(
+        "<div style='font-size:14px;font-weight:600;margin-bottom:3px;'>주요 아젠다</div>"
+        "<ul style='margin:0 0 8px;padding-left:17px;font-size:11px;color:#888;line-height:1.7;'>"
+        "<li>디플랜360 발간 자료는 매체명, 아젠다 / 매체 발간 자료는 아젠다만 입력해주세요.</li>"
+        "<li>‘뉴스룸 연동’을 체크한 아젠다만 주간 뉴스룸에 노출됩니다.</li>"
+        "</ul>",
+        unsafe_allow_html=True,
     )
+    # 위젯 key(_ma_w_*)와 저장 key(_ma_f_*)를 분리 — 스텝 전환 시 값 소실 방지 (§17-16)
+    _rows = st.session_state.get("_ma_f_agenda_rows") or []
+    # 빈 리스트를 그대로 넘기면 Streamlit이 컬럼 구조를 추론하지 못해 편집이 불가능해진다.
+    # (신규 등록 시 표가 비활성으로 보이던 원인) → 컬럼·dtype을 명시한 DataFrame으로 전달한다.
+    _df = pd.DataFrame([dict(r) for r in _rows], columns=["text", "newsroom"])
+    _df["text"] = _df["text"].fillna("").astype(str)
+    _df["newsroom"] = _df["newsroom"].fillna(False).astype(bool)
+    edited = st.data_editor(
+        _df,
+        key="_ma_w_agenda_editor",
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "text": st.column_config.TextColumn(
+                "아젠다",
+                width="large",
+                help=("예: 데모그래픽 타게팅 개편" if is_media_pub else "예: 구글, 퍼포먼스 max 업데이트"),
+            ),
+            "newsroom": st.column_config.CheckboxColumn("뉴스룸 연동", width="small", default=False),
+        },
+    )
+    try:
+        _recs = edited.to_dict("records")   # DataFrame으로 반환되는 경우
+    except AttributeError:
+        _recs = list(edited)
+    st.session_state["_ma_f_agenda_rows"] = [
+        {"text": str(r.get("text") or "").strip(), "newsroom": bool(r.get("newsroom"))}
+        for r in _recs if str(r.get("text") or "").strip()
+    ]
     st.date_input("발행일", key="_ma_f_published_date",
                   value=date.fromisoformat(st.session_state["_ma_f_published"])
                   if st.session_state.get("_ma_f_published") else date.today())
@@ -327,6 +423,12 @@ def _render_edit_mode(existing: dict | None):
         "구글 드라이브 링크 *", key="_ma_f_drive_link",
         placeholder="https://drive.google.com/file/d/... (링크 보기 권한 필요)",
         help="파일을 드라이브에 업로드한 뒤 '링크가 있는 모든 사용자' 보기 권한으로 공유 링크를 붙여넣으세요.",
+    )
+
+    # 메모 — 매체 등록 팝업(utils/ui.py)의 메모와 동일 규격. 일반 사용자에게도 노출된다.
+    st.text_area(
+        "메모", key="_ma_f_memo", height=80,
+        placeholder="자료 활용 시 참고사항 · 문의처 · 특이사항 등 자유 입력",
     )
 
     st.divider()
@@ -372,10 +474,7 @@ def _save_archive(is_edit: bool, existing: dict | None):
     month = st.session_state.get("_ma_f_month")
     title = (st.session_state.get("_ma_f_title") or "").strip()
     summary = (st.session_state.get("_ma_f_summary") or "").strip()
-    agenda = [
-        line.strip() for line in (st.session_state.get("_ma_f_agenda") or "").split("\n")
-        if line.strip()
-    ]
+    agenda = st.session_state.get("_ma_f_agenda_rows") or []
     published = st.session_state.get("_ma_f_published_date")
     published_str = published.isoformat() if isinstance(published, date) else ""
     drive_link = (st.session_state.get("_ma_f_drive_link") or "").strip()
@@ -383,6 +482,8 @@ def _save_archive(is_edit: bool, existing: dict | None):
     payload = {
         "year": year, "month": month, "title": title, "summary": summary,
         "agenda": agenda, "drive_link": drive_link, "published_date": published_str,
+        "publisher": st.session_state.get("_ma_f_publisher") or DPLAN,
+        "memo": (st.session_state.get("_ma_f_memo") or "").strip(),
     }
 
     if is_edit:
@@ -404,10 +505,11 @@ admin = is_admin()
 
 head_col, btn_col = st.columns([5, 1])
 with head_col:
-    st.markdown("<div style='font-size:20px;font-weight:700;color:#111;'>월간 미디어 자료</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:20px;font-weight:700;color:#111;'>주요 미디어 자료</div>", unsafe_allow_html=True)
     st.markdown(
         "<div style='font-size:12px;color:#666;margin-bottom:16px;'>"
-        "SP팀에서 매월 발간하는 미디어 자료를 모아봅니다. 카드를 눌러 주요 아젠다와 원본 PDF를 확인하세요.</div>",
+        "디플랜360 발간 자료와 매체가 배포한 자료를 함께 모아봅니다. "
+        "카드를 눌러 주요 아젠다와 원본 PDF를 확인하세요.</div>",
         unsafe_allow_html=True,
     )
 if admin:
@@ -416,21 +518,48 @@ if admin:
         st.rerun()
 
 all_archives = get_media_archives()
-media_agenda_map = _extract_media_agenda_map(all_archives)
-media_options = list(media_agenda_map.keys())
+publisher_map = _extract_publisher_map(all_archives)
+
+# 배포주체 옵션 — 디플랜360을 항상 맨 앞에 두고 나머지 매체는 가나다순
+pub_options = [ALL_PUBLISHERS] + sorted(
+    publisher_map.keys(), key=lambda x: (x != DPLAN, x)
+)
 
 with st.container(border=True):
-    fc1, fc2, fc3 = st.columns([1.2, 2, 0.6])
-    sel_media = fc1.multiselect(
-        "매체", media_options, key="ma_media_filter",
-        placeholder="전체 (선택 시 필터링)",
-        help="데이터에서 자동 추출된 매체 목록",
+    fc0, fc1, fc2, fc3 = st.columns([1.1, 1.3, 1.9, 0.55])
+
+    sel_pub = fc0.selectbox(
+        "배포주체", pub_options, key="ma_pub_filter",
+        help="디플랜360 발간 자료 / 매체가 배포한 자료를 구분합니다",
     )
-    # 아젠다 옵션: 선택된 매체의 아젠다만 (매체 없으면 전체 매체 아젠다 통합)
-    if sel_media:
-        agenda_options = sorted({ag for m in sel_media for ag in media_agenda_map.get(m, [])})
+    # 배포주체가 매체면 그 자체가 곧 매체이므로 매체 선택은 비활성화한다
+    is_media_pub = sel_pub not in (ALL_PUBLISHERS, DPLAN)
+
+    if sel_pub == ALL_PUBLISHERS:
+        merged: dict[str, set] = {}
+        for bucket in publisher_map.values():
+            for m, ags in bucket.items():
+                merged.setdefault(m, set()).update(ags)
+        media_map = {m: sorted(v) for m, v in sorted(merged.items())}
     else:
-        agenda_options = sorted({ag for lst in media_agenda_map.values() for ag in lst})
+        media_map = publisher_map.get(sel_pub, {})
+
+    sel_media = fc1.multiselect(
+        "매체", list(media_map.keys()), key="ma_media_filter",
+        placeholder="배포주체로 자동 지정됨" if is_media_pub else "전체 (선택 시 필터링)",
+        disabled=is_media_pub,
+        help="매체가 배포한 자료는 배포주체가 곧 매체라 선택이 필요 없습니다"
+             if is_media_pub else "데이터에서 자동 추출된 매체 목록",
+    )
+    if is_media_pub:
+        sel_media = []  # 비활성 상태의 잔여 선택값이 필터에 영향을 주지 않도록
+
+    # 아젠다 옵션: 선택된 매체의 아젠다만 (매체 미선택이면 현재 배포주체 전체)
+    if sel_media:
+        agenda_options = sorted({ag for m in sel_media for ag in media_map.get(m, [])})
+    else:
+        agenda_options = sorted({ag for lst in media_map.values() for ag in lst})
+
     sel_agenda = fc2.multiselect(
         "아젠다", agenda_options, key="ma_agenda_filter",
         placeholder="전체 (선택 시 필터링)",
@@ -438,11 +567,16 @@ with st.container(border=True):
     )
     fc3.markdown("<div style='height:26px;'></div>", unsafe_allow_html=True)
     if fc3.button("초기화", key="ma_reset_filter", use_container_width=True):
-        st.session_state.pop("ma_media_filter", None)
-        st.session_state.pop("ma_agenda_filter", None)
+        for k in ("ma_pub_filter", "ma_media_filter", "ma_agenda_filter"):
+            st.session_state.pop(k, None)
         st.rerun()
 
-_render_grid(all_archives, sel_media, sel_agenda)
+visible_archives = (
+    all_archives if sel_pub == ALL_PUBLISHERS
+    else [a for a in all_archives if (a.get("publisher") or DPLAN) == sel_pub]
+)
+
+_render_grid(visible_archives, sel_media, sel_agenda)
 
 if st.session_state.get("_ma_popup_open"):
     render_archive_popup()
