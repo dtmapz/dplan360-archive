@@ -1426,10 +1426,31 @@ def _get_or_create_tab(tab_name: str, headers: list[str], default_rows: list[lis
     try:
         ws = sh.worksheet(tab_name)
     except gspread.WorksheetNotFound:
-        ws = sh.add_worksheet(title=tab_name, rows=500, cols=len(headers))
+        # 컬럼을 딱 맞게 만들면 나중에 스키마가 늘 때 그리드 한계에 걸린다 → 여유를 둔다
+        ws = sh.add_worksheet(title=tab_name, rows=500, cols=max(len(headers) + 6, 26))
         ws.update(values=[headers], range_name="A1")
         if default_rows:
             ws.append_rows(default_rows, value_input_option="USER_ENTERED")
+    return ws
+
+
+def _ensure_tab_headers(ws, headers: list[str]):
+    """헤더를 최신 스키마로 맞추되 **어떤 경우에도 기존 데이터를 지우지 않는다** (§17-25).
+
+    - 현재 헤더가 신 스키마의 접두사면 → 빠진 컬럼만 뒤에 덧붙인다
+    - 그 외 예상 밖 헤더면 → 손대지 않는다 (사람이 확인할 문제)
+    - 그리드 폭이 모자라면 먼저 컬럼을 늘린다 (add_worksheet 가 cols 를 딱 맞게 만든 탭 대응)
+    """
+    header = ws.row_values(1)
+    if header == headers:
+        return ws
+    if not header or header != headers[: len(header)]:
+        return ws
+    if ws.col_count < len(headers):
+        ws.add_cols(len(headers) - ws.col_count)
+    missing = headers[len(header):]
+    start_col = chr(ord("A") + len(header))
+    ws.update(values=[missing], range_name=f"{start_col}1")
     return ws
 
 
@@ -1726,15 +1747,7 @@ def _get_media_archive_sheet():
     그 외의 예상 밖 헤더는 손대지 않고 그대로 쓴다(사람이 확인할 문제).
     """
     ws = _get_or_create_tab(MEDIA_ARCHIVE_TAB, MEDIA_ARCHIVE_HEADERS)
-    header = ws.row_values(1)
-    if header == MEDIA_ARCHIVE_HEADERS:
-        return ws
-    # 구 스키마는 신 스키마의 접두사(prefix)다 → 뒤에 빠진 컬럼만 덧붙이면 안전하게 확장된다.
-    if header and header == MEDIA_ARCHIVE_HEADERS[: len(header)]:
-        missing = MEDIA_ARCHIVE_HEADERS[len(header):]
-        start_col = chr(ord("A") + len(header))
-        ws.update(values=[missing], range_name=f"{start_col}1")
-    return ws
+    return _ensure_tab_headers(ws, MEDIA_ARCHIVE_HEADERS)
 
 
 @st.cache_data(ttl=300)
@@ -1832,3 +1845,142 @@ def delete_media_archive(row_num: int) -> None:
     ws.delete_rows(row_num)
     _clear_media_archive_cache()
 
+
+
+# ======================================================================
+# MEDIA NEWS (media_news 탭) — 13_MediaNews.py 용 (미디어 소식 아카이브)
+# PROMOTION_SHEET_ID 시트에 media_news 탭을 사용. 탭 없으면 자동 생성.
+# 스키마: id | news_type | media | title | subtitle | body | link |
+#         is_important | published_date | created_at
+#
+# news_type(구분)은 주간 뉴스룸의 섹션과 1:1로 매핑된다.
+#   미디어 뉴스        → 뉴스룸 01
+#   신규 상품/신규 미디어 → 뉴스룸 03
+# published_date(작성일)가 뉴스룸의 주차 판정 기준이므로 비워두면 뉴스룸에 노출되지 않는다.
+# ======================================================================
+
+MEDIA_NEWS_TAB = "media_news"
+MEDIA_NEWS_HEADERS = [
+    "id", "news_type", "media", "title", "subtitle", "body", "link",
+    "is_important", "published_date", "created_at", "image_url", "newsroom",
+]
+
+# 구분 3택 — selectbox 로 강제해 표기 흔들림을 막는다
+MEDIA_NEWS_TYPES = ["미디어 뉴스", "신규 상품", "신규 미디어"]
+
+
+def _media_news_flag_on(v) -> bool:
+    """빈 셀은 True 로 본다 — 뉴스룸 반영 기본값이 ON 이기 때문."""
+    if v is None or str(v).strip() == "":
+        return True
+    return _bool_from_cell(v)
+
+
+def _get_media_news_sheet():
+    """media_news 탭 핸들. **어떤 경우에도 기존 데이터를 지우지 않는다** (§17-25).
+
+    헤더가 신 스키마의 접두사일 때만 빠진 컬럼을 뒤에 덧붙이고,
+    예상 밖 헤더는 손대지 않고 그대로 쓴다(사람이 확인할 문제).
+    """
+    ws = _get_or_create_tab(MEDIA_NEWS_TAB, MEDIA_NEWS_HEADERS)
+    return _ensure_tab_headers(ws, MEDIA_NEWS_HEADERS)
+
+
+@st.cache_data(ttl=300)
+def _get_media_news_rows() -> list[dict]:
+    ws = _get_media_news_sheet()
+    rows = ws.get_all_records(numericise_ignore=["all"])
+    out = []
+    for i, r in enumerate(rows):
+        if not r.get("id"):
+            continue
+        r["_row"] = i + 2
+        out.append(r)
+    return out
+
+
+def _clear_media_news_cache():
+    _get_media_news_rows.clear()
+
+
+def get_media_news() -> list[dict]:
+    """미디어 소식 목록. 작성일 내림차순(같은 날은 id 역순)."""
+    out = []
+    for r in _get_media_news_rows():
+        out.append({
+            "id": str(r.get("id", "")).strip(),
+            "row": r["_row"],
+            "news_type": str(r.get("news_type", "")).strip() or MEDIA_NEWS_TYPES[0],
+            "media": str(r.get("media", "")).strip(),
+            "title": str(r.get("title", "")).strip(),
+            "subtitle": str(r.get("subtitle", "")).strip(),
+            "body": str(r.get("body", "")).strip(),
+            "link": str(r.get("link", "")).strip(),
+            "is_important": _bool_from_cell(r.get("is_important")),
+            "image_url": str(r.get("image_url", "")).strip(),
+            # 빈 값 = 기본 ON. "빠뜨려서 안 나오는" 실수가 "실수로 나오는" 것보다 찾기 어렵다.
+            "newsroom": _media_news_flag_on(r.get("newsroom")),
+            "published_date": str(r.get("published_date", "")).strip(),
+            "created_at": str(r.get("created_at", "")).strip(),
+        })
+    out.sort(key=lambda x: (x.get("published_date", ""), x.get("id", "")), reverse=True)
+    return out
+
+
+def _media_news_row(n: dict) -> list:
+    return [
+        n.get("id", ""),
+        n.get("news_type", "") or MEDIA_NEWS_TYPES[0],
+        n.get("media", ""),
+        n.get("title", ""),
+        n.get("subtitle", ""),
+        n.get("body", ""),
+        n.get("link", ""),
+        "TRUE" if n.get("is_important") else "FALSE",
+        n.get("published_date", "") or _kst_today_iso(),
+        n.get("created_at", "") or _kst_today_iso(),
+        n.get("image_url", ""),
+        "TRUE" if n.get("newsroom", True) else "FALSE",
+    ]
+
+
+def create_media_news(n: dict) -> str:
+    n = dict(n)
+    n["id"] = ""  # 행 확보 후 재검증-재시도로 배정 (동시 등록 레이스 방지)
+    n.setdefault("created_at", _kst_today_iso())
+    ws = _get_media_news_sheet()
+    resp = ws.append_row(_media_news_row(n), value_input_option="USER_ENTERED")
+    row_num = _parse_appended_row_num(resp)
+
+    def _compute_next(rows):
+        max_num = 0
+        for r in rows:
+            nid = str(r.get("id", ""))
+            if nid.startswith("MN-"):
+                try:
+                    max_num = max(max_num, int(nid.split("-")[1]))
+                except (ValueError, IndexError):
+                    pass
+        return f"MN-{max_num + 1:04d}"
+
+    def _fresh_rows():
+        _get_media_news_rows.clear()
+        return _get_media_news_rows()
+
+    new_id = _write_id_with_retry(ws, row_num, 1, _compute_next, _fresh_rows, id_key="id")
+    _clear_media_news_cache()
+    return new_id
+
+
+def update_media_news(row_num: int, n: dict) -> None:
+    ws = _get_media_news_sheet()
+    end_col = chr(ord("A") + len(MEDIA_NEWS_HEADERS) - 1)
+    ws.update(values=[_media_news_row(n)],
+              range_name=f"A{row_num}:{end_col}{row_num}", value_input_option="USER_ENTERED")
+    _clear_media_news_cache()
+
+
+def delete_media_news(row_num: int) -> None:
+    ws = _get_media_news_sheet()
+    ws.delete_rows(row_num)
+    _clear_media_news_cache()

@@ -505,13 +505,8 @@ admin = is_admin()
 
 head_col, btn_col = st.columns([5, 1])
 with head_col:
-    st.markdown("<div style='font-size:20px;font-weight:700;color:#111;'>주요 미디어 자료</div>", unsafe_allow_html=True)
-    st.markdown(
-        "<div style='font-size:12px;color:#666;margin-bottom:16px;'>"
-        "디플랜360 발간 자료와 매체가 배포한 자료를 함께 모아봅니다. "
-        "카드를 눌러 주요 아젠다와 원본 PDF를 확인하세요.</div>",
-        unsafe_allow_html=True,
-    )
+    # 페이지 상단 타이틀·서브카피는 노출하지 않는다 (사이드바 메뉴명이 이미 제목 역할)
+    st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
 if admin:
     if btn_col.button("＋ 자료 등록", key="ma_add_btn", use_container_width=True):
         _open_edit_popup(None)
