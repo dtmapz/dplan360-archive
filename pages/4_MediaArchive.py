@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 from datetime import date
 from utils.auth import is_admin
-from utils.ui import set_current_page, media_color
+from utils.ui import set_current_page, media_color, click_cards
 from utils.sheets import (
     get_media_archives,
     create_media_archive,
@@ -155,7 +155,7 @@ def _keep_popup():
 # 카드 렌더
 # ----------------------------------------------------------------------
 
-def _render_card(a: dict, matched_lines: list[str] | None = None, dimmed: bool = False):
+def _card_html(a: dict, matched_lines: list[str] | None = None, dimmed: bool = False) -> str:
     matched_lines = matched_lines or []
     is_match = bool(matched_lines)
 
@@ -209,10 +209,18 @@ def _render_card(a: dict, matched_lines: list[str] | None = None, dimmed: bool =
         f"{match_band}"
         "</div></div>"
     )
-    st.markdown(card_html, unsafe_allow_html=True)
-    if st.button("자세히 보기", key=f"ma_btn_{a['id']}", use_container_width=True):
-        _open_view_popup(a["id"])
-        st.rerun()
+    # 버튼 없이 카드 전체를 클릭 영역으로 — 필터 표시(앰버 테두리·MATCHED·흐림)는 카드 안에 그대로 있다
+    return f"<a href='#' id='arch__{a['id']}'>{card_html}</a>"
+
+
+_GRID_CSS = (
+    "<style>"
+    ".ma-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;align-items:start;}"
+    ".ma-grid a{display:block;border-radius:8px;}"
+    # 마우스를 올리면 앰버 테두리 — 필터에 걸린 카드의 인라인 그림자보다 우선
+    ".ma-grid a:hover > div > div{box-shadow:0 0 0 1.5px #F2A93B !important;}"
+    "</style>"
+)
 
 
 def _render_grid(items: list[dict], sel_media: list[str], sel_agenda: list[str]):
@@ -224,15 +232,18 @@ def _render_grid(items: list[dict], sel_media: list[str], sel_agenda: list[str])
         )
         return
     has_filter = bool(sel_media or sel_agenda)
-    cols_per_row = 4
-    for i in range(0, len(items), cols_per_row):
-        row_items = items[i:i + cols_per_row]
-        cols = st.columns(cols_per_row)
-        for col, a in zip(cols, row_items):
-            with col:
-                matched = _get_matched_lines(a, sel_media, sel_agenda) if has_filter else []
-                dimmed = has_filter and not matched
-                _render_card(a, matched_lines=matched, dimmed=dimmed)
+    cards = []
+    for a in items:
+        matched = _get_matched_lines(a, sel_media, sel_agenda) if has_filter else []
+        dimmed = has_filter and not matched
+        cards.append(_card_html(a, matched_lines=matched, dimmed=dimmed))
+
+    # "자세히 보기" 버튼 대신 카드 자체를 클릭 (주간 뉴스룸과 같은 방식, utils/ui.click_cards)
+    target = click_cards(_GRID_CSS + f"<div class='ma-grid'>{''.join(cards)}</div>",
+                         key="ma_grid_det", nonce_key="_ma_click_nonce")
+    if target and target.startswith("arch__"):
+        _open_view_popup(target.split("__", 1)[1])
+        st.rerun()
 
 
 # ----------------------------------------------------------------------

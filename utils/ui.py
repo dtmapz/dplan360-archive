@@ -69,7 +69,7 @@ def media_color(name: str) -> tuple[str, str]:
 
 # ----------------------------------------------------------------------
 # 매체 프로모션 카드 — 9_MediaPromo 와 주간 뉴스룸(02 섹션)이 함께 쓴다.
-# HTML 만 만들고 버튼(자세히 보기)은 각 페이지가 붙인다: 팝업 세션 키가 페이지마다 다르기 때문.
+# HTML 만 만들고 클릭 처리(click_cards)와 팝업은 각 페이지가 맡는다: 팝업 세션 키가 페이지마다 다르기 때문.
 # ----------------------------------------------------------------------
 
 PROMO_CHIP_PRESETS = {
@@ -98,9 +98,9 @@ def promo_chip_html(name: str, preset_key: str) -> str:
 def promo_card_html(promo: dict, standalone: bool = False) -> str:
     """프로모션 카드 본문 HTML (제목 1줄 · 부제목 2줄 높이 고정, §13).
 
-    standalone=False : 미디어 프로모션 페이지용. 카드 아래에 '자세히 보기' 버튼이 붙으므로
-                       아래 테두리를 열어 두고 위쪽 모서리만 둥글게 한다(기존 모양 그대로).
-    standalone=True  : 주간 뉴스룸용. 버튼 없이 카드 자체를 클릭하므로 네 변을 모두 닫는다.
+    standalone=True  : 버튼 없이 카드 자체를 클릭하는 화면용. 네 변을 모두 닫는다.
+                       (주간 뉴스룸 · 미디어 프로모션 — 2026-09-11부터 두 화면 모두 이 모양)
+    standalone=False : 카드 아래에 버튼을 붙이던 예전 모양(아래 테두리 열림). 현재 사용처 없음.
     """
     is_active = promo["status"] == "active"
     opacity = "1" if is_active else "0.55"
@@ -154,6 +154,45 @@ def promo_card_html(promo: dict, standalone: bool = False) -> str:
         f"overflow:hidden;'>{promo['subtitle']}</div>"
         f"</div></div>"
     )
+
+
+# ----------------------------------------------------------------------
+# 카드·목록 클릭 공용 — st_click_detector 로 "버튼 없이 카드 자체를 클릭"하게 만든다 (§17-27).
+# 주요 미디어 자료 · 미디어 프로모션 · 캠페인 성공사례가 함께 쓴다.
+# ----------------------------------------------------------------------
+
+# click_detector(iframe) 기본 동작 보정 — 설치된 번들 확인 결과:
+#  ① 콘텐츠 앞뒤에 1x1 투명 <img> 스페이서를 넣어 위아래 빈 줄이 생김 → 직계 img 만 숨김(카드 안 이미지는 더 깊어서 안전)
+#  ② 감싸는 div 에 테마 글꼴·글자색을 인라인으로 박음 → !important 로 앱과 같은 글꼴·검은 글자로
+CLICK_IFRAME_BASE = (
+    "<link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap'>"
+    "<style>"
+    "body{margin:0;padding:0 0 2px;}"
+    "body > div > img{display:none !important;}"
+    "body > div{font-family:'IBM Plex Sans KR',-apple-system,'Malgun Gothic',sans-serif !important;"
+    "color:#111 !important;word-break:keep-all;}"
+    "a{text-decoration:none !important;color:inherit !important;cursor:pointer;}"
+    "</style>"
+)
+
+
+def click_cards(body_html: str, key: str, nonce_key: str) -> str | None:
+    """body_html 안의 `<a href='#' id='KIND__ID'>` 를 클릭 가능하게 렌더하고, **새 클릭**이면 'KIND__ID' 를 돌려준다.
+
+    - 컴포넌트는 마지막 클릭값을 계속 돌려주므로, 앵커 id 앞에 클릭 순번을 붙여 새 클릭만 처리한다.
+      key 를 바꿔 컴포넌트를 새로 만들면 iframe 높이가 0이 되며 스크롤이 튄다(§17-27 ②) — key 는 고정.
+    - href 는 없앤다(href="#" 는 누를 때마다 페이지 안 이동을 일으킴).
+    - 반환값을 받은 쪽에서 팝업 상태를 세팅한 뒤 st.rerun() 한다.
+    """
+    nonce = st.session_state.get(nonce_key, 0)
+    body_html = body_html.replace("<a href='#' id='", f"<a id='{nonce}::")
+    clicked = click_detector(CLICK_IFRAME_BASE + body_html, key=key)
+    if clicked and "::" in clicked:
+        click_nonce, target = clicked.split("::", 1)
+        if click_nonce == str(nonce):
+            st.session_state[nonce_key] = nonce + 1
+            return target
+    return None
 
 
 NAVY = "#1E2761"

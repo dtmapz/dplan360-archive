@@ -8,7 +8,7 @@ import streamlit.components.v1 as components
 from datetime import date
 
 from utils.auth import is_admin
-from utils.ui import set_current_page
+from utils.ui import set_current_page, click_cards
 from utils.db import upload_notice_image
 from utils.sheets import (
     get_case_studies,
@@ -145,7 +145,7 @@ def _summary_chips(cs: dict) -> str:
     return " ".join(chips)
 
 
-def _render_card(cs: dict):
+def _card_html(cs: dict) -> str:
     ai = cs.get("ai", {}) or {}
     title = ai.get("title") or cs.get("brand") or "(제목 없음)"
     title_plain = title.replace("[", "").replace("]", "")
@@ -194,10 +194,9 @@ def _render_card(cs: dict):
         )
 
     card_html = (
-        f"<div style='border:0.5px solid #ddd;border-top-left-radius:8px;border-top-right-radius:8px;"
-        f"overflow:hidden;background:#fff;border-bottom:none;'>"
+        f"<div style='border:0.5px solid #ddd;border-radius:8px;overflow:hidden;background:#fff;'>"
         f"{img_tag}"
-        f"<div style='padding:12px 14px 8px;'>"
+        f"<div style='padding:12px 14px 12px;'>"
         f"<div style='display:flex;gap:6px;margin-bottom:8px;min-height:22px;flex-wrap:wrap;'>{_summary_chips(cs)}</div>"
         f"<div style='font-size:11px;color:#666;margin-bottom:2px;'>{cs.get('brand', '')} · {cs.get('advertiser', '')}</div>"
         f"<div style='font-size:14px;font-weight:700;margin-bottom:4px;color:#111;'>{title_plain}</div>"
@@ -205,10 +204,17 @@ def _render_card(cs: dict):
         f"{kpi_html}"
         f"</div></div>"
     )
-    st.markdown(card_html, unsafe_allow_html=True)
-    if st.button("자세히 보기", key=f"cs_btn_{cs['id']}", use_container_width=True):
-        _open_view(cs["id"])
-        st.rerun()
+    # 버튼 없이 카드 전체를 클릭 영역으로 (HTML·PPTX 다운로드와 관리자 수정·삭제는 팝업 안에 그대로)
+    return f"<a href='#' id='cs__{cs['id']}'>{card_html}</a>"
+
+
+_GRID_CSS = (
+    "<style>"
+    ".cs-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start;}"
+    ".cs-grid a{display:block;border-radius:8px;}"
+    ".cs-grid a:hover > div{box-shadow:0 0 0 1.5px #F2A93B;}"
+    "</style>"
+)
 
 
 def _render_grid(items: list[dict]):
@@ -219,13 +225,13 @@ def _render_grid(items: list[dict]):
             unsafe_allow_html=True,
         )
         return
-    cols_per_row = 3
-    for i in range(0, len(items), cols_per_row):
-        row = items[i:i + cols_per_row]
-        cols = st.columns(cols_per_row)
-        for col, cs in zip(cols, row):
-            with col:
-                _render_card(cs)
+    # "자세히 보기" 버튼 대신 카드 자체를 클릭 (주요 미디어 자료·미디어 프로모션과 같은 방식, utils/ui.click_cards)
+    cards = "".join(_card_html(cs) for cs in items)
+    target = click_cards(_GRID_CSS + f"<div class='cs-grid'>{cards}</div>",
+                         key="cs_grid_det", nonce_key="_cs_click_nonce")
+    if target and target.startswith("cs__"):
+        _open_view(target.split("__", 1)[1])
+        st.rerun()
 
 
 # ---------------------------------------------------------------------

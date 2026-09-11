@@ -3,6 +3,7 @@ from datetime import date
 from utils.auth import is_admin
 from utils.ui import (
     set_current_page,
+    click_cards,
     promo_card_html,
     promo_chip_html,
     PROMO_CHIP_PRESETS,
@@ -221,16 +222,17 @@ def _apply_filters(promos, major, subs, promo_cats, target_start, target_end):
 # 카드 렌더
 # ----------------------------------------------------------------------
 
-def _render_promo_card(promo: dict):
-    card_html = promo_card_html(promo)
-    st.markdown(card_html, unsafe_allow_html=True)
-    if st.button("자세히 보기", key=f"promo_btn_{promo['id']}",
-                 use_container_width=True):
-        _open_view_popup(promo["id"])
-        st.rerun()
+_GRID_CSS = (
+    "<style>"
+    ".pg{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;align-items:start;}"
+    ".pg a{display:block;border-radius:8px;}"
+    # 마우스를 올리면 앰버 테두리 (종료된 프로모션의 흑백·흐림 표시는 카드 div 에 그대로 남는다)
+    ".pg a:hover > div{box-shadow:0 0 0 1.5px #F2A93B;}"
+    "</style>"
+)
 
 
-def _render_grid(promos: list[dict]):
+def _render_grid(promos: list[dict], name: str):
     if not promos:
         st.markdown(
             "<div style='color:#999;text-align:center;padding:40px 0;font-size:13px;'>"
@@ -238,13 +240,18 @@ def _render_grid(promos: list[dict]):
             unsafe_allow_html=True,
         )
         return
-    cols_per_row = 4
-    for i in range(0, len(promos), cols_per_row):
-        row_items = promos[i:i + cols_per_row]
-        cols = st.columns(cols_per_row)
-        for col, promo in zip(cols, row_items):
-            with col:
-                _render_promo_card(promo)
+    # "자세히 보기" 버튼 대신 카드 자체를 클릭 — 주간 뉴스룸 02 섹션과 같은 카드(standalone)·같은 방식
+    cards = "".join(
+        f"<a href='#' id='promo__{p['id']}'>{promo_card_html(p, standalone=True)}</a>"
+        for p in promos
+    )
+    # 진행중·진행예정·종료 탭이 한 번에 모두 그려지므로 컴포넌트 key 를 탭별로 나눈다(중복 key 오류 방지).
+    # 클릭 순번(nonce)은 세 탭이 공유 — 한 탭에서 처리하면 다른 탭의 잔류 클릭값도 함께 무시된다.
+    target = click_cards(_GRID_CSS + f"<div class='pg'>{cards}</div>",
+                         key=f"promo_grid_det_{name}", nonce_key="_promo_click_nonce")
+    if target and target.startswith("promo__"):
+        _open_view_popup(target.split("__", 1)[1])
+        st.rerun()
 
 
 # ----------------------------------------------------------------------
@@ -514,11 +521,11 @@ tab_labels = [
 ]
 t1, t2, t3 = st.tabs(tab_labels)
 with t1:
-    _render_grid(ongoing)
+    _render_grid(ongoing, "ongoing")
 with t2:
-    _render_grid(upcoming)
+    _render_grid(upcoming, "upcoming")
 with t3:
-    _render_grid(ended)
+    _render_grid(ended, "ended")
 
 if st.session_state.get("_promo_popup_open"):
     render_promo_popup()
