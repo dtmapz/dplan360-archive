@@ -807,6 +807,8 @@ def get_home_promotions() -> list[dict]:
             "start_date": start_date,
             "end_date": end_date,
             "memo": str(r.get("메모", "")).strip(),
+            # 주간 뉴스룸 02 섹션 판정 기준. 시작일이 아니라 '등록일'이어야 한다.
+            "created_date": _parse_promo_date(r.get("등록일")),
             "status": status,
         })
 
@@ -867,7 +869,7 @@ def create_home_promotion(
         start_date or "",
         end_date or "",
         memo or "",
-        date.today().isoformat(),
+        _kst_today_iso(),   # 등록일 — KST 기준 (뉴스룸 주차 판정에 쓰임)
         normalize_image_url(preview_image_url or ""),
     ]
     ws = _get_promo_sheet("home_promotion")
@@ -908,7 +910,7 @@ def update_home_promotion(
 ) -> None:
     ws = _get_promo_sheet("home_promotion")
     existing_id = ws.cell(row_num, 1).value or ""
-    existing_created = ws.cell(row_num, 10).value or date.today().isoformat()
+    existing_created = ws.cell(row_num, 10).value or _kst_today_iso()
     row_data = [
         existing_id,
         media_name or "",

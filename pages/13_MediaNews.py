@@ -157,14 +157,19 @@ def _render_board(items: list[dict], admin: bool = False) -> None:
     )
 
     # click_detector 는 새 클릭이 없어도 **마지막 클릭값을 계속 반환**한다.
-    # 그대로 두면 팝업을 닫은 뒤 rerun 마다 같은 값이 다시 잡혀 팝업이 되살아난다.
-    # → 처리 직후 key 를 바꿔 컴포넌트를 초기화한다(같은 행을 다시 눌러도 새 값으로 인식됨).
+    # 예전엔 key 에 순번을 넣어 컴포넌트를 새로 만들어 막았는데, 새로 만드는 순간 iframe 높이가 0이 되어
+    # 게시판을 스크롤한 뒤 글을 누르면 **화면 위치가 튀었다**(주간 뉴스룸에서 먼저 발견).
+    # → key 는 고정하고 **앵커 id 앞에 클릭 순번을 붙여** 새 클릭만 처리한다. 같은 글 재클릭도 새 id 라 정상 동작.
+    # href="#" 도 없앤다 — 누를 때마다 페이지 안 이동(fragment navigation)을 일으킨다.
     nonce = st.session_state.get("_mn_click_nonce", 0)
-    clicked = click_detector(html, key=f"mn_board_det_{nonce}")
-    if clicked and clicked.startswith("news__"):
-        st.session_state["_mn_click_nonce"] = nonce + 1
-        _open_view_popup(clicked.replace("news__", ""))
-        st.rerun()
+    html = html.replace("<a href='#' id='", f"<a id='{nonce}::")
+    clicked = click_detector(html, key="mn_board_det")
+    if clicked and "::" in clicked:
+        click_nonce, target = clicked.split("::", 1)
+        if click_nonce == str(nonce) and target.startswith("news__"):
+            st.session_state["_mn_click_nonce"] = nonce + 1
+            _open_view_popup(target.replace("news__", "", 1))
+            st.rerun()
 
 
 # ----------------------------------------------------------------------

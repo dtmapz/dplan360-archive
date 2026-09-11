@@ -67,6 +67,95 @@ def media_color(name: str) -> tuple[str, str]:
     return _MEDIA_FALLBACK[idx]
 
 
+# ----------------------------------------------------------------------
+# 매체 프로모션 카드 — 9_MediaPromo 와 주간 뉴스룸(02 섹션)이 함께 쓴다.
+# HTML 만 만들고 버튼(자세히 보기)은 각 페이지가 붙인다: 팝업 세션 키가 페이지마다 다르기 때문.
+# ----------------------------------------------------------------------
+
+PROMO_CHIP_PRESETS = {
+    "amber": {"bg": "#F2A93B", "fg": "#12100C", "label": "앰버 (강조)"},
+    "ink":   {"bg": "#111111", "fg": "#FFFFFF", "label": "블랙 (기본)"},
+    "line":  {"bg": "transparent", "fg": "#666666", "label": "아웃라인 (보조)"},
+}
+PROMO_DEFAULT_CHIP_PRESET = "line"
+
+
+def promo_chip_html(name: str, preset_key: str) -> str:
+    p = PROMO_CHIP_PRESETS.get(preset_key, PROMO_CHIP_PRESETS[PROMO_DEFAULT_CHIP_PRESET])
+    if preset_key == "line":
+        return (
+            f"<span style='box-shadow:0 0 0 0.5px #999 inset;color:{p['fg']};"
+            f"font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;"
+            f"margin-right:6px;'>{name}</span>"
+        )
+    return (
+        f"<span style='background:{p['bg']};color:{p['fg']};font-size:11px;"
+        f"font-weight:600;padding:3px 9px;border-radius:6px;margin-right:6px;'>"
+        f"{name}</span>"
+    )
+
+
+def promo_card_html(promo: dict, standalone: bool = False) -> str:
+    """프로모션 카드 본문 HTML (제목 1줄 · 부제목 2줄 높이 고정, §13).
+
+    standalone=False : 미디어 프로모션 페이지용. 카드 아래에 '자세히 보기' 버튼이 붙으므로
+                       아래 테두리를 열어 두고 위쪽 모서리만 둥글게 한다(기존 모양 그대로).
+    standalone=True  : 주간 뉴스룸용. 버튼 없이 카드 자체를 클릭하므로 네 변을 모두 닫는다.
+    """
+    is_active = promo["status"] == "active"
+    opacity = "1" if is_active else "0.55"
+    grayscale = "0" if is_active else "0.55"
+
+    chip_html = "".join(promo_chip_html(name, key) for name, key in promo["categories"])
+    card_img = promo.get("preview_image_url") or promo["image_url"]
+    if card_img:
+        img_tag = (
+            f"<img src='{card_img}' style='width:100%;aspect-ratio:16/9;"
+            f"object-fit:cover;display:block;background:#eee;'/>"
+        )
+    else:
+        img_tag = (
+            "<div style='width:100%;aspect-ratio:16/9;background:#f0f0f0;"
+            "display:flex;align-items:center;justify-content:center;color:#bbb;"
+            "font-size:12px;'>이미지 없음</div>"
+        )
+
+    media_span = ""
+    if promo["media_name"]:
+        media_span = f"<span style='font-size:11px;color:#666;'>{promo['media_name']}</span>"
+
+    if standalone:
+        frame = "border:0.5px solid #ddd;border-radius:8px;overflow:hidden;background:#fff;"
+        pad = "12px 14px 12px"
+    else:
+        frame = ("border:0.5px solid #ddd;border-top-left-radius:8px;border-top-right-radius:8px;"
+                 "overflow:hidden;background:#fff;border-bottom:none;")
+        pad = "12px 14px 8px"
+
+    header_row = (
+        f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;"
+        f"min-height:22px;flex-wrap:wrap;'>"
+        f"{media_span}{chip_html}"
+        f"</div>"
+    )
+
+    return (
+        f"<div style='opacity:{opacity};filter:grayscale({grayscale});{frame}'>"
+        f"{img_tag}"
+        f"<div style='padding:{pad};'>"
+        f"{header_row}"
+        # 제목은 1줄, 부제목은 2줄로 높이를 고정해 카드 정렬을 맞춘다.
+        f"<div style='font-size:14px;font-weight:700;margin-bottom:4px;color:#111;"
+        f"line-height:20px;min-height:20px;display:-webkit-box;-webkit-line-clamp:1;"
+        f"-webkit-box-orient:vertical;overflow:hidden;'>{promo['name']}</div>"
+        # 부제목은 항상 2줄 높이를 확보한다(1줄·공란이어도 둘째 줄은 여백).
+        f"<div style='font-size:12px;color:#666;line-height:18px;min-height:36px;"
+        f"display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;"
+        f"overflow:hidden;'>{promo['subtitle']}</div>"
+        f"</div></div>"
+    )
+
+
 NAVY = "#1E2761"
 ICE = "#CADCFC"
 

@@ -15,6 +15,7 @@ from utils.sheets import (
     create_case_study,
     update_case_study,
     delete_case_study,
+    get_all_media,
 )
 from utils.casestudy_llm import generate_copy
 from utils.casestudy_render import build_slide_html
@@ -122,6 +123,11 @@ def _keep_open():
 # 카드 그리드
 # ---------------------------------------------------------------------
 
+def _split_media(value) -> list[str]:
+    """저장된 매체 문자열("메타, 구글")을 목록으로. 과거 단일 값("Meta")도 그대로 1개짜리 목록이 된다."""
+    return [m.strip() for m in str(value or "").split(",") if m.strip()]
+
+
 def _summary_chips(cs: dict) -> str:
     chips = []
     scope = cs.get("share_scope", "Internal")
@@ -131,10 +137,10 @@ def _summary_chips(cs: dict) -> str:
         f"<span style='background:{scope_bg};color:{scope_fg};font-size:10px;font-weight:700;"
         f"padding:2px 7px;border-radius:3px;letter-spacing:1px;'>{scope.upper()}</span>"
     )
-    if cs.get("media"):
+    for m in _split_media(cs.get("media")):
         chips.append(
             f"<span style='background:#EEF2FF;color:#4C7DFF;font-size:10.5px;font-weight:700;"
-            f"padding:2px 7px;border-radius:3px;'>{cs['media']}</span>"
+            f"padding:2px 7px;border-radius:3px;'>{m}</span>"
         )
     return " ".join(chips)
 
@@ -364,10 +370,16 @@ def _edit(existing: dict | None):
             index=scope_opts.index(scope_val) if scope_val in scope_opts else 0,
             key="_cs_w_scope", horizontal=True,
         )
-        st.session_state["_cs_f_media"] = c2.text_input(
-            "매체 *", value=st.session_state.get("_cs_f_media", ""),
-            key="_cs_w_media", placeholder="예: Meta, Google, Kakao",
+        # 매체는 등록된 매체 목록에서 여러 개를 고른다. 위젯 key(_cs_w_media)와 저장 key(_cs_f_media)는
+        # 분리 유지(§17-16). 저장값에 목록에 없는 과거 표기(예: 영문 'Meta')가 있으면 선택지에 남겨 사라지지 않게 한다.
+        cur_media = _split_media(st.session_state.get("_cs_f_media", ""))
+        media_options = [m["name"] for m in get_all_media() if m.get("name")]
+        media_options += [m for m in cur_media if m not in media_options]
+        picked = c2.multiselect(
+            "매체 *", media_options, default=cur_media,
+            key="_cs_w_media", placeholder="매체 선택 (여러 개 가능)",
         )
+        st.session_state["_cs_f_media"] = ", ".join(picked)
 
         c1, c2 = st.columns(2)
         st.session_state["_cs_f_advertiser"] = c1.text_input(
@@ -693,7 +705,7 @@ if admin:
 all_items = get_case_studies()
 
 f1, f2, f3 = st.columns([1, 1, 1])
-media_opts = sorted({x["media"] for x in all_items if x.get("media")})
+media_opts = sorted({m for x in all_items for m in _split_media(x.get("media"))})
 sel_media = f1.multiselect("매체", media_opts, key="_cs_flt_media")
 scope_opts = ["Internal", "External"]
 sel_scope = f2.multiselect("공개 범위", scope_opts, key="_cs_flt_scope")
@@ -701,7 +713,7 @@ type_opts = TYPE_OPTS
 sel_type = f3.multiselect("캠페인 타입", type_opts, key="_cs_flt_type")
 
 def _match(cs):
-    if sel_media and cs.get("media") not in sel_media:
+    if sel_media and not (set(sel_media) & set(_split_media(cs.get("media")))):
         return False
     if sel_scope and cs.get("share_scope") not in sel_scope:
         return False

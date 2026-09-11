@@ -1,7 +1,13 @@
 import streamlit as st
 from datetime import date
 from utils.auth import is_admin
-from utils.ui import set_current_page
+from utils.ui import (
+    set_current_page,
+    promo_card_html,
+    promo_chip_html,
+    PROMO_CHIP_PRESETS,
+    PROMO_DEFAULT_CHIP_PRESET,
+)
 from utils.db import upload_notice_image
 from utils.sheets import (
     get_home_promotions,
@@ -11,32 +17,16 @@ from utils.sheets import (
     get_major_categories,
     get_sub_categories,
     build_media_cat_map,
+    get_all_media,
 )
 
 set_current_page("mediapromo")
 
 
-CHIP_PRESETS = {
-    "amber": {"bg": "#F2A93B", "fg": "#12100C", "label": "앰버 (강조)"},
-    "ink":   {"bg": "#111111", "fg": "#FFFFFF", "label": "블랙 (기본)"},
-    "line":  {"bg": "transparent", "fg": "#666666", "label": "아웃라인 (보조)"},
-}
-DEFAULT_CHIP_PRESET = "line"
-
-
-def _chip_html(name: str, preset_key: str) -> str:
-    p = CHIP_PRESETS.get(preset_key, CHIP_PRESETS[DEFAULT_CHIP_PRESET])
-    if preset_key == "line":
-        return (
-            f"<span style='box-shadow:0 0 0 0.5px #999 inset;color:{p['fg']};"
-            f"font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;"
-            f"margin-right:6px;'>{name}</span>"
-        )
-    return (
-        f"<span style='background:{p['bg']};color:{p['fg']};font-size:11px;"
-        f"font-weight:600;padding:3px 9px;border-radius:6px;margin-right:6px;'>"
-        f"{name}</span>"
-    )
+# 칩·카드 HTML 은 주간 뉴스룸과 공유하기 위해 utils/ui.py 로 옮겼다. 기존 이름은 별칭으로 유지.
+CHIP_PRESETS = PROMO_CHIP_PRESETS
+DEFAULT_CHIP_PRESET = PROMO_DEFAULT_CHIP_PRESET
+_chip_html = promo_chip_html
 
 
 # ----------------------------------------------------------------------
@@ -232,56 +222,7 @@ def _apply_filters(promos, major, subs, promo_cats, target_start, target_end):
 # ----------------------------------------------------------------------
 
 def _render_promo_card(promo: dict):
-    is_active = promo["status"] == "active"
-    opacity = "1" if is_active else "0.55"
-    grayscale = "0" if is_active else "0.55"
-
-    chip_html = "".join(_chip_html(name, key) for name, key in promo["categories"])
-    card_img = promo.get("preview_image_url") or promo["image_url"]
-    if card_img:
-        img_tag = (
-            f"<img src='{card_img}' style='width:100%;aspect-ratio:16/9;"
-            f"object-fit:cover;display:block;background:#eee;'/>"
-        )
-    else:
-        img_tag = (
-            "<div style='width:100%;aspect-ratio:16/9;background:#f0f0f0;"
-            "display:flex;align-items:center;justify-content:center;color:#bbb;"
-            "font-size:12px;'>이미지 없음</div>"
-        )
-
-    media_span = ""
-    if promo["media_name"]:
-        media_span = (
-            f"<span style='font-size:11px;color:#666;'>{promo['media_name']}</span>"
-        )
-
-    header_row = (
-        f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;"
-        f"min-height:22px;flex-wrap:wrap;'>"
-        f"{media_span}{chip_html}"
-        f"</div>"
-    )
-
-    card_html = (
-        f"<div style='opacity:{opacity};filter:grayscale({grayscale});"
-        f"border:0.5px solid #ddd;border-top-left-radius:8px;border-top-right-radius:8px;"
-        f"overflow:hidden;background:#fff;border-bottom:none;'>"
-        f"{img_tag}"
-        f"<div style='padding:12px 14px 8px;'>"
-        f"{header_row}"
-        # 제목은 1줄, 부제목은 2줄로 높이를 고정해 카드 정렬을 맞춘다.
-        f"<div style='font-size:14px;font-weight:700;margin-bottom:4px;color:#111;"
-        f"line-height:20px;min-height:20px;display:-webkit-box;-webkit-line-clamp:1;"
-        f"-webkit-box-orient:vertical;overflow:hidden;'>{promo['name']}</div>"
-        # 부제목은 항상 2줄 높이를 확보한다(1줄·공란이어도 둘째 줄은 여백).
-        # 카드마다 높이가 달라져 '자세히 보기' 버튼이 어긋나는 것을 막기 위함.
-        # 2줄을 넘기면 말줄임 처리하고, 전문은 상세 팝업에서 볼 수 있다.
-        f"<div style='font-size:12px;color:#666;line-height:18px;min-height:36px;"
-        f"display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;"
-        f"overflow:hidden;'>{promo['subtitle']}</div>"
-        f"</div></div>"
-    )
+    card_html = promo_card_html(promo)
     st.markdown(card_html, unsafe_allow_html=True)
     if st.button("자세히 보기", key=f"promo_btn_{promo['id']}",
                  use_container_width=True):
@@ -340,20 +281,7 @@ def _render_view_mode(promo):
         st.warning("프로모션 정보를 찾을 수 없습니다.")
         return
 
-    if promo["image_url"]:
-        st.image(promo["image_url"], use_container_width=True)
-
-    if promo["media_name"]:
-        st.markdown(
-            f"<div style='font-size:12px;color:#666;margin-bottom:4px;'>"
-            f"{promo['media_name']}</div>",
-            unsafe_allow_html=True,
-        )
-
-    chip_html = "".join(_chip_html(name, key) for name, key in promo["categories"])
-    if chip_html:
-        st.markdown(chip_html, unsafe_allow_html=True)
-
+    # 매체명·카테고리 칩은 카드에 이미 보이므로 팝업에서는 생략한다
     st.markdown(f"### {promo['name']}")
     if promo["subtitle"]:
         st.caption(promo["subtitle"])
@@ -369,6 +297,11 @@ def _render_view_mode(promo):
             unsafe_allow_html=True,
         )
 
+    # 상세 이미지는 내용(매체·제목·기간·메모) 아래, 맨 마지막에 둔다 — 주간 뉴스룸 팝업과 같은 순서
+    if promo["image_url"]:
+        st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
+        st.image(promo["image_url"], use_container_width=True)
+
     if is_admin():
         st.divider()
         if st.button("✎ 수정하기", key=f"promo_edit_entry_{promo['id']}",
@@ -382,9 +315,16 @@ def _render_edit_mode(existing_promo):
     is_edit = existing_promo is not None
     st.markdown("#### 프로모션 수정" if is_edit else "#### 프로모션 등록")
 
-    st.text_input("매체명", key="_promo_f_media",
-                  placeholder="예: 네이버GFA, 카카오모먼트",
-                  help="필터 매칭을 위해 매체명이 정확히 일치해야 함")
+    # 매체명은 등록된 매체 목록에서만 고른다 — 직접 입력 시 표기가 흔들려 필터가 매칭되지 않던 문제 방지.
+    # 기존 값이 목록에 없으면(표기가 다른 과거 데이터) 그 값도 선택지에 남겨 수정 시 사라지지 않게 한다.
+    media_options = [""] + [m["name"] for m in get_all_media() if m.get("name")]
+    cur_media = st.session_state.get("_promo_f_media") or ""
+    if cur_media and cur_media not in media_options:
+        media_options.append(cur_media)
+    st.session_state["_promo_f_media"] = cur_media   # 위젯 생성 전에 유효한 값으로 맞춘다
+    st.selectbox("매체명", media_options, key="_promo_f_media",
+                 format_func=lambda x: x or "선택 안 함",
+                 help="등록된 매체 목록에서 선택합니다 (필터 매칭 기준)")
     st.text_input("프로모션명 *", key="_promo_f_name",
                   placeholder="필수 입력")
     st.text_input("부제목", key="_promo_f_subtitle",

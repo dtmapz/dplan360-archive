@@ -57,21 +57,40 @@ st.markdown(
         font-size: 11px !important;
     }
 
-    /* 대행사 실무 가이드 항목: 항상 앰버 70% 배경 강조 (선택 여부 무관) */
+    /* 대행사 실무 가이드 항목: 주간 뉴스룸과 같은 반투명 흰색 16% + 흰 세로선 강조 (선택 여부 무관) */
     [data-testid="stSidebarNav"] a[href*="MediaPractice"] {
-        background: rgba(242, 169, 59, 0.70) !important;
-        border-left: 3px solid #F2A93B !important;
+        background: rgba(255, 255, 255, 0.16) !important;
+        border-left: 3px solid #FFFFFF !important;
         border-radius: 4px !important;
     }
     [data-testid="stSidebarNav"] a[href*="MediaPractice"]:hover {
-        background: rgba(242, 169, 59, 0.85) !important;
+        background: rgba(255, 255, 255, 0.24) !important;
     }
     [data-testid="stSidebarNav"] a[href*="MediaPractice"] * {
-        color: #1C1200 !important;
+        color: #FFFFFF !important;
         font-weight: 600 !important;
         background: transparent !important;
     }
     [data-testid="stSidebarNav"] li:has(a[href*="MediaPractice"]) {
+        background: transparent !important;
+    }
+
+    /* 주간 뉴스룸 항목: 항상 반투명 흰색 16% 배경 + 흰 세로선 강조 (선택 여부 무관).
+       순백은 어두운 사이드바에서 앰버 실무 가이드보다 먼저 튀어 반투명으로 낮췄다 */
+    [data-testid="stSidebarNav"] a[href*="Newsroom"] {
+        background: rgba(255, 255, 255, 0.16) !important;
+        border-left: 3px solid #FFFFFF !important;
+        border-radius: 4px !important;
+    }
+    [data-testid="stSidebarNav"] a[href*="Newsroom"]:hover {
+        background: rgba(255, 255, 255, 0.24) !important;
+    }
+    [data-testid="stSidebarNav"] a[href*="Newsroom"] * {
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+        background: transparent !important;
+    }
+    [data-testid="stSidebarNav"] li:has(a[href*="Newsroom"]) {
         background: transparent !important;
     }
     </style>
@@ -84,6 +103,7 @@ media_guide_page = st.Page("pages/6_MediaGuide.py", title="미디어 가이드",
 creative_page = st.Page("pages/5_CreativeGuide.py", title="소재 제작 가이드", icon="🎨")
 media_archive_page = st.Page("pages/4_MediaArchive.py", title="주요 미디어 자료", icon="📁")
 media_news_page = st.Page("pages/13_MediaNews.py", title="미디어 소식 아카이브", icon="📰")
+newsroom_page = st.Page("pages/14_Newsroom.py", title="주간 뉴스룸", icon="🗞️")
 promotion_page = st.Page("pages/8_Promotion.py", title="SMR&넷플릭스 프로모션 LIVE", icon="🏆")
 mediapromo_page = st.Page("pages/9_MediaPromo.py", title="미디어 프로모션", icon="🎁")
 calendar_page = st.Page("pages/3_EventCalendar.py", title="디플랜360 캘린더", icon="📅")
@@ -97,9 +117,9 @@ media_practice_page = st.Page("pages/12_MediaPractice.py", title="[중요] 대�
 admin_page = st.Page("pages/99_Admin.py", title="액세스 권한 관리", icon="🔐")
 
 pages = {
-    "[MEDIA]": [home_page, media_guide_page, creative_page, media_archive_page, media_news_page],
+    "[MEDIA]": [home_page, media_guide_page, media_archive_page, media_news_page, newsroom_page],
     "[PROMOTION]": [promotion_page, mediapromo_page],
-    "[SUPPORT]": [calendar_page, budget_page, casestudy_page, media_practice_page],
+    "[SUPPORT]": [calendar_page, creative_page, budget_page, casestudy_page, media_practice_page],
 }
 if is_admin():
     pages["[ADMIN]"] = [admin_page]
