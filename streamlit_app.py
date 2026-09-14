@@ -10,9 +10,16 @@ from utils.auth import (
     render_password_change_dialog,
 )
 from utils.spbot_ui import render_spbot_trigger
+from utils.privacy import render_privacy_policy
 
 st.set_page_config(page_title="D-PLAN360 ARCHIVE", layout="wide")
 inject_base_style()
+
+# Google OAuth 동의 화면(Apps Script 알림)에 등록한 개인정보처리방침 — 로그인 없이 공개해야 해서
+# 로그인 확인보다 먼저 처리한다. 다른 주소는 기존대로 로그인이 필요하다 (§11-K)
+if st.query_params.get("page") == "privacy":
+    render_privacy_policy()
+    st.stop()
 
 user = get_current_user()
 if not user:
