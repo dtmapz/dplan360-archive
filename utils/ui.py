@@ -729,7 +729,8 @@ def _detail_dialog(media_id: str) -> None:
             st.markdown(
                 f"<div style='background:#F6F8FC; border:1px solid #E5EAF5; "
                 f"border-radius:8px; padding:10px 12px; font-size:13px; "
-                f"white-space:pre-wrap; line-height:1.5;'>{m['memo']}</div>",
+                # 아래 여백 — HTML 박스는 문단(p) 여백이 없어 다음 요소(프로모션)와 붙어 보였다
+                f"white-space:pre-wrap; line-height:1.5; margin-bottom:1rem;'>{m['memo']}</div>",
                 unsafe_allow_html=True,
             )
 
@@ -791,7 +792,9 @@ def _detail_dialog(media_id: str) -> None:
                 st.rerun()
 
         # ─── 미디어허브 편집 영역 (관리자 전용) ───
-        _render_hub_edit_area(media_id)
+        # [수정] 버튼은 일반 사용자에게도 열려 있어(매체 정보 수정 허용) 허브 편집만 따로 막는다
+        if is_admin():
+            _render_hub_edit_area(media_id)
 
 
 @st.dialog("신규 매체 등록")
@@ -1012,7 +1015,8 @@ def _hub_dialog(media_id: str) -> None:
         st.markdown(
             f"<div style='background:#F6F8FC; border:1px solid #E5EAF5; "
             f"border-radius:8px; padding:10px 12px; font-size:13px; "
-            f"white-space:pre-wrap; line-height:1.5;'>{media['memo']}</div>",
+            # 아래 여백 — HTML 박스는 문단(p) 여백이 없어 다음 요소(프로모션·공지)와 붙어 보였다
+            f"white-space:pre-wrap; line-height:1.5; margin-bottom:1rem;'>{media['memo']}</div>",
             unsafe_allow_html=True,
         )
 
