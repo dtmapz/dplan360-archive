@@ -1,4 +1,5 @@
 import hashlib as _hashlib
+import html as _html
 
 import streamlit as st
 from utils.sheets import (
@@ -7,7 +8,8 @@ from utils.sheets import (
     get_media_detail,
     update_media_info,
     create_media_info,
-    to_download_url,
+    get_home_promotions,
+    get_all_media_with_categories,
     has_media_hub,
     get_hub_media_ids,
     get_hub_by_media,
@@ -328,6 +330,8 @@ def render_pending_dialog() -> None:
         _register_dialog()
     elif kind == "mail":
         _mail_dialog(payload)
+    elif kind == "promo":
+        _promo_view_dialog(payload)
 
 
 def _close_dialog() -> None:
@@ -378,6 +382,24 @@ def render_result_table(media_list: list[dict], key_prefix: str) -> None:
     # 허브 활성 매체ID를 표 단위로 1회만 조회 (행마다 has_media_hub 호출 금지)
     hub_ids = get_hub_media_ids()
 
+    # 매체명 = 세부 팝업(텍스트형 버튼, 마우스를 올리면 앰버 밑줄) / 오른쪽 [소개서 ↗] = 소개서 새 탭
+    st.markdown(
+        "<div style='font-size:12px;color:#6B6760;margin:0 0 10px;'>"
+        "* 매체명 클릭 시 세부 정보 확인이 가능합니다.</div>"
+        "<style>"
+        # 버튼 라벨은 기본 14px(sm)이라 옆 칸 텍스트(16px, md)와 크기를 맞춘다
+        "div[class*='st-key-mname_'] button p{font-weight:600;font-size:1rem;}"
+        # 버튼 기본 최소 높이(40px) 안에서 글자가 세로 가운데로 가 옆 칸보다 내려가던 것 —
+        # 최소 높이를 없애고 줄 높이를 일반 텍스트(1.6)와 맞춰 같은 선에 세운다
+        "div[class*='st-key-mname_'] button{min-height:0;line-height:1.6;}"
+        "div[class*='st-key-mname_'] button:hover p,"
+        "div[class*='st-key-mname_'] button:focus-visible p{"
+        "text-decoration:underline;text-decoration-color:#F2A93B;"
+        "text-decoration-thickness:2px;text-underline-offset:3px;}"
+        "</style>",
+        unsafe_allow_html=True,
+    )
+
     header = st.columns(col_ratio)
     labels = ["매체명", "담당자", "직급", "연락처", "이메일", "팀메일"]
     for i, c in enumerate(header):
@@ -407,17 +429,13 @@ def render_result_table(media_list: list[dict], key_prefix: str) -> None:
         )
 
         cols = st.columns(col_ratio)
-        # 매체명 — 소개서 URL 있으면 하이퍼링크 + 허브 배지
-        if intro_url:
-            cols[0].markdown(
-                f"<a href='{intro_url}' target='_blank' rel='noopener' "
-                f"style='color:#0B0B0B; text-decoration:underline; "
-                f"text-decoration-color:#B0B0B0; text-underline-offset:3px;' "
-                f"title='매체소개서 열기'>{m['name']}</a>{hub_badge}",
-                unsafe_allow_html=True,
-            )
-        else:
-            cols[0].markdown(f"{m['name']}{hub_badge}", unsafe_allow_html=True)
+        # 매체명 — 누르면 세부 팝업 (허브 매체는 이름 옆에 허브 배지)
+        name_cell = (cols[0].container(horizontal=True, vertical_alignment="center", gap=None)
+                     if is_hub else cols[0])
+        if name_cell.button(m["name"], key=f"mname_{key_prefix}_{m['id']}", type="tertiary"):
+            request_detail(m["id"])
+        if is_hub:
+            name_cell.markdown(hub_badge, unsafe_allow_html=True)
         cols[1].write(contact.get("manager_name") or "-")
         cols[2].write(contact.get("position") or "-")
 
@@ -432,10 +450,13 @@ def render_result_table(media_list: list[dict], key_prefix: str) -> None:
         cols[4].write(email or "-")
         cols[5].write(team_email or "-")
 
-        # [확인] — 팝업 or 미디어허브 뷰로 자동 라우팅 (has_media_hub 기준)
-        if cols[6].button("확인", key=f"view_{key_prefix}_{m['id']}",
-                          use_container_width=True, type="secondary"):
-            request_detail(m["id"])
+        # [소개서 ↗] — 소개서를 새 탭으로 바로 연다. 링크 없는 매체는 비활성
+        if intro_url:
+            cols[6].link_button("소개서 ↗", intro_url, key=f"intro_{key_prefix}_{m['id']}",
+                                use_container_width=True)
+        else:
+            cols[6].button("소개서 ↗", key=f"intro_{key_prefix}_{m['id']}", disabled=True,
+                           use_container_width=True, help="등록된 소개서가 없습니다")
 
 
 # ---------------------------------------------------------------------------
@@ -491,21 +512,189 @@ def format_updated_at(value: str | None) -> str:
         return value
 
 
-def render_contact_detail_table(contact: dict) -> None:
+def render_contact_detail_table(contact: dict, intro_url: str = "", updated_at: str | None = None) -> None:
     manager_label = " ".join(
         p for p in [contact.get("manager_name"), contact.get("position")] if p
     ) or "-"
+    # 매체소개서는 버튼 대신 표 첫 행의 새 탭 링크로 둔다 (허브 자료 링크와 같은 밑줄 + 앰버 ↗)
+    intro_html = (
+        f"<a href='{intro_url}' target='_blank' rel='noopener' "
+        f"style='color:#0B0B0B;text-decoration:none;display:inline-flex;align-items:center;gap:6px;'>"
+        f"<span style='border-bottom:1px solid #C8C5BE;padding-bottom:1px;'>소개서 열기</span>"
+        f"<span style='color:#F2A93B;font-size:12px;'>↗</span></a>"
+        if intro_url else "-"
+    )
     rows = [
+        ("매체소개서", intro_html),
         ("담당자/직급", manager_label),
         ("연락처", contact.get("phone") or "-"),
         ("이메일", contact.get("email") or "-"),
         ("팀메일", contact.get("team_email") or "-"),
         ("마지막 컨택", contact.get("last_contact_date") or "-"),
+        # 표 아래 캡션으로 따로 있던 매체 정보 수정일을 표 마지막 행으로 옮김
+        ("업데이트 일자", format_updated_at(updated_at)),
     ]
     html = "<table class='contact-table'>" + "".join(
         f"<tr><td class='label'>{k}</td><td>{v}</td></tr>" for k, v in rows
     ) + "</table>"
     st.markdown(html, unsafe_allow_html=True)
+
+
+def _promo_period(start, end) -> str:
+    s = f"{start:%Y.%m.%d}" if start else "시작일 미정"
+    e = f"{end:%Y.%m.%d}" if end else "종료일 미정"
+    return f"{s} ~ {e}"
+
+
+def _promo_row_html(p: dict, is_ongoing: bool) -> str:
+    img = p.get("preview_image_url") or p.get("image_url")
+    thumb = (
+        f"<img src='{_html.escape(img, quote=True)}' style='width:88px;aspect-ratio:16/9;"
+        f"object-fit:cover;border-radius:4px;display:block;background:#eee;'/>"
+        if img else
+        "<div style='width:88px;aspect-ratio:16/9;border-radius:4px;background:#f0f0f0;'></div>"
+    )
+    sub = (
+        f"<div style='font-size:12px;color:#666;white-space:nowrap;overflow:hidden;"
+        f"text-overflow:ellipsis;'>{_html.escape(p['subtitle'])}</div>"
+        if p["subtitle"] else ""
+    )
+    chips = "".join(promo_chip_html(n, k) for n, k in p["categories"])
+    state = (
+        "<span style='background:#F2A93B;color:#1C1200;font-size:11px;font-weight:600;"
+        "padding:2px 8px;border-radius:5px;white-space:nowrap;'>진행중</span>"
+        if is_ongoing else
+        "<span style='box-shadow:0 0 0 0.5px #999 inset;color:#555;font-size:11px;font-weight:600;"
+        "padding:2px 8px;border-radius:5px;white-space:nowrap;'>진행예정</span>"
+    )
+    return (
+        "<div style='display:grid;grid-template-columns:88px minmax(0,1fr) auto;gap:12px;"
+        "align-items:center;padding:10px;border:0.5px solid #ddd;border-radius:8px;margin-bottom:8px;'>"
+        f"{thumb}"
+        "<div style='min-width:0;'>"
+        f"<div style='font-size:13.5px;font-weight:700;color:#111;white-space:nowrap;overflow:hidden;"
+        f"text-overflow:ellipsis;'>{_html.escape(p['name'])}</div>"
+        f"{sub}"
+        f"<div style='display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:4px;"
+        f"font-size:11.5px;color:#77736C;'>{chips}<span>{_promo_period(p['start_date'], p['end_date'])}</span></div>"
+        "</div>"
+        f"{state}</div>"
+    )
+
+
+def _norm_media_name(name: str) -> str:
+    """매체명 비교용 — 대소문자·공백 무시 (시트의 'Daum' ↔ 매체 목록의 'DAUM')."""
+    return "".join((name or "").split()).lower()
+
+
+# 매체 팝업 안 프로모션 행 — 마우스를 올리면 앰버 테두리 (미디어 프로모션 카드와 같은 신호)
+_MEDIA_PROMO_CSS = (
+    "<style>"
+    "a{display:block;border-radius:8px;}"
+    "a:hover > div{border-color:#F2A93B !important;box-shadow:0 0 0 1px #F2A93B inset;}"
+    "</style>"
+)
+
+
+def _render_media_promos(media_id: str, media_name: str) -> None:
+    """매체 팝업의 '프로모션' 영역 — 미디어 프로모션(home_promotion)에 등록된 이 매체의
+    진행중·진행예정 건만 보여준다(종료 건은 숨김). 0건이면 영역 자체를 그리지 않는다.
+
+    - 매체명은 대소문자·공백을 무시하고 비교한다(_norm_media_name).
+    - 진행중/진행예정 구분은 9_MediaPromo.py 탭과 같은 기준(date.today())을 쓴다.
+    - 항목을 누르면 팝업 위에 팝업을 겹칠 수 없어 **이 팝업을 프로모션 팝업으로 바꾼다**(_promo_view_dialog).
+    """
+    from datetime import date
+
+    target = _norm_media_name(media_name)
+    if not target:
+        return
+    today = date.today()
+    ongoing, upcoming = [], []
+    # 캐시된 목록을 팝업당 1회만 조회 (§17-8). 정렬은 페이지와 같다(진행중 → 진행예정, 시작일 순).
+    for p in get_home_promotions():
+        if p["status"] != "active" or _norm_media_name(p["media_name"]) != target:
+            continue
+        (upcoming if p["start_date"] and p["start_date"] > today else ongoing).append(p)
+    if not ongoing and not upcoming:
+        return
+
+    st.markdown(
+        "**프로모션** "
+        f"<span style='font-size:12px;color:#8A867F;font-weight:400;margin-left:6px;'>"
+        f"진행중 {len(ongoing)} · 진행예정 {len(upcoming)}</span>",
+        unsafe_allow_html=True,
+    )
+    rows = "".join(
+        f"<a href='#' id='promo__{_html.escape(str(p['id']), quote=True)}'>{_promo_row_html(p, is_on)}</a>"
+        for p, is_on in [(p, True) for p in ongoing] + [(p, False) for p in upcoming]
+    )
+    target_id = click_cards(_MEDIA_PROMO_CSS + rows, key=f"media_promo_det_{media_id}",
+                            nonce_key="_media_promo_click_nonce")
+    if target_id and target_id.startswith("promo__"):
+        st.session_state["_active_dialog"] = (
+            "promo", (target_id.split("__", 1)[1], media_id, media_name), _current_page(),
+        )
+        st.rerun()
+
+
+def render_promo_detail(promo: dict) -> None:
+    """프로모션 상세 내용 — 미디어 프로모션 팝업과, 매체 검색에서 여는 프로모션 팝업이 함께 쓴다.
+    매체명·카테고리 칩은 팝업 제목(매체명)·카드에 이미 보이므로 생략한다.
+    """
+    st.markdown(f"### {promo['name']}")
+    if promo["subtitle"]:
+        st.caption(promo["subtitle"])
+
+    period = f"{promo['start_date'] or '-'} ~ {promo['end_date'] or '상시'}"
+    st.markdown(f"**운영 기간**  \n{period}")
+
+    if promo["memo"]:
+        st.markdown(
+            f"<div style='background:#FFF8E1;border-left:3px solid #F2A93B;"
+            f"border-radius:6px;padding:12px 14px;font-size:12px;margin-top:10px;'>"
+            f"{promo['memo']}</div>",
+            unsafe_allow_html=True,
+        )
+
+    # 상세 이미지는 내용(제목·기간·메모) 아래, 맨 마지막에 둔다 — 주간 뉴스룸 팝업과 같은 순서
+    if promo["image_url"]:
+        st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
+        st.image(promo["image_url"], use_container_width=True)
+
+
+def render_media_info_block(media_name: str) -> None:
+    """등록 매체의 '매체 정보' 표(소개서 링크 + 담당자). 매체 목록에 없는 이름이면 그리지 않는다."""
+    target = _norm_media_name(media_name)
+    if not target:
+        return
+    media = next((m for m in get_all_media_with_categories()
+                  if _norm_media_name(m["name"]) == target), None)
+    if not media:
+        return
+    contact = (media.get("contacts") or [{}])[0] if media.get("contacts") else {}
+    st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
+    st.write("**매체 정보**")
+    render_contact_detail_table(contact, media.get("intro_doc_url") or "", media.get("updated_at"))
+
+
+def _promo_view_dialog(payload) -> None:
+    """매체 팝업에서 프로모션을 눌렀을 때 열리는 팝업. 제목은 매체명.
+    맨 위 버튼으로 매체 팝업에 돌아간다 — 매체 정보 표는 방금 봤으므로 다시 넣지 않는다.
+    """
+    promo_id, media_id, media_name = payload
+    # st.dialog 제목은 데코레이터 인자라 실행 시점에 만들어 호출한다
+    st.dialog(media_name or "프로모션")(_promo_view_body)(promo_id, media_id, media_name)
+
+
+def _promo_view_body(promo_id: str, media_id: str, media_name: str) -> None:
+    if st.button(f"← {media_name} 매체 정보", key=f"promo_back_{media_id}"):
+        request_detail(media_id)
+    promo = next((p for p in get_home_promotions() if str(p["id"]) == str(promo_id)), None)
+    if not promo:
+        st.warning("프로모션 정보를 찾을 수 없습니다.")
+        return
+    render_promo_detail(promo)
 
 
 # ---------------------------------------------------------------------------
@@ -531,19 +720,9 @@ def _detail_dialog(media_id: str) -> None:
             st.rerun()
 
     if not edit_mode:
-        st.write("**매체소개서**")
-        if m.get("intro_doc_url"):
-            col_view, col_dl = st.columns([1, 1])
-            with col_view:
-                st.link_button("확인", m["intro_doc_url"], use_container_width=True)
-            with col_dl:
-                st.link_button("다운로드", to_download_url(m["intro_doc_url"]),
-                              use_container_width=True)
-        else:
-            st.caption("등록된 소개서 링크가 없습니다.")
-
-        st.write("**담당자 컨택 포인트**")
-        render_contact_detail_table(contact)
+        # [확인]·[다운로드] 버튼 대신 표 첫 행의 소개서 링크 (다운로드는 드라이브 링크에서만 동작해 제거)
+        st.write("**매체 정보**")
+        render_contact_detail_table(contact, m.get("intro_doc_url") or "", m.get("updated_at"))
 
         if m.get("memo"):
             st.write("**메모**")
@@ -554,7 +733,7 @@ def _detail_dialog(media_id: str) -> None:
                 unsafe_allow_html=True,
             )
 
-        st.caption(f"업데이트 일자: {format_updated_at(m.get('updated_at'))}")
+        _render_media_promos(media_id, m.get("name") or "")
 
         if st.button("닫기", key=f"close_{media_id}"):
             _close_dialog()
@@ -825,19 +1004,8 @@ def _hub_dialog(media_id: str) -> None:
                 st.session_state["_active_dialog"] = ("detail", media_id, _current_page())
                 st.rerun()
 
-    st.write("**매체소개서**")
-    if media.get("intro_doc_url"):
-        col_view, col_dl = st.columns([1, 1])
-        with col_view:
-            st.link_button("확인", media["intro_doc_url"], use_container_width=True)
-        with col_dl:
-            st.link_button("다운로드", to_download_url(media["intro_doc_url"]),
-                          use_container_width=True)
-    else:
-        st.caption("등록된 소개서 링크가 없습니다.")
-
-    st.write("**담당자 컨택 포인트**")
-    render_contact_detail_table(contact)
+    st.write("**매체 정보**")
+    render_contact_detail_table(contact, media.get("intro_doc_url") or "", media.get("updated_at"))
 
     if media.get("memo"):
         st.write("**메모**")
@@ -848,8 +1016,10 @@ def _hub_dialog(media_id: str) -> None:
             unsafe_allow_html=True,
         )
 
-    st.caption(f"업데이트 일자: {format_updated_at(media.get('updated_at'))}")
     # === 상단 종료 (여기까지 detail 팝업 조회 모드와 완전 동일) ===
+
+    # ─ 프로모션 ─ (진행중·진행예정 있을 때만, 매체 정보와 공지·허브 사이)
+    _render_media_promos(media_id, media["name"])
 
     # ─ 공지 영역 ─ (조회 전용, 있을 때만)
     _render_hub_notice(media_id, admin=False, edit_mode=False)

@@ -20,7 +20,7 @@ from utils.ui import set_current_page, promo_card_html
 
 set_current_page("newsroom")
 
-WEEK_OPTIONS = ["지난주", "이번주"]
+WEEK_OFFSETS = [-1, 0]  # 탭 순서: 지난주 | 이번주
 DAY_ABBR = ["MON", "TUE", "WED", "THU", "FRI"]
 
 # 구분 칩 색 — 미디어 소식 아카이브(13_MediaNews)와 같은 값
@@ -472,10 +472,14 @@ def _render_popup() -> None:
 # 페이지 본문
 # ----------------------------------------------------------------------
 
+# 탭 라벨은 "9월 2주차(9/7~9/13)" — 날짜가 바뀌면 라벨도 바뀌므로 매 실행마다 계산한다.
+# 기본은 지난주. 선택을 해제(None)해도 지난주로 본다.
+week_offsets = {nr.week_tab_label(nr.week_bounds(o)[0]): o for o in WEEK_OFFSETS}
 week = st.segmented_control(
-    "주차", WEEK_OPTIONS, default="이번주", key="nr_week", label_visibility="collapsed",
+    "주차", list(week_offsets), default=next(iter(week_offsets)),
+    key="nr_week", label_visibility="collapsed",
 )
-offset = -1 if week == "지난주" else 0
+offset = week_offsets.get(week, -1)
 wk = "지난주" if offset == -1 else "이번 주"
 next_word = "이번 주" if offset == -1 else "다음 주"
 monday, sunday = nr.week_bounds(offset)
@@ -503,7 +507,8 @@ has_any = any([
 
 if not has_any:
     # 전체 0건 — 빈 섹션 5개를 나열하지 않고 한 덩어리로 안내(E-3)
-    hint = ("각 카테고리에 소식이 등록되면 이곳에 자동으로 모입니다 · 지난주 탭에서 지난 소식을 확인할 수 있습니다"
+    hint = ("각 카테고리에 소식이 등록되면 이곳에 자동으로 모입니다 · "
+            f"{next(iter(week_offsets))} 탭에서 지난 소식을 확인할 수 있습니다"
             if offset == 0 else "각 카테고리에 등록된 소식이 없었습니다")
     st.markdown(
         "<div style='border:1px dashed #D6D3CC;border-radius:10px;padding:34px 20px;text-align:center;"

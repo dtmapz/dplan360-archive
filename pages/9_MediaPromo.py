@@ -8,6 +8,8 @@ from utils.ui import (
     promo_chip_html,
     PROMO_CHIP_PRESETS,
     PROMO_DEFAULT_CHIP_PRESET,
+    render_promo_detail,
+    render_media_info_block,
 )
 from utils.db import upload_notice_image
 from utils.sheets import (
@@ -263,8 +265,14 @@ def _keep_popup():
     st.session_state["_promo_popup_open"] = True
 
 
-@st.dialog("프로모션")
 def render_promo_popup():
+    # 팝업 제목은 매체명(신규 등록은 '프로모션'). st.dialog 제목은 데코레이터 인자라 실행 시점에 만든다.
+    promo_id = st.session_state.get("_promo_popup_promo_id")
+    promo = next((p for p in get_home_promotions() if p["id"] == promo_id), None) if promo_id else None
+    st.dialog((promo or {}).get("media_name") or "프로모션")(_promo_popup_body)()
+
+
+def _promo_popup_body():
     # 첫 렌더 시 플래그 pop → X 닫기 시 필터 변경으로 재오픈되지 않음
     st.session_state.pop("_promo_popup_open", None)
     mode = st.session_state.get("_promo_popup_mode", "view")
@@ -288,26 +296,9 @@ def _render_view_mode(promo):
         st.warning("프로모션 정보를 찾을 수 없습니다.")
         return
 
-    # 매체명·카테고리 칩은 카드에 이미 보이므로 팝업에서는 생략한다
-    st.markdown(f"### {promo['name']}")
-    if promo["subtitle"]:
-        st.caption(promo["subtitle"])
-
-    period = f"{promo['start_date'] or '-'} ~ {promo['end_date'] or '상시'}"
-    st.markdown(f"**운영 기간**  \n{period}")
-
-    if promo["memo"]:
-        st.markdown(
-            f"<div style='background:#FFF8E1;border-left:3px solid #F2A93B;"
-            f"border-radius:6px;padding:12px 14px;font-size:12px;margin-top:10px;'>"
-            f"{promo['memo']}</div>",
-            unsafe_allow_html=True,
-        )
-
-    # 상세 이미지는 내용(매체·제목·기간·메모) 아래, 맨 마지막에 둔다 — 주간 뉴스룸 팝업과 같은 순서
-    if promo["image_url"]:
-        st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
-        st.image(promo["image_url"], use_container_width=True)
+    # 내용은 매체 검색에서 여는 프로모션 팝업과 공용(utils/ui.py). 맨 아래에 매체 정보 표(소개서·담당자)를 붙인다.
+    render_promo_detail(promo)
+    render_media_info_block(promo["media_name"])
 
     if is_admin():
         st.divider()

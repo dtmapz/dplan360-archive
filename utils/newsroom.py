@@ -52,6 +52,12 @@ def week_label(monday: date) -> str:
     return f"{friday.month}월 {(friday.day - 1) // 7 + 1}주차"
 
 
+def week_tab_label(monday: date) -> str:
+    """주차 선택 탭 라벨 — '9월 2주차(9/7~9/13)'. 기간은 필터 범위와 같은 월~일."""
+    sunday = monday + timedelta(days=6)
+    return f"{week_label(monday)}({monday.month}/{monday.day}~{sunday.month}/{sunday.day})"
+
+
 def fmt_range(monday: date, sunday: date) -> str:
     return (f"{monday:%Y.%m.%d}({WEEKDAY_KO[monday.weekday()]}) ~ "
             f"{sunday:%m.%d}({WEEKDAY_KO[sunday.weekday()]})")
