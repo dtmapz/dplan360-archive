@@ -7,7 +7,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from datetime import date
 
-from utils.auth import is_admin
+from utils.auth import is_admin, get_current_user
 from utils.ui import set_current_page, click_cards
 from utils.db import upload_notice_image
 from utils.sheets import (
@@ -120,6 +120,25 @@ def _keep_open():
 
 
 # ---------------------------------------------------------------------
+# 권한 — 등록은 로그인한 모든 사용자, 수정·삭제는 작성자 본인 + 관리자 (2026-09-14)
+# ---------------------------------------------------------------------
+
+def _current_email() -> str:
+    user = get_current_user() or {}
+    return (user.get("email") or "").strip().lower()
+
+
+def _can_manage(cs: dict | None) -> bool:
+    """수정·삭제 권한. 작성자 기록(created_by)이 없는 이전 등록분은 관리자만."""
+    if not cs:
+        return False
+    if is_admin():
+        return True
+    owner = (cs.get("created_by") or "").strip().lower()
+    return bool(owner) and owner == _current_email()
+
+
+# ---------------------------------------------------------------------
 # 카드 그리드
 # ---------------------------------------------------------------------
 
@@ -204,7 +223,7 @@ def _card_html(cs: dict) -> str:
         f"{kpi_html}"
         f"</div></div>"
     )
-    # 버튼 없이 카드 전체를 클릭 영역으로 (HTML·PPTX 다운로드와 관리자 수정·삭제는 팝업 안에 그대로)
+    # 버튼 없이 카드 전체를 클릭 영역으로 (HTML·PPTX 다운로드와 수정·삭제는 팝업 안에 그대로)
     return f"<a href='#' id='cs__{cs['id']}'>{card_html}</a>"
 
 
@@ -308,7 +327,8 @@ def _view(cs: dict | None):
     except Exception as e:
         dl_b.error(f"PPTX 생성 실패: {e}")
 
-    if is_admin():
+    # 수정·삭제는 작성자 본인과 관리자에게만 보인다 (작성자는 화면에 표시하지 않음)
+    if _can_manage(cs):
         st.divider()
         cA, cB = st.columns(2)
         if cA.button("✎ 수정", key=f"cs_edit_{cs['id']}", use_container_width=True):
@@ -326,6 +346,9 @@ def _view(cs: dict | None):
             st.error("정말 삭제하시겠습니까?")
             dc1, dc2 = st.columns(2)
             if dc1.button("삭제 확정", key=f"cs_del_ok_{cs['id']}", type="primary", use_container_width=True):
+                if not _can_manage(cs):  # 실행 직전 재확인
+                    st.error("이 사례를 삭제할 권한이 없습니다.")
+                    return
                 delete_case_study(cs["row"])
                 _reset_state()
                 st.rerun()
@@ -337,6 +360,9 @@ def _view(cs: dict | None):
 
 def _edit(existing: dict | None):
     is_edit = existing is not None
+    if is_edit and not _can_manage(existing):
+        st.warning("이 사례는 작성자 본인과 관리자만 수정할 수 있습니다.")
+        return
 
     # 자가치유 가드: 어떤 경로로 진입했든(수정 버튼 클릭, 다이얼로그 재실행 등)
     # 현재 로드된 캠페인 기본 정보가 existing과 다르면 여기서 다시 채워 넣는다.
@@ -621,11 +647,17 @@ def _edit(existing: dict | None):
                 st.error(err)
                 return
             if is_edit:
+                if not _can_manage(existing):  # 실행 직전 재확인
+                    st.error("이 사례를 수정할 권한이 없습니다.")
+                    return
                 cs_final["id"] = existing["id"]
                 cs_final["created_at"] = existing.get("created_at", date.today().isoformat())
+                # 작성자는 처음 등록한 사람으로 유지 (관리자가 수정해도 바뀌지 않음)
+                cs_final["created_by"] = existing.get("created_by", "")
                 update_case_study(existing["row"], cs_final)
                 st.success("수정 완료")
             else:
+                cs_final["created_by"] = _current_email()
                 new_id = create_case_study(cs_final)
                 st.success(f"등록 완료 ({new_id})")
             _reset_state()
@@ -699,13 +731,11 @@ def _validate(cs: dict, require_ai: bool = False) -> str | None:
 # 본문
 # ---------------------------------------------------------------------
 
-admin = is_admin()
-
 head_c, btn_c = st.columns([5, 1])
-if admin:
-    if btn_c.button("+ 신규 등록", use_container_width=True):
-        _open_edit(None)
-        st.rerun()
+# 등록은 로그인한 모든 사용자에게 연다 (수정·삭제 권한은 _can_manage)
+if btn_c.button("+ 신규 등록", use_container_width=True):
+    _open_edit(None)
+    st.rerun()
 
 # 필터
 all_items = get_case_studies()

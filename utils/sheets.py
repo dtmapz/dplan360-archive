@@ -1145,6 +1145,9 @@ CASESTUDY_HEADERS = [
     "target_gender", "target_age", "period_start", "period_end",
     "campaign_types", "objective", "strategy", "insight", "extra_note",
     "results_json", "ai_json", "creative_image_url", "created_at",
+    # 작성자 로그인 이메일(2026-09-14). 화면에는 표시하지 않고 수정·삭제 권한 판단에만 쓴다.
+    # 이전 등록분은 비어 있어 관리자만 수정·삭제 가능
+    "created_by",
 ]
 
 
@@ -1154,9 +1157,12 @@ def _get_casestudy_sheet():
     try:
         ws = sh.worksheet(CASESTUDY_TAB)
     except gspread.WorksheetNotFound:
-        ws = sh.add_worksheet(title=CASESTUDY_TAB, rows=200, cols=len(CASESTUDY_HEADERS))
+        # 뒤에 컬럼을 덧붙일 여유를 두고 만든다 (§17-26 ①)
+        ws = sh.add_worksheet(title=CASESTUDY_TAB, rows=200, cols=max(len(CASESTUDY_HEADERS) + 6, 26))
         ws.update(values=[CASESTUDY_HEADERS], range_name="A1")
-    return ws
+        return ws
+    # created_by 처럼 뒤에 추가된 컬럼은 기존 데이터를 건드리지 않고 덧붙인다 (§17-25)
+    return _ensure_tab_headers(ws, CASESTUDY_HEADERS)
 
 
 @st.cache_data(ttl=120)
@@ -1210,6 +1216,7 @@ def get_case_studies() -> list[dict]:
             ],
             "creative_image_url": str(r.get("creative_image_url", "")).split(",")[0].strip(),
             "created_at": str(r.get("created_at", "")).strip(),
+            "created_by": str(r.get("created_by", "")).strip().lower(),
         })
     out.sort(key=lambda x: x.get("created_at", ""), reverse=True)
     return out
@@ -1240,6 +1247,7 @@ def _cs_row(cs: dict) -> list:
         _json.dumps(cs.get("ai", {}), ensure_ascii=False),
         ",".join(u for u in (cs.get("creative_image_urls") or ([cs["creative_image_url"]] if cs.get("creative_image_url") else [])) if u),
         cs.get("created_at", date.today().isoformat()),
+        cs.get("created_by", ""),
     ]
 
 
