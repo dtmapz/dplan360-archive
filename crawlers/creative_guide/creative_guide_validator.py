@@ -270,12 +270,13 @@ def main():
     sheets = list_sheets(drive)
     log.info(f"대상 시트: {len(sheets)}개")
 
-    all_changes = []
+    total_changes = 0
     checked = 0
 
     for sheet_file in sheets:
         sheet_name = sheet_file["name"]
         log.info(f"📊 {sheet_name} 검증 중...")
+        sheet_changes = []
 
         tabs = get_tab_data(gc, sheet_file["id"])
         for tab in tabs:
@@ -296,19 +297,23 @@ def main():
                     c["sheet"] = sheet_name
                     c["tab"] = tab["tab"]
                     c["tab_url"] = tab_url
-                all_changes.extend(changes)
+                sheet_changes.extend(changes)
                 log.info(f"    ⚠️ {len(changes)}건 변경 감지")
             else:
                 log.info(f"    ✅ 변경 없음")
 
             checked += 1
 
-    elapsed = (datetime.now(KST) - start).total_seconds()
-    log.info(f"검증 완료: {checked}탭 / 변경 {len(all_changes)}건 / {elapsed:.1f}초")
+        # 시트 하나를 끝낼 때마다 바로 기록한다.
+        # 마지막에 한 번에 쓰면 실행이 중간에 끊겼을 때 그때까지 검증한 결과가 전부 사라진다
+        # (2026-09-16: 15분 타임아웃으로 8/19 시트까지 검증하고도 전량 유실)
+        if sheet_changes:
+            write_changes_to_sheet(gc, sheet_changes)
+            total_changes += len(sheet_changes)
 
-    if all_changes:
-        write_changes_to_sheet(gc, all_changes)
-    else:
+    elapsed = (datetime.now(KST) - start).total_seconds()
+    log.info(f"검증 완료: {checked}탭 / 변경 {total_changes}건 / {elapsed:.1f}초")
+    if not total_changes:
         log.info("변경 없음 — 기록 생략")
 
 

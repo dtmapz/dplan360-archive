@@ -1,4 +1,4 @@
-name: 제작 가이드 검증 (매일 05시 KST)
+name: 제작 가이드 검증 (매주 월요일 05시 KST)
 
 on:
   schedule:
@@ -8,7 +8,7 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 60  # 19개 시트 × Gemini 비교 ≈ 35분 (2026-09-16 15분 제한에 걸려 전량 유실)
 
     steps:
       - name: Checkout
