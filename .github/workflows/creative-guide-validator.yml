@@ -32,6 +32,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CG_DRIVE_FOLDER_ID: ${{ secrets.CG_DRIVE_FOLDER_ID }}
           CG_NOTIFY_EMAIL: ${{ secrets.CG_NOTIFY_EMAIL }}
+          BIGQUERY_MAPPING_SHEET_ID: ${{ secrets.BIGQUERY_MAPPING_SHEET_ID }}
         run: python creative_guide_validator.py
 
       - name: 완료
