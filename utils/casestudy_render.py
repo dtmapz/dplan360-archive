@@ -65,12 +65,12 @@ def _metrics_html(results: list[dict]) -> str:
     n = min(len(results), 4)
     grid_cls = {2: "metrics-2", 3: "metrics-3", 4: "metrics-4"}.get(n, "metrics-3")
     cells = []
-    for i, r in enumerate(results[:4]):
-        hero_cls = " hero" if i == 0 else ""
+    for r in results[:4]:
+        # KPI 는 순서와 무관하게 같은 크기·같은 색 (2026-09-16, 첫 KPI 강조 제거)
         cells.append(
             f"<div>"
             f"<div class='metric-label'>{_esc(r.get('kpi_name', ''))}</div>"
-            f"<div class='metric-value{hero_cls}'>{_esc(r.get('value', ''))}</div>"
+            f"<div class='metric-value'>{_esc(r.get('value', ''))}</div>"
             f"</div>"
         )
     return f"<div class='metrics-grid {grid_cls}'>{''.join(cells)}</div>"
@@ -127,14 +127,13 @@ body { background: #E8EAED; font-family: 'Pretendard Variable', Pretendard, -app
 .metrics-4 { grid-template-columns: repeat(4,1fr); }
 .metric-label { font-size:11.5px; color:#6B7280; margin-bottom:3px; }
 .metric-value { font-size:24px; font-weight:800; color:#0F1E3D; letter-spacing:-1px; line-height:1; }
-.metric-value.hero { color:#4C7DFF; font-size:26px; }
 .bottom-row { grid-column: 1 / -1; display:grid; grid-template-columns: 1fr 1fr 1fr; gap:28px; }
 .section-title { font-size:15px; font-weight:700; color:#0F1E3D; margin-bottom:10px; padding-bottom:8px; border-bottom:2px solid #0F1E3D; display:flex; align-items:center; justify-content:space-between; }
 .section-title .kr { color:#6B7280; font-weight:500; font-size:12px; }
 .bullet-list { list-style:none; }
 .bullet-list li { padding-left:16px; position:relative; margin-bottom:6px; font-size:14px; line-height:1.5; color:#374151; }
 .bullet-list li::before { content:''; position:absolute; left:0; top:8px; width:5px; height:5px; background:#4C7DFF; border-radius:50%; }
-.cs-footer { background:#F5F7FB; border-top:1px solid #E5E9F0; }
+.cs-footer { background:#fff; }
 </style>
 """
 

@@ -1000,12 +1000,14 @@ def _hub_dialog(media_id: str) -> None:
     with top_l:
         st.markdown(f"### {media['name']}")
     with top_r:
-        if admin:
-            if st.button("편집", key=f"hub_to_edit_{media_id}"):
-                # 편집은 매체 상세 팝업 → 하단 미디어허브 편집 영역에서 수행
-                st.session_state[f"edit_{media_id}"] = True
-                st.session_state["_active_dialog"] = ("detail", media_id, _current_page())
-                st.rerun()
+        # 매체 기본 정보 수정은 일반 사용자에게도 열려 있다(상세 팝업과 동일).
+        # 허브가 등록된 매체는 이 팝업만 열려서, 버튼이 관리자 전용이면 기본 정보를 고칠 경로가 사라진다.
+        # 넘어가는 편집 화면의 미디어허브 편집 영역은 그대로 관리자 전용(_detail_dialog 하단).
+        if st.button("수정", key=f"hub_to_edit_{media_id}"):
+            # 편집은 매체 상세 팝업 → 하단 미디어허브 편집 영역에서 수행
+            st.session_state[f"edit_{media_id}"] = True
+            st.session_state["_active_dialog"] = ("detail", media_id, _current_page())
+            st.rerun()
 
     st.write("**매체 정보**")
     render_contact_detail_table(contact, media.get("intro_doc_url") or "", media.get("updated_at"))

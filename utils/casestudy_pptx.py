@@ -383,11 +383,10 @@ def _render_title_and_results(shapes, cs: dict, ai: dict):
         cx = inner_x + i * (cell_w + gap)
         _textbox(shapes, cx, cell_y, cell_w, 16,
                  r.get("kpi_name", ""), size=11.5, color=TEXT_MUTED)
-        is_hero = (i == 0)
+        # KPI 는 순서와 무관하게 같은 크기·같은 색 (2026-09-16, 첫 KPI 강조 제거 · HTML 과 동일)
         _textbox(shapes, cx, cell_y + 20, cell_w, 36,
                  r.get("value", ""),
-                 size=(26 if is_hero else 24), bold=True,
-                 color=(BLUE if is_hero else NAVY))
+                 size=24, bold=True, color=NAVY)
 
 
 def _render_bottom_sections(shapes, ai: dict):
@@ -432,8 +431,8 @@ def _render_bottom_sections(shapes, ai: dict):
 
 
 def _render_footer(shapes):
-    _rect(shapes, 0, 680, 1280, 40, fill=GRAY_BG)
-    _line_h(shapes, 0, 680, 1280, GRAY_BORDER)
+    # 본문과 같은 흰색 — 하늘색 면·구분선 제거 (2026-09-16, HTML .cs-footer 와 동일)
+    _rect(shapes, 0, 680, 1280, 40, fill=WHITE)
 
 
 # ---------------------------------------------------------------------

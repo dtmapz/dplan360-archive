@@ -168,6 +168,21 @@ def render_login_page():
 
     st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
 
+    # 배포하면 앱이 재시작되어 모든 세션이 이 화면으로 돌아온다(session_state 초기화).
+    # 끊기는 순간에는 브라우저에 아무것도 보낼 수 없으므로, 재접속한 뒤 이유를 알려주는 안내.
+    # 탭보다 위에 두어 로그인·회원가입 양쪽에서 보이게 한다 (2026-09-16).
+    st.markdown(
+        "<div style='display:flex; gap:8px; align-items:flex-start; "
+        "background:#F1F5FB; border:1px solid #C9D9EE; border-radius:7px; "
+        "padding:9px 11px; font-size:11.5px; line-height:1.55; color:#2C4C77; "
+        "margin-bottom:14px;'>"
+        "<span style='flex:none; font-weight:700; opacity:0.75;'>i</span>"
+        "<span>작업 중 갑자기 이 화면으로 돌아왔다면 <b>플랫폼 업데이트로 앱이 재시작</b>된 "
+        "경우입니다. 다시 로그인하시면 이어서 작업할 수 있습니다.</span>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
     # 2026-09-03: Supabase 대시보드 로그인 장애(자체 이슈)로 막혀있던 Site URL 설정을
     # 복구 완료 → 회원가입 탭 재활성화 (§11-G / §17-13 참고)
     tab_login, tab_signup = st.tabs(["로그인", "회원가입"])

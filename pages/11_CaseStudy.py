@@ -17,7 +17,7 @@ from utils.sheets import (
     delete_case_study,
     get_all_media,
 )
-from utils.casestudy_llm import generate_copy
+from utils.casestudy_llm import generate_copy, title_issues
 from utils.casestudy_render import build_slide_html
 from utils.casestudy_pptx import build_slide_pptx
 
@@ -35,6 +35,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
+# AI 제목 길이 상한(공백 포함) — utils/casestudy_llm.py 프롬프트 규칙 2와 같은 값
+TITLE_MAX_LEN = 44
 
 GENDER_OPTS = ["M", "F"]
 TYPE_OPTS = ["Awareness", "Consideration", "Conversion"]
@@ -54,13 +57,32 @@ STATE_KEYS = (
     "_cs_del_confirm", "_cs_step", "_cs_loaded_id",
 )
 
+# AI 생성 결과 편집란의 위젯 키.
+# 위젯 키에 값이 남아 있으면 value= 로 넘긴 새 카피가 무시되고(§17-16),
+# 그 옛 값이 그대로 ai 에 덮어써져 저장된다 → 재생성·다른 사례 로드 시 반드시 비운다.
+# 편집란 위젯 키는 "_cs_ai_{필드}_{세대번호}" 형태 — _clear_ai_widgets() 가 세대를 올린다
+
+
+def _clear_ai_widgets():
+    """AI 편집란을 새 카피로 다시 그리게 한다.
+
+    키만 비우면 파이썬 값은 바뀌어도 브라우저가 입력 상자를 다시 그리지 않아
+    편집란에 옛 카피가 남는다(2026-09-16 실측: 미리보기·글자수는 새 카피, 상자만 옛 카피).
+    그래서 세대 번호를 올려 **키 자체를 바꾼다** → 새 위젯이 되어 value= 가 그대로 반영된다.
+    """
+    for k in [k for k in list(st.session_state) if k.startswith("_cs_ai_") and k != "_cs_ai_gen"]:
+        st.session_state.pop(k, None)
+    st.session_state["_cs_ai_gen"] = st.session_state.get("_cs_ai_gen", 0) + 1
+
 
 def _reset_state():
     for k in STATE_KEYS:
         st.session_state.pop(k, None)
+    _clear_ai_widgets()
 
 
 def _load_into_state(cs: dict):
+    _clear_ai_widgets()
     st.session_state["_cs_f_scope"] = cs.get("share_scope", "Internal")
     st.session_state["_cs_f_advertiser"] = cs.get("advertiser", "")
     st.session_state["_cs_f_brand"] = cs.get("brand", "")
@@ -453,7 +475,17 @@ def _edit(existing: dict | None):
             key="_cs_w_yend",
         )
 
-        st.markdown("**성과 KPI** (2~4개 · 첫 KPI가 강조 표시)")
+        st.markdown("**성과 KPI** (2~4개 작성)")
+        # 절대 수치가 들어오면 슬라이드에 광고주 실적이 그대로 노출된다 (§11-H 공지 배너와 같은 앰버 톤)
+        st.markdown(
+            "<div style='background:rgba(242,169,59,0.3); color:#7A4E0A; "
+            "border:1px solid rgb(242,169,59); border-radius:6px; padding:6px 10px; "
+            "font-size:12px; margin-bottom:8px;'>"
+            "<span style='background:#F2A93B; color:#1C1200; font-size:10.5px; font-weight:700; "
+            "padding:1px 6px; border-radius:4px; margin-right:6px;'>필수</span>"
+            "구체적인 수치가 아닌 <b>% 증감</b>으로 입력해 주세요. 예: +36%, -19%</div>",
+            unsafe_allow_html=True,
+        )
         results = st.session_state.get("_cs_f_results", [])
         for i, r in enumerate(results):
             rc1, rc2, rc3 = st.columns([2, 2, 0.5])
@@ -579,6 +611,8 @@ def _edit(existing: dict | None):
                     try:
                         ai = generate_copy(cs_now)
                         st.session_state["_cs_f_ai"] = ai
+                        # 편집란이 옛 카피를 붙들고 있다가 저장 시 되살아나는 것을 막는다
+                        _clear_ai_widgets()
                         st.success("생성 완료 — 아래에서 편집 가능")
                     except Exception as e:
                         st.error(f"AI 생성 실패: {e}")
@@ -587,32 +621,47 @@ def _edit(existing: dict | None):
 
         ai = st.session_state.get("_cs_f_ai", {}) or {}
         if ai:
+            _g = st.session_state.get("_cs_ai_gen", 0)  # 카피가 바뀔 때마다 키를 갈아끼운다
             with st.expander("AI 생성 결과 편집", expanded=True):
-                ai["eyebrow"] = st.text_input("Eyebrow", value=ai.get("eyebrow", ""), key="_cs_ai_eyebrow")
+                ai["eyebrow"] = st.text_input("Eyebrow", value=ai.get("eyebrow", ""), key=f"_cs_ai_eyebrow_{_g}")
                 ai["title"] = st.text_area(
                     "Title (강조할 부분은 [대괄호]로 감쌈, \\n 로 줄바꿈)",
-                    value=ai.get("title", ""), key="_cs_ai_title", height=90,
+                    value=ai.get("title", ""), key=f"_cs_ai_title_{_g}", height=90,
                 )
-                ai["caption"] = st.text_input("Caption", value=ai.get("caption", ""), key="_cs_ai_caption")
+                # 제목 규칙 안내 — 생성 단계에서 자동 보정하지만, 최종 확인은 사람이 한다.
+                # 대괄호는 강조 표시용 문법이라 글자수에서 빼고, 줄바꿈은 공백 1칸으로 센다.
+                _title_len = len(
+                    (ai.get("title") or "").replace("[", "").replace("]", "").replace("\n", " ")
+                )
+                _issues = title_issues(ai.get("title", ""), st.session_state.get("_cs_f_results", []))
+                st.markdown(
+                    f"<div style='font-size:11.5px; margin:-10px 0 6px; "
+                    f"color:{'#C4462F' if _issues else '#6E7887'};'>"
+                    f"제목 {_title_len}/{TITLE_MAX_LEN}자"
+                    + (" · " + " · ".join(_issues) if _issues else " · 규칙 충족")
+                    + "</div>",
+                    unsafe_allow_html=True,
+                )
+                ai["caption"] = st.text_input("Caption", value=ai.get("caption", ""), key=f"_cs_ai_caption_{_g}")
                 ai["challenge_bullets"] = [
                     b.strip() for b in st.text_area(
                         "Challenge bullets (한 줄에 하나)",
                         value="\n".join(ai.get("challenge_bullets", []) or []),
-                        key="_cs_ai_ch", height=100,
+                        key=f"_cs_ai_ch_{_g}", height=100,
                     ).splitlines() if b.strip()
                 ]
                 ai["approach_bullets"] = [
                     b.strip() for b in st.text_area(
                         "Approach bullets (한 줄에 하나)",
                         value="\n".join(ai.get("approach_bullets", []) or []),
-                        key="_cs_ai_ap", height=100,
+                        key=f"_cs_ai_ap_{_g}", height=100,
                     ).splitlines() if b.strip()
                 ]
                 ai["insight_bullets"] = [
                     b.strip() for b in st.text_area(
                         "Insight bullets (한 줄에 하나)",
                         value="\n".join(ai.get("insight_bullets", []) or []),
-                        key="_cs_ai_in", height=100,
+                        key=f"_cs_ai_in_{_g}", height=100,
                     ).splitlines() if b.strip()
                 ]
                 st.session_state["_cs_f_ai"] = ai
@@ -623,17 +672,8 @@ def _edit(existing: dict | None):
                 height=int(720 * 0.55) + 40,
                 scrolling=False,
             )
-            try:
-                pptx_bytes = build_slide_pptx(cs_now, ai)
-                st.download_button(
-                    "🎁 PPTX 미리 다운로드 (저장 전)",
-                    data=pptx_bytes,
-                    file_name=f"{cs_now.get('brand', 'case_study')}_preview.pptx",
-                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                    use_container_width=True,
-                )
-            except Exception as e:
-                st.warning(f"PPTX 미리보기 실패: {e}")
+            # 저장 전 PPTX 다운로드는 제공하지 않는다 — 저장본과 어긋난 파일이 돌아다닐 수 있어 제거(2026-09-16).
+            # 다운로드는 저장 후 상세 팝업의 [HTML/PPTX 다운로드]에서만.
         else:
             st.info("위의 AI 카피 생성 버튼을 눌러주세요.")
 
